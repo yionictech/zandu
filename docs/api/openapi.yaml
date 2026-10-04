@@ -1,0 +1,1095 @@
+openapi: 3.1.0
+info:
+  title: API Zandu
+  version: 0.1.0
+  summary: Place de marché Mobile Money — API du MVP
+  description: |
+    Contrat de l'API backend (`apps/api`). Toutes les routes implémentées ici sont couvertes par des
+    tests d'intégration.
+
+    **Conventions**
+    - Montants : entiers en francs CFA (`XAF`), jamais de décimales.
+    - Téléphones : saisis librement (« 06 612 34 56 »), renvoyés au format E.164 (`+242066123456`).
+    - Authentification : `Authorization: Bearer <jeton>` obtenu par OTP.
+    - Les créations sensibles exigent l'en-tête `Idempotency-Key` (8 à 128 caractères, unique par
+      intention) : renvoyer la même requête avec la même clé renvoie la même ressource, sans doublon.
+    - Erreurs : `{ "error": { "code": "…", "message": "…", "details": { … } } }` ; `code` est stable.
+
+    **Prévu (non encore exposé)** : envoi des photos produits et des pièces KYC par URL signées,
+    édition de produit, avis (F11), messagerie (F13), retrait manuel du solde vendeur, statistiques
+    vendeur, gestion des commissions et rapports dans le back-office.
+  contact:
+    name: Zandu
+  license:
+    name: Propriétaire — tous droits réservés
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:3000
+    description: Développement local
+security:
+  - session: []
+tags:
+  - name: Authentification
+    description: Connexion par code SMS et sessions révocables
+  - name: Catalogue
+    description: Catégories, recherche, fiches produit, zones de livraison (public)
+  - name: Vendeur
+    description: Boutique, produits, commandes à traiter, argent du vendeur
+  - name: Achat
+    description: Panier validé, paiement Mobile Money et suivi du paiement
+  - name: Commandes
+    description: Suivi, confirmation de réception, litiges (acheteur)
+  - name: Livreur
+    description: Missions, collecte, remise avec code
+  - name: Support
+    description: Back-office — vérification, modération, litiges, contrôle comptable
+  - name: Webhooks
+    description: Notifications signées des agrégateurs
+  - name: Système
+    description: Santé du service
+
+paths:
+  /health:
+    get:
+      tags: [Système]
+      summary: Santé du service (base joignable)
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/auth/otp/request:
+    post:
+      tags: [Authentification]
+      summary: Envoyer un code de connexion par SMS
+      description: |
+        Même réponse que le numéro ait un compte ou non. Limites : 1 code / 60 s et 5 / h par numéro,
+        30 / h par adresse IP.
+      operationId: requestOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, examples: ['06 612 34 56'] }
+      responses:
+        '202':
+          description: Code envoyé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challengeId, expiresInSeconds, resendAfterSeconds]
+                properties:
+                  challengeId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer, examples: [300] }
+                  resendAfterSeconds: { type: integer, examples: [60] }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/otp/verify:
+    post:
+      tags: [Authentification]
+      summary: Vérifier le code et ouvrir une session
+      description: Crée le compte au premier passage. 5 essais par code.
+      operationId: verifyOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeId, code]
+              properties:
+                challengeId: { type: string, format: uuid }
+                code: { type: string, pattern: '^\d{6}$' }
+                deviceLabel: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: Session ouverte
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expiresAt, user]
+                properties:
+                  token: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/me:
+    get:
+      tags: [Authentification]
+      summary: Utilisateur connecté
+      operationId: me
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/logout:
+    post:
+      tags: [Authentification]
+      summary: Révoquer la session courante
+      operationId: logout
+      responses:
+        '204': { description: Session révoquée }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/categories:
+    get:
+      tags: [Catalogue]
+      summary: Catégories actives
+      operationId: listCategories
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    parentId: { type: [string, 'null'], format: uuid }
+                    slug: { type: string }
+                    name: { type: string }
+
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/products:
+    get:
+      tags: [Catalogue]
+      summary: Rechercher des produits (F4)
+      description: Recherche plein texte en français, insensible aux accents et tolérante aux fautes de frappe.
+      operationId: searchProducts
+      security: []
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - {
+            name: categoryId,
+            in: query,
+            description: Inclut les sous-catégories,
+            schema: { type: string, format: uuid },
+          }
+        - { name: city, in: query, schema: { type: string } }
+        - { name: minPrice, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: maxPrice, in: query, schema: { type: integer, minimum: 1 } }
+        - name: sort
+          in: query
+          schema:
+            { type: string, enum: [relevance, newest, price_asc, price_desc], default: relevance }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 50, default: 20 },
+          }
+        - {
+            name: offset,
+            in: query,
+            schema: { type: integer, minimum: 0, maximum: 1000, default: 0 },
+          }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProductCard' }
+
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/products/{id}:
+    get:
+      tags: [Catalogue]
+      summary: Fiche produit
+      operationId: getProduct
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ProductCard'
+                  - type: object
+                    properties:
+                      description: { type: string }
+                      media:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key: { type: string }
+                            width: { type: [integer, 'null'] }
+                            height: { type: [integer, 'null'] }
+                      reviews:
+                        type: object
+                        properties:
+                          average: { type: [number, 'null'] }
+                          count: { type: integer }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/delivery/zones:
+    get:
+      tags: [Catalogue]
+      summary: Zones de livraison et points relais
+      operationId: listDeliveryZones
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    city: { type: string }
+                    name: { type: string }
+                    pickupPoints:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id: { type: string, format: uuid }
+                          name: { type: string }
+                          landmark: { type: string }
+
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/seller/shop:
+    post:
+      tags: [Vendeur]
+      summary: Ouvrir sa boutique
+      description: Aucune pièce demandée à ce stade ; la vérification (KYC) conditionne les reversements.
+      operationId: openShop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shopName, city, pickupZoneId, payoutPhone, payoutOperator]
+              properties:
+                shopName: { type: string, minLength: 2, maxLength: 80 }
+                city: { type: string }
+                pickupZoneId: { type: string, format: uuid }
+                payoutPhone: { type: string }
+                payoutOperator: { $ref: '#/components/schemas/Operator' }
+                kind: { type: string, enum: [individual, business], default: individual }
+      responses:
+        '201': { $ref: '#/components/responses/Created' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/products:
+    post:
+      tags: [Vendeur]
+      summary: Publier un produit (F3)
+      description: Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération).
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [categoryId, title, price, stock]
+              properties:
+                categoryId: { type: string, format: uuid }
+                title: { type: string, minLength: 3, maxLength: 140 }
+                description: { type: string, maxLength: 5000 }
+                price: { $ref: '#/components/schemas/Amount' }
+                stock: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: Créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string, enum: [published, pending_review] }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/balance:
+    get:
+      tags: [Vendeur]
+      summary: Mon argent (F15)
+      operationId: sellerBalance
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { $ref: '#/components/schemas/Amount' }
+                  inEscrow: { $ref: '#/components/schemas/Amount' }
+                  payouts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                        status: { type: string, enum: [pending, processing, succeeded, failed] }
+                        orderId: { type: [string, 'null'], format: uuid }
+                        createdAt: { type: string, format: date-time }
+                        succeededAt: { type: [string, 'null'], format: date-time }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/seller/orders:
+    get:
+      tags: [Vendeur]
+      summary: Commandes de ma boutique
+      operationId: sellerOrders
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+      responses:
+        '200': { $ref: '#/components/responses/OrderList' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/seller/orders/{id}/accept:
+    post:
+      tags: [Vendeur]
+      summary: Accepter une commande payée (avant l'échéance de 24 h)
+      operationId: acceptOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/reject:
+    post:
+      tags: [Vendeur]
+      summary: Refuser une commande (l'acheteur est remboursé)
+      operationId: rejectOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/ready:
+    post:
+      tags: [Vendeur]
+      summary: Colis prêt pour le livreur
+      operationId: markOrderReady
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/checkouts:
+    post:
+      tags: [Achat]
+      summary: Transformer le panier en commandes (une par vendeur)
+      description: Réserve le stock. Le panier expire s'il n'est pas payé (10 min par tentative, 30 min au total).
+      operationId: createCheckout
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, delivery]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [productId, quantity]
+                    properties:
+                      productId: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1, maximum: 100 }
+                delivery:
+                  type: object
+                  required: [mode, zoneId, recipientName, phone, landmark]
+                  properties:
+                    mode: { type: string, enum: [home, pickup_point] }
+                    zoneId: { type: string, format: uuid }
+                    pickupPointId: { type: string, format: uuid }
+                    recipientName: { type: string }
+                    phone: { type: string }
+                    landmark:
+                      type: string
+                      description: Adresse par repères
+                      examples: ["Tié-Tié, derrière l'école Saint-Pierre, portail bleu"]
+      responses:
+        '201':
+          description: Créé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/checkouts/{id}:
+    get:
+      tags: [Achat]
+      summary: Panier validé et ses commandes
+      operationId: getCheckout
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Checkout' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/checkouts/{id}/payments:
+    post:
+      tags: [Achat]
+      summary: Lancer le paiement Mobile Money (F7)
+      description: |
+        Envoie la demande de validation (code PIN) sur le téléphone. Interroger ensuite
+        `GET /v1/payments/{id}` toutes les 3 s. Une seule tentative en cours à la fois ; après un échec,
+        une nouvelle tentative (autre numéro / opérateur) est possible tant que le panier n'a pas expiré.
+      operationId: createPayment
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operator, phone]
+              properties:
+                operator: { $ref: '#/components/schemas/Operator' }
+                phone: { type: string }
+      responses:
+        '201':
+          description: Demande envoyée (ou refusée immédiatement)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/payments/{id}:
+    get:
+      tags: [Achat]
+      summary: État d'un paiement (écran d'attente)
+      operationId: getPayment
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/orders:
+    get:
+      tags: [Commandes]
+      summary: Mes commandes (acheteur)
+      operationId: myOrders
+      responses:
+        '200': { $ref: '#/components/responses/OrderList' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/orders/{id}:
+    get:
+      tags: [Commandes]
+      summary: Détail et historique d'une commande
+      description: Accessible à l'acheteur, au vendeur concerné et au support.
+      operationId: getOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Order'
+                  - type: object
+                    properties:
+                      history:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            status: { $ref: '#/components/schemas/OrderStatus' }
+                            event: { type: string }
+                            at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/orders/{id}/cancel:
+    post:
+      tags: [Commandes]
+      summary: Annuler avant acceptation du vendeur (remboursement intégral)
+      operationId: cancelOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/orders/{id}/confirm-receipt:
+    post:
+      tags: [Commandes]
+      summary: « Tout est conforme » — libère le paiement au vendeur sans attendre 48 h
+      operationId: confirmReceipt
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/orders/{id}/disputes:
+    post:
+      tags: [Commandes]
+      summary: Signaler un problème dans les 48 h suivant la remise (F12)
+      operationId: openDispute
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, description]
+              properties:
+                reason:
+                  type: string
+                  enum: [not_received, not_as_described, damaged, counterfeit, missing_items, other]
+                description: { type: string, minLength: 10, maxLength: 2000 }
+      responses:
+        '201':
+          description: Litige ouvert
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string, const: open }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/orders/{id}/handover-code:
+    post:
+      tags: [Commandes]
+      summary: Recevoir un nouveau code de remise par SMS (l'ancien est invalidé)
+      operationId: regenerateHandoverCode
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '202': { description: Code envoyé }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries:
+    get:
+      tags: [Livreur]
+      summary: Mes missions en cours
+      operationId: riderDeliveries
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        status: { type: string }
+                        deliveryMode: { type: string, enum: [home, pickup_point] }
+                        shippingAddress: { $ref: '#/components/schemas/ShippingAddress' }
+                        shopName: { type: string }
+                        pickupZone: { type: string }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/rider/deliveries/{id}/pickup:
+    post:
+      tags: [Livreur]
+      summary: J'ai récupéré le colis
+      operationId: riderPickup
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/arrived-at-pickup-point:
+    post:
+      tags: [Livreur]
+      summary: Colis déposé au point relais
+      operationId: riderArrivedAtPickupPoint
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/handover:
+    post:
+      tags: [Livreur]
+      summary: Remise en main propre avec le code de l'acheteur (F10)
+      operationId: riderHandover
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '422': { $ref: '#/components/responses/Error' }
+        '423':
+          description: Verrouillé après 5 codes erronés — contacter le support
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/rider/deliveries/{id}/failed:
+    post:
+      tags: [Livreur]
+      summary: Livraison impossible (ouvre un litige)
+      operationId: riderDeliveryFailed
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/support/orders/{id}/cancel:
+    post:
+      tags: [Support]
+      summary: Annuler une commande payée non expédiée (remboursement intégral)
+      operationId: supportCancelOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/deliveries/{id}/assign:
+    post:
+      tags: [Support]
+      summary: Assigner un livreur à la commande
+      operationId: assignRider
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [riderId]
+              properties:
+                riderId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Assigné
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId: { type: string, format: uuid }
+                  riderId: { type: string, format: uuid }
+                  status: { type: string, const: assigned }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/support/disputes/{id}/resolve:
+    post:
+      tags: [Support]
+      summary: Trancher un litige (F9, F12)
+      operationId: resolveDispute
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, note]
+              properties:
+                resolution: { type: string, enum: [release_to_seller, refund_full, refund_partial] }
+                refundAmount:
+                  $ref: '#/components/schemas/Amount'
+                  description: Requis pour `refund_partial`, inférieur à la valeur des articles
+                note: { type: string, minLength: 5, maxLength: 2000 }
+      responses:
+        '200':
+          description: Décision appliquée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disputeId: { type: string, format: uuid }
+                  orderId: { type: string, format: uuid }
+                  orderStatus: { $ref: '#/components/schemas/OrderStatus' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/sellers/{id}/verification:
+    post:
+      tags: [Support]
+      summary: Décision de vérification d'un vendeur (F2)
+      operationId: verifySeller
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [verified, rejected, suspended] }
+                reason: { type: string, description: Requis sauf pour `verified` }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  verificationStatus: { type: string }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/admin/products/{id}/moderation:
+    post:
+      tags: [Support]
+      summary: Modérer un produit (F16)
+      operationId: moderateProduct
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [published, rejected] }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/admin/ledger/balances:
+    get:
+      tags: [Support]
+      summary: Contrôle comptable — la balance générale doit valoir 0
+      operationId: ledgerBalances
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trialBalance: { type: integer, const: 0 }
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, examples: ['liability:escrow'] }
+                        balance: { type: integer }
+
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/webhooks/payments/{provider}:
+    post:
+      tags: [Webhooks]
+      summary: Notification signée de l'agrégateur
+      description: |
+        Corps brut vérifié par signature (HMAC + horodatage). Dédoublonné par identifiant d'événement :
+        un rejeu renvoie `duplicate` sans effet.
+      operationId: paymentWebhook
+      security: []
+      parameters:
+        - {
+            name: provider,
+            in: path,
+            required: true,
+            schema: { type: string, examples: [simulator] },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Traité
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  outcome: { type: string, enum: [processed, duplicate, ignored] }
+        '401': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    session:
+      type: http
+      scheme: bearer
+      description: Jeton opaque obtenu par `POST /v1/auth/otp/verify`
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+
+  requestBodies:
+    Reason:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason: { type: string, minLength: 3, maxLength: 300 }
+
+  responses:
+    Error:
+      description: Erreur
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Created:
+      description: Créé
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+    OrderStatusChange:
+      description: Nouveau statut
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              status: { $ref: '#/components/schemas/OrderStatus' }
+    OrderList:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
+
+  schemas:
+    Amount:
+      type: integer
+      minimum: 0
+      description: Montant en francs CFA (XAF), entier
+      examples: [25000]
+    Operator:
+      type: string
+      enum: [mtn, airtel]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [out_of_stock] }
+            message: { type: string }
+            details: { type: object }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        phone: { type: string, examples: ['+242066123456'] }
+        fullName: { type: [string, 'null'] }
+        roles:
+          type: array
+          items: { type: string, enum: [buyer, seller, rider, support, admin] }
+    ProductCard:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        price: { $ref: '#/components/schemas/Amount' }
+        compareAtPrice: { type: [integer, 'null'] }
+        stock: { type: integer }
+        city: { type: string }
+        categoryId: { type: string, format: uuid }
+        coverImage: { type: [string, 'null'] }
+        seller:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            shopName: { type: string }
+            slug: { type: string }
+            verified: { type: boolean }
+            ratingAvg: { type: [string, 'null'] }
+    OrderStatus:
+      type: string
+      enum:
+        [
+          pending_payment,
+          paid,
+          preparing,
+          ready_for_pickup,
+          in_delivery,
+          awaiting_collection,
+          delivered,
+          completed,
+          disputed,
+          refunded,
+          cancelled,
+        ]
+    ShippingAddress:
+      type: object
+      properties:
+        recipientName: { type: string }
+        phone: { type: string }
+        landmark: { type: string }
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        publicRef: { type: string, examples: [ZD-7K3M9Q2P] }
+        checkoutId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        seller:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            shopName: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: string, format: uuid }
+              title: { type: string }
+              unitPrice: { $ref: '#/components/schemas/Amount' }
+              quantity: { type: integer }
+              lineTotal: { $ref: '#/components/schemas/Amount' }
+        itemsSubtotal: { $ref: '#/components/schemas/Amount' }
+        deliveryFee: { $ref: '#/components/schemas/Amount' }
+        total: { $ref: '#/components/schemas/Amount' }
+        refundedAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { type: string, const: XAF }
+        deliveryMode: { type: string, enum: [home, pickup_point] }
+        shippingAddress: { $ref: '#/components/schemas/ShippingAddress' }
+        sellerAcceptDeadline: { type: [string, 'null'], format: date-time }
+        disputeWindowEndsAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        paidAt: { type: [string, 'null'], format: date-time }
+        deliveredAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        cancelReason: { type: [string, 'null'] }
+    Checkout:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [awaiting_payment, paid, expired] }
+        itemsTotal: { $ref: '#/components/schemas/Amount' }
+        deliveryTotal: { $ref: '#/components/schemas/Amount' }
+        grandTotal: { $ref: '#/components/schemas/Amount' }
+        currency: { type: string, const: XAF }
+        expiresAt: { type: string, format: date-time }
+        paidAt: { type: [string, 'null'], format: date-time }
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        checkoutId: { type: string, format: uuid }
+        status: { type: string, enum: [created, pending, succeeded, failed, expired] }
+        operator: { $ref: '#/components/schemas/Operator' }
+        msisdn: { type: string, examples: ['+242066123456'] }
+        amount: { $ref: '#/components/schemas/Amount' }
+        currency: { type: string, const: XAF }
+        expiresAt: { type: string, format: date-time }
+        lateSuccess:
+          type: boolean
+          description: Succès reçu après expiration — remboursé automatiquement
+        failure:
+          type: [object, 'null']
+          properties:
+            code:
+              type: string
+              enum:
+                [
+                  insufficient_funds,
+                  declined,
+                  invalid_account,
+                  limit_exceeded,
+                  expired,
+                  not_submitted,
+                  failed,
+                ]
+            message: { type: string, description: Message prêt à afficher à l'acheteur }

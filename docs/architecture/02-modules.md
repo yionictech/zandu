@@ -1,0 +1,68 @@
+# 2. Modules et traçabilité des exigences
+
+## 2.1 Organisation du dépôt
+
+```
+zandu/
+├── packages/domain/        Règles métier PURES (aucune dépendance : ni base, ni réseau, ni framework)
+│   └── src/                money · phone · commission · order-machine · payment-machine
+│                           ledger · payout-policy · chat-filter
+├── apps/api/               Backend : API HTTP (main.ts) + worker (worker.ts), même code
+│   └── src/
+│       ├── modules/        Un dossier par domaine fonctionnel (voir 2.2)
+│       ├── jobs/           Balayeurs exécutés par le worker
+│       ├── db/             Pool, transactions, migrations, données de référence
+│       └── lib/            Erreurs HTTP, crypto, horloge, idempotence
+├── db/migrations/          SQL versionné, appliqué dans l'ordre (jamais modifié une fois en production)
+├── db/seeds/               Données de référence (zones, tarifs, catégories, commissions)
+└── docs/                   Ce dossier d'architecture
+```
+
+À venir : `apps/mobile` (Expo), `apps/web` (Next.js acheteur + vendeur), `apps/backoffice` (Next.js).
+
+## 2.2 Modules du monolithe
+
+| Module          | Responsabilité                                                             | Tables possédées (écriture)                                 |
+| --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `auth`          | OTP, sessions, rôles, gardes d'accès                                       | users, otp_challenges, sessions, user_mfa                   |
+| `catalog`       | Boutiques, produits, recherche, zones de livraison (lecture)               | seller_profiles, products, product_media, categories        |
+| `checkout`      | Panier → checkout → une commande par vendeur, réservation du stock         | checkouts, orders (création), order_items                   |
+| `orders`        | **Seul point d'évolution d'une commande** + livraison + litiges            | orders (statut), order_status_history, deliveries, disputes |
+| `payments`      | Collecte Mobile Money, webhooks, interrogation, expiration, remboursements | payments, provider_events, refunds                          |
+| `payouts`       | Reversements vendeurs, moteur commun des sorties d'argent                  | payouts                                                     |
+| `ledger`        | Grand livre : écriture idempotente, soldes                                 | ledger_accounts, ledger_transactions, ledger_entries        |
+| `notifications` | Outbox → notifications → WhatsApp/SMS                                      | outbox_events, notifications                                |
+| `admin`         | Vérification vendeurs, modération, audit, contrôles comptables             | audit_logs, commission_rules, platform_settings             |
+
+**Règles de dépendance**
+
+1. `packages/domain` ne dépend de rien. Tout calcul d'argent ou décision de statut y vit.
+2. Un module n'écrit que dans **ses** tables ; pour agir sur un autre domaine il appelle **son service**
+   (ex. `payments` appelle `applyOrderEvent` de `orders`, jamais `UPDATE orders SET status`).
+   Les lectures croisées en SQL sont permises pour construire des vues.
+3. Les routes HTTP ne contiennent pas de règle métier : validation (zod), contrôle d'accès, appel de service.
+4. Toute écriture comptable passe par `postJournal` avec une écriture produite par `packages/domain/ledger.ts`.
+
+## 2.3 Traçabilité des exigences du cahier des charges
+
+| Réf. | Exigence (priorité)                                           | Où                                                        | État dans ce dépôt                                         |
+| ---- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
+| F1   | Inscription / connexion par code SMS (P1)                     | `auth`                                                    | ✅ OTP, limites anti-fraude, sessions révocables           |
+| F2   | Vérification du vendeur (P1)                                  | `catalog` (boutique), `admin` (décision), `kyc_documents` | 🟡 décision KYC ✅ ; envoi des pièces (URL signées) ⏳     |
+| F3   | Création d'un produit, 6 photos (P1)                          | `catalog`                                                 | 🟡 création ✅ ; photos (upload + variantes d'image) ⏳    |
+| F4   | Recherche, filtres, tri (P1)                                  | `catalog`                                                 | ✅ plein texte FR sans accents + fautes de frappe          |
+| F5   | Variantes et promotions (P2)                                  | `products.compare_at_price`                               | ⏳ V2 (migration `product_variants` prévue)                |
+| F6   | Panier, adresse, domicile / point relais (P1)                 | `checkout`                                                | ✅ multi-vendeurs, adresse par repères                     |
+| F7   | Paiement MTN / Airtel, séquestre (P1)                         | `payments`, `ledger`                                      | ✅ avec simulateur ; adaptateur agrégateur réel ⏳         |
+| F8   | Reversement automatique, commission déduite (P1)              | `orders` → `payouts`                                      | ✅ avec plafonds nouveaux vendeurs                         |
+| F9   | Remboursement total ou partiel (P1)                           | `orders`, `payments/refunds`                              | ✅                                                         |
+| F10  | Tarif par zone, livreur, code de remise (P1)                  | `checkout`, `orders`                                      | ✅                                                         |
+| F11  | Avis réservés aux acheteurs livrés (P1)                       | table `reviews` (1 avis par article reçu)                 | ⏳ endpoints à écrire (½ journée)                          |
+| F12  | Litige sous 48 h avec photos (P1)                             | `orders`                                                  | 🟡 litige ✅ ; pièces jointes (photos) ⏳                  |
+| F13  | Messagerie filtrée (P2)                                       | `domain/chat-filter`, tables `conversations`, `messages`  | 🟡 filtre ✅ ; endpoints + temps réel ⏳                   |
+| F14  | Notifications SMS et WhatsApp (P1)                            | `notifications`                                           | 🟡 outbox + modèles ✅ ; adaptateur fournisseur réel ⏳    |
+| F15  | Tableau de bord vendeur (P1)                                  | `catalog` (`/v1/seller/balance`), `orders`                | 🟡 solde, séquestre, reversements, commandes ✅ ; stats ⏳ |
+| F16  | Back-office : modération, comptes, commissions, rapports (P1) | `admin`                                                   | 🟡 API vérification, modération, balance ✅ ; interface ⏳ |
+| F17  | Journal d'audit (P1)                                          | `admin/audit`, table `audit_logs`                         | ✅ écriture seule, verrouillé en base                      |
+
+Légende : ✅ fait et testé · 🟡 partiel · ⏳ à faire.

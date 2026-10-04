@@ -264,6 +264,50 @@ describe('Cahier des charges §5 — cas d’erreur de paiement', () => {
     }
   });
 
+  it("arrêt brutal du worker pendant un reversement : vérification d'abord, jamais de double paiement", async () => {
+    const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
+    const payment = await pay(env, m.buyer, co.id);
+    await approveAndNotify(env, payment.body.id);
+    await deliver(co.orders[0].id);
+    await call(env, m.buyer, {
+      method: 'POST',
+      url: `/v1/orders/${co.orders[0].id}/confirm-receipt`,
+    });
+    const { rows } = await env.pool.query<{ id: string; amount: number; msisdn: string }>(
+      'SELECT id, amount, msisdn FROM payouts',
+    );
+    const payout = rows[0]!;
+
+    // Le worker a envoyé l'ordre à l'agrégateur puis s'est arrêté avant d'enregistrer la réponse.
+    await env.simulator.initiatePayout({
+      reference: payout.id,
+      amount: payout.amount,
+      currency: 'XAF',
+      msisdn: payout.msisdn,
+      operator: 'mtn',
+      description: 'x',
+    });
+    await env.pool.query(
+      `UPDATE payouts SET status = 'processing', attempts = 1, next_attempt_at = $2 WHERE id = $1`,
+      [payout.id, env.clock.now()],
+    );
+    const sendSpy = env.simulator.initiatePayout.bind(env.simulator);
+    let resent = 0;
+    env.simulator.initiatePayout = async (request) => {
+      resent++;
+      return sendSpy(request);
+    };
+    try {
+      await processPayouts(env.ctx);
+    } finally {
+      env.simulator.initiatePayout = sendSpy;
+    }
+    expect(resent).toBe(0); // constaté par consultation, pas renvoyé
+    expect((await env.pool.query('SELECT status FROM payouts')).rows[0].status).toBe('succeeded');
+    expect(await balance(env, 'liability:payouts_in_transit')).toBe(0);
+    expect(await trialBalance(env)).toBe(0);
+  });
+
   it('vendeur silencieux 24 h : commande annulée et acheteur remboursé', async () => {
     const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
     const payment = await pay(env, m.buyer, co.id);

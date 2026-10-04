@@ -1,0 +1,5 @@
+extends:
+  - recommended
+rules:
+  # Le seul serveur décrit est l'environnement local de développement.
+  no-server-example.com: off

@@ -18,7 +18,7 @@
     "dev:worker": "pnpm --filter @zandu/api dev:worker",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:openapi": "pnpm dlx @redocly/cli@2 lint docs/api/openapi.yaml"
+    "lint:openapi": "pnpm --package=@redocly/cli@2 dlx redocly lint docs/api/openapi.yaml"
   },
   "devDependencies": {
     "prettier": "^3.9.9",

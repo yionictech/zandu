@@ -81,10 +81,12 @@ export async function processDisbursements<Row extends DisbursementRow>(
   const now = ctx.clock.now();
   const lease = addMinutes(now, ctx.config.disbursements.leaseMinutes);
 
-  // 1. Réserver un lot (bail de quelques minutes) : un autre worker ne le prendra pas.
+  // 1. Réserver un lot (bail de quelques minutes) : un autre worker ne le prendra pas. Le lot
+  //    passe en « processing » AVANT l'appel : si le worker s'arrête net, la passe suivante
+  //    vérifiera auprès de l'agrégateur au lieu de renvoyer l'ordre.
   const claimed = await withTx(ctx.pool, async (tx) => {
     const { rows } = await tx.query<{ id: string; status: 'pending' | 'processing' }>(
-      `UPDATE ${spec.table} t SET next_attempt_at = $2,
+      `UPDATE ${spec.table} t SET status = 'processing', next_attempt_at = $2,
               attempts = t.attempts + CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END
        FROM (SELECT id, status FROM ${spec.table}
              WHERE status IN ('pending', 'processing') AND next_attempt_at <= $1
