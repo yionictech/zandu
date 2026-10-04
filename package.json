@@ -1,0 +1,28 @@
+{
+  "name": "zandu",
+  "private": true,
+  "description": "Zandu — place de marché Mobile Money (Congo) : monorepo",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:unit": "pnpm --filter @zandu/domain test",
+    "test:integration": "pnpm --filter @zandu/api test",
+    "db:migrate": "pnpm --filter @zandu/api db:migrate",
+    "db:seed": "pnpm --filter @zandu/api db:seed",
+    "dev:api": "pnpm --filter @zandu/api dev",
+    "dev:worker": "pnpm --filter @zandu/api dev:worker",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:openapi": "pnpm dlx @redocly/cli@2 lint docs/api/openapi.yaml"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

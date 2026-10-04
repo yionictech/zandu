@@ -1,0 +1,31 @@
+# Environnement de développement local : `docker compose up -d` puis voir README.md.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: zandu
+      POSTGRES_PASSWORD: zandu
+      POSTGRES_DB: zandu
+    ports: ['5432:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U zandu']
+      interval: 5s
+      retries: 10
+
+  # Stockage objet compatible S3 (photos produits, pièces KYC dans un compartiment séparé).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: zandu
+      MINIO_ROOT_PASSWORD: zandu-dev-password
+    ports: ['9000:9000', '9001:9001']
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:
