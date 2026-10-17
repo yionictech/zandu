@@ -66,6 +66,10 @@ function statusAfterContentChange(shop: Shop, current: string): string {
     : current;
 }
 
+/** Statut d'un produit mis en vente : en ligne si la boutique est vérifiée, sinon modération. */
+const publishedStatus = (shop: Shop): 'published' | 'pending_review' =>
+  shop.verification_status === 'verified' ? 'published' : 'pending_review';
+
 async function productPhotos(ctx: AppContext, db: Db, productId: string) {
   const { rows } = await db.query<{ id: string; storage_key: string; position: number }>(
     'SELECT id, storage_key, position FROM product_media WHERE product_id = $1 ORDER BY position',
@@ -204,16 +208,20 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
 
     // ---------------- Produits ----------------
 
+    /** Produits de la boutique (hors archives) ; `?status=archived` pour les archives. */
     app.get('/v1/seller/products', async (request) => {
+      const { status } = z
+        .object({ status: z.literal('archived').optional() })
+        .parse(request.query);
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       const { rows } = await ctx.pool.query<{ coverImage: string | null }>(
         `SELECT p.id, p.title, p.price, p.stock, p.status, p.category_id AS "categoryId",
                 p.rejection_reason AS "rejectionReason", p.updated_at AS "updatedAt",
                 (SELECT storage_key FROM product_media m WHERE m.product_id = p.id ORDER BY position LIMIT 1) AS "coverImage",
                 (SELECT count(*)::int FROM product_media m WHERE m.product_id = p.id) AS "photoCount"
-         FROM products p WHERE p.seller_id = $1 AND p.status <> 'archived'
+         FROM products p WHERE p.seller_id = $1 AND (p.status = 'archived') = $2
          ORDER BY p.updated_at DESC LIMIT 200`,
-        [shop.id],
+        [shop.id, status === 'archived'],
       );
       return {
         items: rows.map((r) => ({
@@ -223,9 +231,24 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       };
     });
 
+    /** Fiche complète pour l'écran de modification (description et photos comprises). */
+    app.get('/v1/seller/products/:id', async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
+      const { rows } = await ctx.pool.query(
+        `SELECT id, title, description, price, stock, status, category_id AS "categoryId",
+                rejection_reason AS "rejectionReason", updated_at AS "updatedAt"
+         FROM products WHERE id = $1 AND seller_id = $2`,
+        [id, shop.id],
+      );
+      if (!rows[0]) throw notFound('Produit');
+      return { ...rows[0], photos: await productPhotos(ctx, ctx.pool, id) };
+    });
+
     /**
      * Publier un produit (F3). Vendeur vérifié : en ligne immédiatement (modération a
      * posteriori). Vendeur non vérifié : file de modération (rampe de confiance).
+     * `publish: false` crée un brouillon : l'application y rattache les photos, puis publie.
      */
     app.post('/v1/seller/products', async (request, reply) => {
       const body = z
@@ -235,13 +258,14 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           description: z.string().trim().max(5000).default(''),
           price: z.int().positive().max(100_000_000),
           stock: z.int().min(0).max(100_000),
+          publish: z.boolean().default(true),
         })
         .parse(request.body);
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       if (shop.verification_status === 'suspended') {
         throw new HttpError(403, 'seller_suspended', 'Boutique suspendue');
       }
-      const status = shop.verification_status === 'verified' ? 'published' : 'pending_review';
+      const status = body.publish ? publishedStatus(shop) : 'draft';
       const { rows } = await ctx.pool.query<{ id: string; status: string }>(
         `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::product_status,
@@ -289,8 +313,21 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           status = statusAfterContentChange(shop, status);
         }
         if (body.status === 'archived') status = 'archived';
-        if (body.status === 'published' && product.status === 'archived') {
-          status = shop.verification_status === 'verified' ? 'published' : 'pending_review';
+        if (body.status === 'published' && ['archived', 'draft', 'rejected'].includes(status)) {
+          if (shop.verification_status === 'suspended') {
+            throw new HttpError(403, 'seller_suspended', 'Boutique suspendue');
+          }
+          if (status === 'draft') {
+            const { rowCount } = await tx.query(
+              'SELECT 1 FROM product_media WHERE product_id = $1 LIMIT 1',
+              [id],
+            );
+            if (!rowCount) {
+              throw new HttpError(409, 'photo_required', 'Ajoutez au moins une photo');
+            }
+          }
+          // Un produit refusé corrigé repart en modération, même chez un vendeur vérifié.
+          status = status === 'rejected' ? 'pending_review' : publishedStatus(shop);
         }
         const { rows } = await tx.query(
           `UPDATE products SET
@@ -427,8 +464,10 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
     app.get('/v1/seller/balance', async (request) => {
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       const { rows: payouts } = await ctx.pool.query(
-        `SELECT id, amount, status, order_id AS "orderId", created_at AS "createdAt", succeeded_at AS "succeededAt"
-         FROM payouts WHERE seller_id = $1 ORDER BY created_at DESC LIMIT 50`,
+        `SELECT p.id, p.amount, p.status, p.order_id AS "orderId", o.public_ref AS "publicRef",
+                p.created_at AS "createdAt", p.succeeded_at AS "succeededAt"
+         FROM payouts p LEFT JOIN orders o ON o.id = p.order_id
+         WHERE p.seller_id = $1 ORDER BY p.created_at DESC LIMIT 50`,
         [shop.id],
       );
       return {

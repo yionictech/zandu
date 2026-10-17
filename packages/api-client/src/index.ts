@@ -9,6 +9,12 @@ export type OrderStatus = Schemas['OrderStatus'];
 export type Checkout = Schemas['Checkout'];
 export type Payment = Schemas['Payment'];
 export type User = Schemas['User'];
+export type SellerOrder = Schemas['SellerOrder'];
+export type SellerProduct = Schemas['SellerProduct'];
+export type RiderMission = Schemas['RiderMission'];
+export type ProductStatus = Schemas['ProductStatus'];
+export type KycDocumentType = Schemas['KycDocumentType'];
+export type VerificationStatus = Schemas['VerificationStatus'];
 
 export interface ClientOptions {
   baseUrl: string;

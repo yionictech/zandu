@@ -97,6 +97,8 @@ photos depuis l'appareil photo → description → « Réponse du support sous 7
 
 ## 2. Parcours vendeur : publier en moins de 5 minutes
 
+Réalisé dans `apps/mobile/app/vendeur` ([captures](captures/parcours-vendeur-livreur.jpg)).
+
 ```
 Ouvrir ma boutique (1 écran) ─► Ajouter un produit (photo d'abord) ─► Publié / en vérification
 ```
@@ -130,7 +132,11 @@ une entreprise RCCM + NIU.
 └────────────────────────────────┘
 ```
 
-Brouillon enregistré à chaque champ ; envoi différé si le réseau manque. Vendeur vérifié : en ligne
+Brouillon enregistré à chaque champ ; envoi différé si le réseau manque. Dans l'application : chaque
+photo est compressée sur le téléphone (1 600 px, JPEG 80 %) puis envoyée pendant que le vendeur tape ;
+« Publier » crée un brouillon côté serveur, y rattache les photos, puis le publie : un produit n'est
+jamais en ligne sans photo. La catégorie est placée avant le prix pour que « Vous recevrez » s'affiche
+juste sous le prix saisi. Vendeur vérifié : en ligne
 immédiatement. Non vérifié : « En vérification, en ligne sous 2 h » (modération).
 V2 : titre, catégorie et description proposés automatiquement à partir de la photo.
 
@@ -138,10 +144,17 @@ V2 : titre, catégorie et description proposés automatiquement à partir de la 
 
 - **À traiter** en tête, avec compte à rebours (« Acceptez avant 10:02 demain, sinon la commande est
   annulée »). Deux boutons : Accepter / Refuser (motif).
-- **Mon argent** : Disponible · En séquestre (« arrive après livraison ») · Versé (historique) —
-  directement issu de `GET /v1/seller/balance`.
+- **Mon argent** : À recevoir · En séquestre (« arrive après livraison ») · Versements (historique) —
+  directement issu de `GET /v1/seller/balance`. « En séquestre » est la part du vendeur (articles −
+  commission), pas le total payé par l'acheteur.
+- Le vendeur ne voit **ni le téléphone ni le repère de l'acheteur** : le livreur s'en charge. Cela évite
+  les ventes conclues hors de la plateforme, donc hors séquestre (et limite les données personnelles
+  partagées, loi 29-2019).
 
 ## 3. Parcours livreur
+
+Réalisé dans `apps/mobile/app/livreur`. Le téléphone du client est affiché en clair au livreur
+partenaire (sous contrat) en attendant un numéro masqué (V2).
 
 Liste de missions (boutique, quartier d'enlèvement, destination avec repère, téléphone masqué) →
 « J'ai récupéré le colis » → à destination, **pavé numérique géant** pour saisir le code de remise

@@ -8,86 +8,23 @@
  * Des captures d'écran sont prises à chaque étape (format téléphone Android 360 × 780).
  */
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { chromium } from 'playwright-core';
+import {
+  apiLogin,
+  e164,
+  freshPhone,
+  json,
+  lastMessage,
+  launchBrowser,
+  phone as openPhone,
+  sleep,
+  WEB,
+} from './lib.mjs';
 
-const API = process.env.API_URL ?? 'http://localhost:3998';
-const WEB = process.env.WEB_URL ?? 'http://localhost:8081';
-const SHOTS = process.env.SHOTS ?? './captures';
-// Un numéro neuf à chaque exécution : la limite anti-fraude autorise un code par minute et par numéro.
-const BUYER =
-  process.env.BUYER_PHONE ??
-  `05 5${String(Date.now() % 100_000_000)
-    .padStart(8, '0')
-    .slice(0, 2)} ${String(Date.now()).slice(-4, -2)} ${String(Date.now()).slice(-2)}`;
-const buyerE164 = `+242${BUYER.replace(/\s/g, '')}`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const BUYER = process.env.BUYER_PHONE ?? freshPhone('05 5');
+const buyerE164 = e164(BUYER);
 
-async function json(method, path, token, body) {
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers: {
-      ...(body ? { 'content-type': 'application/json' } : {}),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
-}
-
-/** Dernier message reçu par un numéro (boîte de réception de développement). */
-async function lastMessage(recipient, template, after = 0) {
-  for (let i = 0; i < 40; i++) {
-    const { items } = await json('GET', `/dev/messages?recipient=${encodeURIComponent(recipient)}`);
-    const found = items.find((m) => m.template === template && Date.parse(m.sentAt) >= after);
-    if (found) return found;
-    await sleep(500);
-  }
-  throw new Error(`Aucun message ${template} pour ${recipient}`);
-}
-
-// Sessions réutilisées d'une exécution à l'autre : la limite anti-fraude n'autorise que
-// 5 codes par heure et par numéro.
-const SESSIONS_FILE = `${tmpdir()}/zandu-e2e-sessions.json`;
-
-async function apiLogin(phone) {
-  const cache = JSON.parse(await readFile(SESSIONS_FILE, 'utf8').catch(() => '{}'));
-  if (cache[phone]) {
-    const res = await fetch(`${API}/v1/me`, {
-      headers: { authorization: `Bearer ${cache[phone]}` },
-    });
-    if (res.ok) return cache[phone];
-  }
-  const since = Date.now() - 1000;
-  const { challengeId } = await json('POST', '/v1/auth/otp/request', null, { phone });
-  const { variables } = await lastMessage(phone, 'otp_code', since);
-  const { token } = await json('POST', '/v1/auth/otp/verify', null, {
-    challengeId,
-    code: variables.code,
-  });
-  await writeFile(SESSIONS_FILE, JSON.stringify({ ...cache, [phone]: token }));
-  return token;
-}
-
-await mkdir(SHOTS, { recursive: true });
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
-});
-const page = await browser.newPage({
-  viewport: { width: 360, height: 780 },
-  deviceScaleFactor: 2,
-  isMobile: true,
-  hasTouch: true,
-  locale: 'fr-FR',
-});
-const shot = async (name) => {
-  await sleep(400);
-  await page.screenshot({ path: `${SHOTS}/${name}.png` });
-  console.log(`📸 ${name}`);
-};
+const browser = await launchBrowser();
+const { page, shot } = await openPhone(browser);
 
 // 0. Le vendeur réapprovisionne le produit de démonstration (les produits en rupture sont masqués).
 const seller = await apiLogin('+242061000001');

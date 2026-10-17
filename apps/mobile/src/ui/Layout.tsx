@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,16 +18,30 @@ export function Screen({
   children,
   footer,
   style,
+  refreshing,
+  onRefresh,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   style?: ViewStyle;
+  /** Tirer pour actualiser. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView
         contentContainerStyle={[styles.content, style]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={!!refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.brand]}
+            />
+          ) : undefined
+        }
       >
         {children}
       </ScrollView>

@@ -16,6 +16,20 @@
       "name": "Zandu",
       "themeColor": "#C2410C"
     },
-    "plugins": ["expo-router", "expo-status-bar", "expo-secure-store", "expo-image", "expo-font"]
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Zandu utilise l'appareil photo pour photographier vos produits et vos pièces d'identité.",
+          "photosPermission": "Zandu accède à vos photos pour illustrer vos produits.",
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }

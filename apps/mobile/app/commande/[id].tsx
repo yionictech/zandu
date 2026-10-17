@@ -10,8 +10,8 @@ import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
 import { ErrorText, Field } from '../../src/ui/Form';
 import { Failure, Loading, Screen, Section } from '../../src/ui/Layout';
+import { statusColor } from '../../src/status';
 import { Timeline } from '../../src/ui/Timeline';
-import { statusColor } from '../(tabs)/commandes';
 
 const CODE_PENDING = [
   'paid',

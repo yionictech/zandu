@@ -25,6 +25,7 @@ gantt
   Socle technique (FAIT)            :done,    s0, 2026-10-05, 1w
   Maquettes + design system         :active,  s1, 2026-10-05, 4w
   Sprint 1 : fichiers, KYC, app acheteur (FAIT) :done, s2, 2026-10-12, 1w
+  Écrans vendeur et livreur (FAIT)  :done,    s2b, 2026-10-16, 2d
   Jalon maquettes validées          :milestone, m1, 2026-11-02, 0d
   section Catalogue
   Photos produits + fiches + recherche :      s3, 2026-11-02, 2w
@@ -57,13 +58,24 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
   SMS, livraison par repères, paiement Mobile Money avec attente du PIN, suivi, confirmation de
   réception, litige, avis. Parcours de bout en bout automatisé (captures dans `docs/ux/captures`).
 
-### Prochaine étape (S1-S2) — Maquettes, écrans vendeur et livreur
+### Sprint 1 bis — Écrans vendeur et livreur (✅ fait, ce dépôt)
 
-- Designer : parcours acheteur, vendeur, livreur ; design system (voir `docs/ux`).
+- Mobile, vendeur : ouvrir sa boutique (un écran), tableau de bord « à traiter d'abord »,
+  vérification d'identité (pièce + selfie), produit « photo d'abord » (compression sur le téléphone,
+  envoi pendant la saisie, brouillon conservé, « Vous recevrez » en direct), commandes (accepter,
+  refuser, colis prêt), mes produits (statuts, archives), mon argent (à recevoir, séquestre, versements).
+- Mobile, livreur : missions, appel du vendeur et du client, pavé géant du code de remise, échec motivé.
+- Backend : vue commande vendeur **sans le téléphone de l'acheteur**, brouillons de produit (jamais en
+  ligne sans photo), fiche produit vendeur, missions livreur détaillées, part vendeur en séquestre.
+- Parcours vendeur + livreur de bout en bout automatisé (captures dans `docs/ux/captures`).
+
+### Prochaine étape — Maquettes, test sur téléphones réels, back-office
+
 - Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
-- Mobile : écrans vendeur (ouvrir sa boutique, ajouter un produit « photo d'abord », commandes à
-  traiter, mon argent, KYC) et livreur (missions, saisie du code de remise).
-- Fondateur : **choix de l'agrégateur** (voir décisions), rendez-vous juriste.
+- Testeur : parcours sur 2-3 téléphones Android d'entrée de gamme (photo, envoi en 3G).
+- Back-office graphique minimal : file KYC, modération, **assignation des livreurs**, litiges.
+- Fondateur : **choix de l'agrégateur** (voir décisions D1), rendez-vous juriste (D2), mode
+  d'attribution des livraisons (D15).
 
 ### Sprint 2 (S3-S4) — Comptes, KYC, boutique
 

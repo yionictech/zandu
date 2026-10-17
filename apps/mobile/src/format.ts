@@ -52,3 +52,13 @@ export function countdown(msLeft: number): string {
   const total = Math.max(0, Math.ceil(msLeft / 1000));
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
+
+/** Saisie d'un prix : « 50000 » s'affiche « 50 000 » pendant la frappe. */
+export function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+/** Taux en points de base → « 8 % », « 12,5 % ». */
+export function formatRate(bps: number): string {
+  return `${(bps / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %`;
+}

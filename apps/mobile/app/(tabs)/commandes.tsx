@@ -6,16 +6,8 @@ import { formatDateTime, formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useSession } from '../../src/session';
 import { colors, font, radius, space } from '../../src/theme';
+import { statusColor } from '../../src/status';
 import { Empty, Failure, Loading } from '../../src/ui/Layout';
-
-export const statusColor = (status: string): string =>
-  ({
-    completed: colors.trust,
-    delivered: colors.trust,
-    disputed: colors.danger,
-    cancelled: colors.muted,
-    refunded: colors.muted,
-  })[status] ?? colors.waiting;
 
 /** Mes commandes : statut lisible en un coup d'œil, mises à jour au retour sur l'écran. */
 export default function OrdersScreen() {

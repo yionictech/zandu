@@ -51,7 +51,17 @@ cd apps/mobile
 EXPO_PUBLIC_API_URL=http://localhost:3998 EXPO_PUBLIC_SIMULATOR=1 npx expo export --platform web --output-dir dist
 node e2e/serve.mjs &                         # sert dist/ sur http://localhost:8081
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-acheteur.mjs
+DATABASE_URL=… SHOTS=./captures node e2e/parcours-vendeur-livreur.mjs
 ```
+
+Le second parcours crée à chaque fois un nouveau vendeur (boutique, pièces, produit avec photo), puis
+fait livrer la commande par le livreur de démonstration (06 800 00 00). Sur la version web, l'appareil
+photo s'ouvre comme un sélecteur de fichier : le script y dépose une image de `db/seeds/demo/images`.
+
+**Espaces vendeur et livreur dans l'application** : onglet Compte → « Ouvrir ma boutique » (n'importe
+quel numéro) ou « Mon espace vendeur » (06 100 00 01, 06 100 00 02, 05 100 00 03) ; « Mes livraisons »
+pour le livreur 06 800 00 00. Les livraisons sont assignées par le support :
+`POST /v1/support/deliveries/{commande}/assign` avec le compte administrateur 06 900 00 00.
 
 ## Commandes utiles
 

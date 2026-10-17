@@ -367,8 +367,13 @@ paths:
   /v1/seller/products:
     get:
       tags: [Vendeur]
-      summary: Mes produits (hors archivés)
+      summary: Mes produits (hors archivés, brouillons compris)
       operationId: listMyProducts
+      parameters:
+        - name: status
+          in: query
+          description: '`archived` pour lister les produits archivés'
+          schema: { type: string, enum: [archived] }
       responses:
         '200':
           description: OK
@@ -410,7 +415,10 @@ paths:
     post:
       tags: [Vendeur]
       summary: Publier un produit (F3)
-      description: Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération).
+      description: >-
+        Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération).
+        Avec `publish: false`, crée un brouillon (`draft`) : l'application y rattache les photos,
+        puis le publie avec `PATCH status=published` (au moins une photo exigée).
       operationId: createProduct
       requestBody:
         required: true
@@ -425,6 +433,7 @@ paths:
                 description: { type: string, maxLength: 5000 }
                 price: { $ref: '#/components/schemas/Amount' }
                 stock: { type: integer, minimum: 0 }
+                publish: { type: boolean, default: true }
       responses:
         '201':
           description: Créé
@@ -432,9 +441,10 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [id, status]
                 properties:
                   id: { type: string, format: uuid }
-                  status: { type: string, enum: [published, pending_review] }
+                  status: { type: string, enum: [published, pending_review, draft] }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
@@ -450,18 +460,27 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [available, inEscrow, payouts]
                 properties:
-                  available: { $ref: '#/components/schemas/Amount' }
-                  inEscrow: { $ref: '#/components/schemas/Amount' }
+                  available:
+                    allOf: [{ $ref: '#/components/schemas/Amount' }]
+                    description: Libéré, en attente du reversement automatique (plafond nouveau vendeur compris)
+                  inEscrow:
+                    allOf: [{ $ref: '#/components/schemas/Amount' }]
+                    description: >-
+                      Part du vendeur (articles − commission) des commandes encore en séquestre :
+                      versée après la livraison et la fin du délai de réclamation
                   payouts:
                     type: array
                     items:
                       type: object
+                      required: [id, amount, status, orderId, publicRef, createdAt, succeededAt]
                       properties:
                         id: { type: string, format: uuid }
                         amount: { $ref: '#/components/schemas/Amount' }
                         status: { type: string, enum: [pending, processing, succeeded, failed] }
                         orderId: { type: [string, 'null'], format: uuid }
+                        publicRef: { type: [string, 'null'] }
                         createdAt: { type: string, format: date-time }
                         succeededAt: { type: [string, 'null'], format: date-time }
 
@@ -470,13 +489,47 @@ paths:
     get:
       tags: [Vendeur]
       summary: Commandes de ma boutique
+      description: Sans le téléphone ni le repère de l'acheteur (le livreur s'en charge).
       operationId: sellerOrders
       parameters:
-        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - name: status
+          in: query
+          description: Un ou plusieurs statuts séparés par des virgules (ex. `paid,preparing`)
+          schema: { type: string, examples: ['paid,preparing'] }
       responses:
-        '200': { $ref: '#/components/responses/OrderList' }
-
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SellerOrder' }
+        '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}:
+    get:
+      tags: [Vendeur]
+      summary: Détail d'une commande de ma boutique
+      operationId: sellerOrder
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SellerOrder'
+                  - type: object
+                    required: [history]
+                    properties:
+                      history: { $ref: '#/components/schemas/OrderHistory' }
+        '404': { $ref: '#/components/responses/Error' }
   /v1/seller/orders/{id}/accept:
     post:
       tags: [Vendeur]
@@ -629,7 +682,9 @@ paths:
     get:
       tags: [Commandes]
       summary: Détail et historique d'une commande
-      description: Accessible à l'acheteur, au vendeur concerné et au support.
+      description: >-
+        Accessible à l'acheteur et au support. Le vendeur passe par `/v1/seller/orders/{id}`, qui
+        ne contient pas le téléphone ni le repère de l'acheteur.
       operationId: getOrder
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
@@ -643,15 +698,7 @@ paths:
                   - type: object
                     required: [history]
                     properties:
-                      history:
-                        type: array
-                        items:
-                          type: object
-                          required: [status, event, at]
-                          properties:
-                            status: { $ref: '#/components/schemas/OrderStatus' }
-                            event: { type: string }
-                            at: { type: string, format: date-time }
+                      history: { $ref: '#/components/schemas/OrderHistory' }
         '404': { $ref: '#/components/responses/Error' }
 
   /v1/orders/{id}/cancel:
@@ -726,21 +773,27 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
-                    items:
-                      type: object
-                      properties:
-                        orderId: { type: string, format: uuid }
-                        publicRef: { type: string }
-                        status: { type: string }
-                        deliveryMode: { type: string, enum: [home, pickup_point] }
-                        shippingAddress: { $ref: '#/components/schemas/ShippingAddress' }
-                        shopName: { type: string }
-                        pickupZone: { type: string }
-
+                    items: { $ref: '#/components/schemas/RiderMission' }
         '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}:
+    get:
+      tags: [Livreur]
+      summary: Détail d'une mission (id = commande)
+      operationId: riderDelivery
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RiderMission' }
+        '404': { $ref: '#/components/responses/Error' }
   /v1/rider/deliveries/{id}/pickup:
     post:
       tags: [Livreur]
@@ -1077,10 +1130,26 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
 
   /v1/seller/products/{id}:
+    get:
+      tags: [Vendeur]
+      summary: Fiche complète d'un de mes produits (écran de modification)
+      operationId: getMyProduct
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerProduct' }
+        '404': { $ref: '#/components/responses/Error' }
     patch:
       tags: [Vendeur]
-      summary: Modifier, archiver ou remettre en vente un produit
-      description: Un vendeur non vérifié qui modifie le texte, la catégorie ou les photos repasse en modération.
+      summary: Modifier, publier, archiver ou remettre en vente un produit
+      description: >-
+        Un vendeur non vérifié qui modifie le texte, la catégorie ou les photos repasse en
+        modération. `status=published` publie un brouillon (au moins une photo, sinon
+        `photo_required`), remet en vente un produit archivé, ou soumet à nouveau un produit refusé
+        (toujours en modération).
       operationId: updateProduct
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody:
@@ -1111,7 +1180,9 @@ paths:
                   price: { $ref: '#/components/schemas/Amount' }
                   stock: { type: integer }
                   status: { $ref: '#/components/schemas/ProductStatus' }
+        '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 
   /v1/seller/products/{id}/photos:
     post:
@@ -1431,6 +1502,7 @@ components:
         application/json:
           schema:
             type: object
+            required: [id, status]
             properties:
               id: { type: string, format: uuid }
               status: { $ref: '#/components/schemas/OrderStatus' }
@@ -1530,7 +1602,129 @@ components:
         recipientName: { type: string }
         phone: { type: string }
         landmark: { type: string }
-    Order:
+    OrderHistory:
+      type: array
+      items:
+        type: object
+        required: [status, event, at]
+        properties:
+          status: { $ref: '#/components/schemas/OrderStatus' }
+          event: { type: string }
+          at: { type: string, format: date-time }
+    SellerOrder:
+      description: Commande vue par le vendeur, sans les coordonnées de l'acheteur.
+      allOf:
+        - $ref: '#/components/schemas/OrderCore'
+        - type: object
+          required: [commission, sellerNet, destination]
+          properties:
+            commission: { $ref: '#/components/schemas/Amount' }
+            sellerNet:
+              allOf: [{ $ref: '#/components/schemas/Amount' }]
+              description: Ce que le vendeur recevra (articles − commission)
+            destination:
+              type: object
+              required: [city, zone, pickupPoint]
+              properties:
+                city: { type: string }
+                zone: { type: string }
+                pickupPoint: { type: [string, 'null'] }
+    SellerProduct:
+      type: object
+      required:
+        [
+          id,
+          title,
+          description,
+          price,
+          stock,
+          status,
+          categoryId,
+          rejectionReason,
+          updatedAt,
+          photos,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        price: { $ref: '#/components/schemas/Amount' }
+        stock: { type: integer }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        categoryId: { type: string, format: uuid }
+        rejectionReason: { type: [string, 'null'] }
+        updatedAt: { type: string, format: date-time }
+        photos:
+          type: array
+          items:
+            type: object
+            required: [id, position, url]
+            properties:
+              id: { type: string, format: uuid }
+              position: { type: integer, minimum: 0, maximum: 5 }
+              url: { type: string, format: uri }
+    RiderMission:
+      description: "Mission de livraison. Commande déjà payée : le livreur n'encaisse jamais d'argent."
+      type: object
+      required:
+        [
+          orderId,
+          status,
+          orderStatus,
+          publicRef,
+          deliveryMode,
+          recipient,
+          pickup,
+          destination,
+          itemCount,
+          handoverAttemptsLeft,
+          assignedAt,
+          pickedUpAt,
+        ]
+      properties:
+        orderId: { type: string, format: uuid }
+        status:
+          type: string
+          enum:
+            [
+              awaiting_assignment,
+              assigned,
+              picked_up,
+              at_pickup_point,
+              delivered,
+              failed,
+              cancelled,
+            ]
+        orderStatus: { $ref: '#/components/schemas/OrderStatus' }
+        publicRef: { type: string }
+        deliveryMode: { type: string, enum: [home, pickup_point] }
+        recipient: { $ref: '#/components/schemas/ShippingAddress' }
+        pickup:
+          type: object
+          required: [shopName, phone, city, zone]
+          properties:
+            shopName: { type: string }
+            phone: { type: string }
+            city: { type: string }
+            zone: { type: string }
+        destination:
+          type: object
+          required: [city, zone, pickupPoint]
+          properties:
+            city: { type: string }
+            zone: { type: string }
+            pickupPoint:
+              type: [object, 'null']
+              required: [name, landmark]
+              properties:
+                name: { type: string }
+                landmark: { type: string }
+        itemCount: { type: integer }
+        handoverAttemptsLeft: { type: integer, minimum: 0 }
+        assignedAt: { type: [string, 'null'], format: date-time }
+        pickedUpAt: { type: [string, 'null'], format: date-time }
+    OrderCore:
+      description: Champs communs aux vues acheteur et vendeur d'une commande.
       type: object
       required:
         [
@@ -1546,7 +1740,6 @@ components:
           refundedAmount,
           currency,
           deliveryMode,
-          shippingAddress,
           sellerAcceptDeadline,
           disputeWindowEndsAt,
           createdAt,
@@ -1586,7 +1779,6 @@ components:
         refundedAmount: { $ref: '#/components/schemas/Amount' }
         currency: { type: string, const: XAF }
         deliveryMode: { type: string, enum: [home, pickup_point] }
-        shippingAddress: { $ref: '#/components/schemas/ShippingAddress' }
         sellerAcceptDeadline: { type: [string, 'null'], format: date-time }
         disputeWindowEndsAt: { type: [string, 'null'], format: date-time }
         createdAt: { type: string, format: date-time }
@@ -1595,6 +1787,14 @@ components:
         completedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
         cancelReason: { type: [string, 'null'] }
+    Order:
+      description: Commande vue par l'acheteur (et le support), coordonnées de livraison comprises.
+      allOf:
+        - $ref: '#/components/schemas/OrderCore'
+        - type: object
+          required: [shippingAddress]
+          properties:
+            shippingAddress: { $ref: '#/components/schemas/ShippingAddress' }
     Checkout:
       type: object
       required:

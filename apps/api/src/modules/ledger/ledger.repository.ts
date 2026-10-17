@@ -76,14 +76,19 @@ export async function accountBalance(db: Db, code: string): Promise<number> {
   return naturalBalance(code, rows[0]!.total);
 }
 
-/** Montant encore en séquestre pour les commandes d'un vendeur (« argent en route »). */
+/**
+ * Part du vendeur (articles − commission) des commandes dont l'argent est encore en séquestre :
+ * ce qu'il recevra après la livraison. Le séquestre lui-même contient davantage (frais de
+ * livraison, commission), qui ne lui reviennent pas.
+ */
 export async function sellerEscrowBalance(db: Db, sellerId: string): Promise<number> {
   const { rows } = await db.query<{ total: number }>(
-    `SELECT coalesce(-sum(e.amount), 0)::bigint AS total
-     FROM ledger_entries e
-     JOIN ledger_accounts a ON a.id = e.account_id AND a.code = $2
-     JOIN orders o ON o.id = e.order_id
-     WHERE o.seller_id = $1`,
+    `SELECT coalesce(sum(o.items_subtotal - o.commission_total), 0)::bigint AS total
+     FROM orders o
+     WHERE o.seller_id = $1
+       AND (SELECT coalesce(-sum(e.amount), 0) FROM ledger_entries e
+            JOIN ledger_accounts a ON a.id = e.account_id AND a.code = $2
+            WHERE e.order_id = o.id) > 0`,
     [sellerId, PlatformAccounts.escrow],
   );
   return rows[0]!.total;

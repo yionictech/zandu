@@ -15,6 +15,7 @@ import {
   handoverHash,
   lockOrder,
   orderViews,
+  sellerOrderViews,
   type OrderRow,
 } from './orders.service.js';
 
@@ -50,6 +51,71 @@ async function ownedOrder(tx: Tx, orderId: string, a: Actor): Promise<OrderRow> 
   return order;
 }
 
+const orderHistory = async (db: Db, orderId: string) =>
+  (
+    await db.query(
+      `SELECT to_status AS status, event, created_at AS "at" FROM order_status_history WHERE order_id = $1 ORDER BY id`,
+      [orderId],
+    )
+  ).rows;
+
+const ORDER_STATUSES = [
+  'pending_payment',
+  'paid',
+  'preparing',
+  'ready_for_pickup',
+  'in_delivery',
+  'awaiting_collection',
+  'delivered',
+  'completed',
+  'disputed',
+  'refunded',
+  'cancelled',
+] as const;
+
+/** `?status=paid,preparing` : un ou plusieurs statuts séparés par des virgules. */
+const StatusFilter = z.object({
+  status: z
+    .string()
+    .max(200)
+    .transform((v) => v.split(',').filter(Boolean))
+    .pipe(z.array(z.enum(ORDER_STATUSES)).min(1))
+    .optional(),
+});
+
+/**
+ * Mission vue par le livreur : où enlever (boutique, téléphone pour s'annoncer), où livrer
+ * (repère, téléphone du destinataire), combien de codes erronés restent permis.
+ * Le paiement est déjà fait : le livreur n'encaisse jamais d'argent.
+ */
+async function riderMissions(
+  ctx: AppContext,
+  where: string,
+  params: unknown[],
+): Promise<Array<Record<string, unknown>>> {
+  const { rows } = await ctx.pool.query<{ handoverAttempts: number } & Record<string, unknown>>(
+    `SELECT d.order_id AS "orderId", d.status, o.status AS "orderStatus", o.public_ref AS "publicRef",
+            o.delivery_mode AS "deliveryMode", o.shipping_address AS "recipient",
+            json_build_object('shopName', s.shop_name, 'phone', su.phone, 'city', s.city, 'zone', pz.name) AS "pickup",
+            json_build_object('city', dz.city, 'zone', dz.name,
+                              'pickupPoint', CASE WHEN pp.id IS NULL THEN NULL
+                                                  ELSE json_build_object('name', pp.name, 'landmark', pp.landmark) END) AS "destination",
+            (SELECT coalesce(sum(oi.quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS "itemCount",
+            d.handover_attempts AS "handoverAttempts", d.assigned_at AS "assignedAt", d.picked_up_at AS "pickedUpAt"
+     FROM deliveries d JOIN orders o ON o.id = d.order_id
+     JOIN seller_profiles s ON s.id = o.seller_id JOIN users su ON su.id = s.user_id
+     JOIN delivery_zones pz ON pz.id = s.pickup_zone_id JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
+     LEFT JOIN pickup_points pp ON pp.id = o.pickup_point_id
+     WHERE ${where}
+     ORDER BY d.assigned_at`,
+    params,
+  );
+  return rows.map(({ handoverAttempts, ...mission }) => ({
+    ...mission,
+    handoverAttemptsLeft: Math.max(0, ctx.config.handoverMaxAttempts - handoverAttempts),
+  }));
+}
+
 async function riderDelivery(tx: Tx, orderId: string, a: Actor) {
   const rider = await riderOf(tx, a.userId);
   const { rows } = await tx.query<{
@@ -78,17 +144,14 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
     app.get('/v1/orders/:id', async (request) => {
       const { id } = IdParam.parse(request.params);
       const user = currentUser(request);
-      const [order] = await orderViews(
-        ctx.pool,
-        `o.id = $1 AND (o.buyer_id = $2 OR s.user_id = $2 OR $3)`,
-        [id, user.id, user.roles.includes('support') || user.roles.includes('admin')],
-      );
+      // Le vendeur passe par /v1/seller/orders/{id}, qui ne montre pas le téléphone de l'acheteur.
+      const [order] = await orderViews(ctx.pool, `o.id = $1 AND (o.buyer_id = $2 OR $3)`, [
+        id,
+        user.id,
+        user.roles.includes('support') || user.roles.includes('admin'),
+      ]);
       if (!order) throw notFound('Commande');
-      const { rows: history } = await ctx.pool.query(
-        `SELECT to_status AS status, event, created_at AS "at" FROM order_status_history WHERE order_id = $1 ORDER BY id`,
-        [id],
-      );
-      return { ...order, history };
+      return { ...order, history: await orderHistory(ctx.pool, id) };
     });
 
     app.post('/v1/orders/:id/cancel', async (request) => {
@@ -255,16 +318,28 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
     app.register(async (seller) => {
       seller.addHook('preHandler', requireRole('seller'));
 
+      /** Commandes de la boutique ; `?status=paid,preparing` pour la liste « À traiter ». */
       seller.get('/v1/seller/orders', async (request) => {
-        const { status } = z.object({ status: z.string().max(30).optional() }).parse(request.query);
+        const { status } = StatusFilter.parse(request.query);
         const sellerId = await sellerIdOf(ctx.pool, currentUser(request).id);
         return {
-          items: await orderViews(
+          items: await sellerOrderViews(
             ctx.pool,
-            status ? 'o.seller_id = $1 AND o.status = $2' : 'o.seller_id = $1',
+            status ? 'o.seller_id = $1 AND o.status = ANY($2::order_status[])' : 'o.seller_id = $1',
             status ? [sellerId, status] : [sellerId],
           ),
         };
+      });
+
+      seller.get('/v1/seller/orders/:id', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const sellerId = await sellerIdOf(ctx.pool, currentUser(request).id);
+        const [order] = await sellerOrderViews(ctx.pool, 'o.id = $1 AND o.seller_id = $2', [
+          id,
+          sellerId,
+        ]);
+        if (!order) throw notFound('Commande');
+        return { ...order, history: await orderHistory(ctx.pool, id) };
       });
 
       const sellerAction = (
@@ -295,16 +370,24 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
 
       rider.get('/v1/rider/deliveries', async (request) => {
         const r = await riderOf(ctx.pool, currentUser(request).id);
-        const { rows } = await ctx.pool.query(
-          `SELECT d.order_id AS "orderId", d.status, o.public_ref AS "publicRef", o.delivery_mode AS "deliveryMode",
-                  o.shipping_address AS "shippingAddress", s.shop_name AS "shopName", pz.name AS "pickupZone"
-           FROM deliveries d JOIN orders o ON o.id = d.order_id JOIN seller_profiles s ON s.id = o.seller_id
-           JOIN delivery_zones pz ON pz.id = s.pickup_zone_id
-           WHERE d.rider_id = $1 AND d.status IN ('assigned', 'picked_up', 'at_pickup_point')
-           ORDER BY d.assigned_at`,
-          [r.id],
-        );
-        return { items: rows };
+        return {
+          items: await riderMissions(
+            ctx,
+            `d.rider_id = $1 AND d.status IN ('assigned', 'picked_up', 'at_pickup_point')`,
+            [r.id],
+          ),
+        };
+      });
+
+      rider.get('/v1/rider/deliveries/:id', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const r = await riderOf(ctx.pool, currentUser(request).id);
+        const [mission] = await riderMissions(ctx, 'd.order_id = $1 AND d.rider_id = $2', [
+          id,
+          r.id,
+        ]);
+        if (!mission) throw notFound('Livraison');
+        return mission;
       });
 
       rider.post('/v1/rider/deliveries/:id/pickup', async (request) => {

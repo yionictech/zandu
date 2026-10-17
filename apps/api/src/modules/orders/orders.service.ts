@@ -272,9 +272,19 @@ export interface OrderView {
   cancelReason: string | null;
 }
 
-export async function orderViews(db: Db, where: string, params: unknown[]): Promise<OrderView[]> {
-  const { rows } = await db.query<OrderRow & { shop_name: string; items: OrderView['items'] }>(
-    `SELECT o.*, s.shop_name,
+type OrderViewRow = OrderRow & {
+  shop_name: string;
+  items: OrderView['items'];
+  zone_name: string;
+  zone_city: string;
+  pickup_point: { name: string; landmark: string } | null;
+};
+
+async function queryOrders(db: Db, where: string, params: unknown[]): Promise<OrderViewRow[]> {
+  const { rows } = await db.query<OrderViewRow>(
+    `SELECT o.*, s.shop_name, z.name AS zone_name, z.city AS zone_city,
+            (SELECT json_build_object('name', pp.name, 'landmark', pp.landmark)
+             FROM pickup_points pp WHERE pp.id = o.pickup_point_id) AS pickup_point,
             (SELECT json_agg(json_build_object(
                 'itemId', oi.id, 'productId', oi.product_id, 'title', oi.title_snapshot,
                 'unitPrice', oi.unit_price, 'quantity', oi.quantity, 'lineTotal', oi.line_total,
@@ -282,12 +292,17 @@ export async function orderViews(db: Db, where: string, params: unknown[]): Prom
                 ORDER BY oi.title_snapshot)
              FROM order_items oi WHERE oi.order_id = o.id) AS items
      FROM orders o JOIN seller_profiles s ON s.id = o.seller_id
+     JOIN delivery_zones z ON z.id = o.delivery_zone_id
      WHERE ${where}
      ORDER BY o.created_at DESC, o.id
      LIMIT 100`,
     params,
   );
-  return rows.map((r) => ({
+  return rows;
+}
+
+function toOrderView(r: OrderViewRow): OrderView {
+  return {
     id: r.id,
     publicRef: r.public_ref,
     checkoutId: r.checkout_id,
@@ -309,5 +324,42 @@ export async function orderViews(db: Db, where: string, params: unknown[]): Prom
     completedAt: r.completed_at,
     cancelledAt: r.cancelled_at,
     cancelReason: r.cancel_reason,
-  }));
+  };
+}
+
+/** Vue acheteur (et support) : adresse et téléphone du destinataire compris. */
+export async function orderViews(db: Db, where: string, params: unknown[]): Promise<OrderView[]> {
+  return (await queryOrders(db, where, params)).map(toOrderView);
+}
+
+export interface SellerOrderView extends Omit<OrderView, 'shippingAddress'> {
+  commission: number;
+  /** Ce que le vendeur recevra : articles − commission (la livraison revient au livreur). */
+  sellerNet: number;
+  destination: { city: string; zone: string; pickupPoint: string | null };
+}
+
+/**
+ * Vue vendeur : SANS le téléphone ni le repère de l'acheteur. Le livreur s'en charge ; le
+ * vendeur n'a pas de raison de contacter l'acheteur hors de la plateforme (paiement hors
+ * séquestre, loi 29-2019 : minimisation des données).
+ */
+export async function sellerOrderViews(
+  db: Db,
+  where: string,
+  params: unknown[],
+): Promise<SellerOrderView[]> {
+  return (await queryOrders(db, where, params)).map((r) => {
+    const { shippingAddress: _private, ...view } = toOrderView(r);
+    return {
+      ...view,
+      commission: r.commission_total,
+      sellerNet: r.items_subtotal - r.commission_total,
+      destination: {
+        city: r.zone_city,
+        zone: r.zone_name,
+        pickupPoint: r.pickup_point?.name ?? null,
+      },
+    };
+  });
 }

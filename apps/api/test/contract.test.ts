@@ -8,9 +8,11 @@ import { parse } from 'yaml';
 import {
   ZONES,
   approveAndNotify,
+  checkout as checkoutVia,
   createTestEnv,
   idemKey,
   login,
+  pay,
   setupMarketplace,
   uploadFile,
   type Marketplace,
@@ -216,6 +218,84 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       200,
       unwrap(await admin.GET('/v1/support/disputes')),
     );
+  });
+
+  it('applications vendeur et livreur : brouillon, commandes à traiter, missions', async () => {
+    const seller = clientFor(m.seller.headers.authorization!.slice(7));
+    const draft = unwrap(
+      await seller.POST('/v1/seller/products', {
+        body: {
+          categoryId: '10000000-0000-4000-8000-000000000006',
+          title: 'Lampe rechargeable',
+          price: 8_000,
+          stock: 3,
+          publish: false,
+        },
+      }),
+    );
+    expectConforms('/v1/seller/products', 'post', 201, draft);
+    expect(draft.status).toBe('draft');
+    await seller.POST('/v1/seller/products/{id}/photos', {
+      params: { path: { id: draft.id } },
+      body: { uploadId: await uploadFile(env, m.seller, 'product_photo') },
+    });
+    const published = unwrap(
+      await seller.PATCH('/v1/seller/products/{id}', {
+        params: { path: { id: draft.id } },
+        body: { status: 'published' },
+      }),
+    );
+    expect(published.status).toBe('published');
+    expectConforms(
+      '/v1/seller/products/{id}',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/products/{id}', { params: { path: { id: draft.id } } })),
+    );
+
+    const co = await checkoutVia(env, m.buyer, [{ productId: draft.id, quantity: 1 }]);
+    await approveAndNotify(env, (await pay(env, m.buyer, co.id)).body.id);
+    const orderId: string = co.orders[0].id;
+    const todo = unwrap(
+      await seller.GET('/v1/seller/orders', { params: { query: { status: 'paid,preparing' } } }),
+    );
+    expectConforms('/v1/seller/orders', 'get', 200, todo);
+    expect(todo.items.map((o) => o.id)).toContain(orderId);
+    const accepted = unwrap(
+      await seller.POST('/v1/seller/orders/{id}/accept', { params: { path: { id: orderId } } }),
+    );
+    expectConforms('/v1/seller/orders/{id}/accept', 'post', 200, accepted);
+    await seller.POST('/v1/seller/orders/{id}/ready', { params: { path: { id: orderId } } });
+    const detail = unwrap(
+      await seller.GET('/v1/seller/orders/{id}', { params: { path: { id: orderId } } }),
+    );
+    expectConforms('/v1/seller/orders/{id}', 'get', 200, detail);
+    expect(detail.sellerNet).toBe(7_200);
+
+    const admin = clientFor(m.admin.headers.authorization!.slice(7));
+    const assigned = unwrap(
+      await admin.POST('/v1/support/deliveries/{id}/assign', {
+        params: { path: { id: orderId } },
+        body: { riderId: m.rider.riderId },
+      }),
+    );
+    expectConforms('/v1/support/deliveries/{id}/assign', 'post', 200, assigned);
+    const rider = clientFor(m.rider.headers.authorization!.slice(7));
+    expectConforms(
+      '/v1/rider/deliveries',
+      'get',
+      200,
+      unwrap(await rider.GET('/v1/rider/deliveries')),
+    );
+    const picked = unwrap(
+      await rider.POST('/v1/rider/deliveries/{id}/pickup', { params: { path: { id: orderId } } }),
+    );
+    expectConforms('/v1/rider/deliveries/{id}/pickup', 'post', 200, picked);
+    const mission = unwrap(
+      await rider.GET('/v1/rider/deliveries/{id}', { params: { path: { id: orderId } } }),
+    );
+    expectConforms('/v1/rider/deliveries/{id}', 'get', 200, mission);
+    expect(mission.status).toBe('picked_up');
   });
 
   it('les erreurs suivent le format documenté', async () => {

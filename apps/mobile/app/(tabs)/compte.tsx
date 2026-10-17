@@ -26,9 +26,31 @@ export default function AccountScreen() {
         <Text style={styles.label}>{t.account.phone}</Text>
         <Text style={styles.value}>{displayPhone(user.phone)}</Text>
       </Section>
-      <Section title={t.account.sell}>
-        <Text style={styles.label}>{t.account.sellSoon}</Text>
-      </Section>
+      {user.roles.includes('seller') ? (
+        <Button
+          label={`🏪  ${t.account.sellerSpace}`}
+          onPress={() => router.push('/vendeur')}
+          testID="account-seller"
+        />
+      ) : (
+        <Section title={t.account.sell}>
+          <Text style={styles.label}>{t.account.sellPitch}</Text>
+          <Button
+            label={t.account.openShop}
+            variant="secondary"
+            onPress={() => router.push('/vendeur/ouvrir')}
+            testID="account-open-shop"
+          />
+        </Section>
+      )}
+      {user.roles.includes('rider') ? (
+        <Button
+          label={`🛵  ${t.account.riderSpace}`}
+          variant="secondary"
+          onPress={() => router.push('/livreur')}
+          testID="account-rider"
+        />
+      ) : null}
       <Button label={t.account.logout} variant="secondary" onPress={() => void signOut()} />
     </Screen>
   );

@@ -16,14 +16,20 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **API** (`apps/api`) : connexion par SMS, catalogue et recherche, panier multi-vendeurs, paiement Mobile
   Money (simulateur d'agrégateur), séquestre, livraison avec code de remise, litiges, remboursements,
   reversements automatiques, espace vendeur, photos et pièces KYC par URL signées, avis, back-office.
-- **Application Android** (`apps/mobile`, Expo) : le parcours acheteur complet, de l'accueil à l'avis.
-- **122 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI) et un parcours de bout en bout piloté dans un navigateur.
+- **Application Android** (`apps/mobile`, Expo) : les trois métiers.
+  - Acheteur : de l'accueil à l'avis.
+  - Vendeur : ouvrir sa boutique, vérifier son identité, publier un produit « photo d'abord »,
+    traiter les commandes, suivre son argent.
+  - Livreur : ses missions et la remise contre le code de l'acheteur.
+- **133 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI) et deux parcours de bout en bout pilotés dans un navigateur.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
 
-À construire : écrans vendeur et livreur, site web Next.js, back-office graphique, branchement de
-l'agrégateur réel et du fournisseur SMS/WhatsApp, rapprochement quotidien. Voir la
+![Parcours vendeur et livreur](docs/ux/captures/parcours-vendeur-livreur.jpg)
+
+À construire : site web Next.js, back-office graphique, branchement de l'agrégateur réel et du
+fournisseur SMS/WhatsApp, miniatures d'images, rapprochement quotidien. Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
 ## Documentation
@@ -38,7 +44,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 122 tests
+pnpm test            # 133 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 
@@ -48,7 +54,7 @@ Détails : [guide du développeur](docs/developpement.md).
 
 ```
 apps/api/          API HTTP + worker (Node.js, Fastify)
-apps/mobile/       Application Android (React Native, Expo)
+apps/mobile/       Application Android : acheteur, vendeur, livreur (React Native, Expo)
 packages/domain/   Règles métier pures (argent, statuts, grand livre)
 packages/api-client/  Client typé généré depuis le contrat OpenAPI
 db/migrations/     Schéma SQL versionné

@@ -18,6 +18,8 @@ interface SessionValue {
   user: User | null;
   signIn(token: string, user: User): Promise<void>;
   signOut(): Promise<void>;
+  /** Relit le profil (rôles) : après l'ouverture d'une boutique, par exemple. */
+  refresh(): Promise<void>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -66,7 +68,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }, []);
 
-  const value = useMemo(() => ({ ready, user, signIn, signOut }), [ready, user, signIn, signOut]);
+  const refresh = useCallback(async () => {
+    setUser(unwrap(await api.GET('/v1/me')));
+  }, []);
+
+  const value = useMemo(
+    () => ({ ready, user, signIn, signOut, refresh }),
+    [ready, user, signIn, signOut, refresh],
+  );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

@@ -21,10 +21,13 @@ zandu/
 ```
 ├── packages/api-client/    Client HTTP typé, GÉNÉRÉ depuis docs/api/openapi.yaml (pnpm generate)
 └── apps/mobile/            Application Android (Expo / React Native, expo-router)
-    ├── app/                Un fichier par écran (accueil, recherche, produit, panier, livraison,
-    │                       paiement, commandes, litige, compte, connexion)
-    ├── src/                Session, panier, client d'API, thème, composants, textes (i18n/fr.ts)
-    └── e2e/                Parcours acheteur de bout en bout (Chromium, version web)
+    ├── app/                Un fichier par écran : acheteur (accueil, recherche, produit, panier,
+    │                       livraison, paiement, commandes, litige, compte, connexion),
+    │   ├── vendeur/        boutique, tableau de bord, commandes, produits, argent, vérification
+    │   └── livreur/        missions, remise avec code
+    ├── src/                Session, panier, client d'API, envoi de photos (compression), thème,
+    │                       composants, textes (i18n/fr.ts)
+    └── e2e/                Parcours acheteur, vendeur et livreur de bout en bout (Chromium, web)
 ```
 
 À venir : `apps/web` (Next.js acheteur + vendeur), `apps/backoffice` (Next.js).
@@ -54,24 +57,24 @@ zandu/
 
 ## 2.3 Traçabilité des exigences du cahier des charges
 
-| Réf. | Exigence (priorité)                                           | Où                                                                     | État dans ce dépôt                                                                                   |
-| ---- | ------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| F1   | Inscription / connexion par code SMS (P1)                     | `auth`                                                                 | ✅ OTP, limites anti-fraude, sessions révocables                                                     |
-| F2   | Vérification du vendeur (P1)                                  | `seller` (pièces), `uploads`, `admin` (file, consultation, décision)   | ✅ API complète ; écrans vendeur et back-office ⏳                                                   |
-| F3   | Création d'un produit, 6 photos (P1)                          | `seller`, `uploads` (URL signées)                                      | ✅ API (création, édition, archivage, photos) ; variantes d'image (miniatures) ⏳ ; écran vendeur ⏳ |
-| F4   | Recherche, filtres, tri (P1)                                  | `catalog`                                                              | ✅ plein texte FR sans accents + fautes de frappe                                                    |
-| F5   | Variantes et promotions (P2)                                  | `products.compare_at_price`                                            | ⏳ V2 (migration `product_variants` prévue)                                                          |
-| F6   | Panier, adresse, domicile / point relais (P1)                 | `checkout`                                                             | ✅ multi-vendeurs, adresse par repères                                                               |
-| F7   | Paiement MTN / Airtel, séquestre (P1)                         | `payments`, `ledger`                                                   | ✅ avec simulateur ; adaptateur agrégateur réel ⏳                                                   |
-| F8   | Reversement automatique, commission déduite (P1)              | `orders` → `payouts`                                                   | ✅ avec plafonds nouveaux vendeurs                                                                   |
-| F9   | Remboursement total ou partiel (P1)                           | `orders`, `payments/refunds`                                           | ✅                                                                                                   |
-| F10  | Tarif par zone, livreur, code de remise (P1)                  | `checkout`, `orders`                                                   | ✅                                                                                                   |
-| F11  | Avis réservés aux acheteurs livrés (P1)                       | `orders` (`/v1/order-items/{id}/review`), `catalog` (lecture)          | ✅ API + écran de notation dans l'application                                                        |
-| F12  | Litige sous 48 h avec photos (P1)                             | `orders`, `uploads`                                                    | ✅ API (litige, photos, file support) ; écran de litige ✅ (photos dans l'app ⏳)                    |
-| F13  | Messagerie filtrée (P2)                                       | `domain/chat-filter`, tables `conversations`, `messages`               | 🟡 filtre ✅ ; endpoints + temps réel ⏳                                                             |
-| F14  | Notifications SMS et WhatsApp (P1)                            | `notifications`                                                        | 🟡 outbox + modèles ✅ ; adaptateur fournisseur réel ⏳                                              |
-| F15  | Tableau de bord vendeur (P1)                                  | `seller` (`/v1/seller/balance`, produits, aperçu commission), `orders` | 🟡 API ✅ ; statistiques et écrans vendeur ⏳                                                        |
-| F16  | Back-office : modération, comptes, commissions, rapports (P1) | `admin`, `orders` (support)                                            | 🟡 API files KYC/litiges, modération, balance ✅ ; interface ⏳                                      |
-| F17  | Journal d'audit (P1)                                          | `admin/audit`, table `audit_logs`                                      | ✅ écriture seule, verrouillé en base                                                                |
+| Réf. | Exigence (priorité)                                           | Où                                                                     | État dans ce dépôt                                                                |
+| ---- | ------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| F1   | Inscription / connexion par code SMS (P1)                     | `auth`                                                                 | ✅ OTP, limites anti-fraude, sessions révocables                                  |
+| F2   | Vérification du vendeur (P1)                                  | `seller` (pièces), `uploads`, `admin` (file, consultation, décision)   | ✅ API + écran vendeur (pièce, selfie) ; back-office graphique ⏳                 |
+| F3   | Création d'un produit, 6 photos (P1)                          | `seller`, `uploads` (URL signées)                                      | ✅ API + écran « photo d'abord » (compression, brouillon) ; miniatures serveur ⏳ |
+| F4   | Recherche, filtres, tri (P1)                                  | `catalog`                                                              | ✅ plein texte FR sans accents + fautes de frappe                                 |
+| F5   | Variantes et promotions (P2)                                  | `products.compare_at_price`                                            | ⏳ V2 (migration `product_variants` prévue)                                       |
+| F6   | Panier, adresse, domicile / point relais (P1)                 | `checkout`                                                             | ✅ multi-vendeurs, adresse par repères                                            |
+| F7   | Paiement MTN / Airtel, séquestre (P1)                         | `payments`, `ledger`                                                   | ✅ avec simulateur ; adaptateur agrégateur réel ⏳                                |
+| F8   | Reversement automatique, commission déduite (P1)              | `orders` → `payouts`                                                   | ✅ avec plafonds nouveaux vendeurs                                                |
+| F9   | Remboursement total ou partiel (P1)                           | `orders`, `payments/refunds`                                           | ✅                                                                                |
+| F10  | Tarif par zone, livreur, code de remise (P1)                  | `checkout`, `orders`                                                   | ✅ dont écran livreur (missions, pavé du code de remise)                          |
+| F11  | Avis réservés aux acheteurs livrés (P1)                       | `orders` (`/v1/order-items/{id}/review`), `catalog` (lecture)          | ✅ API + écran de notation dans l'application                                     |
+| F12  | Litige sous 48 h avec photos (P1)                             | `orders`, `uploads`                                                    | ✅ API (litige, photos, file support) ; écran de litige ✅ (photos dans l'app ⏳) |
+| F13  | Messagerie filtrée (P2)                                       | `domain/chat-filter`, tables `conversations`, `messages`               | 🟡 filtre ✅ ; endpoints + temps réel ⏳                                          |
+| F14  | Notifications SMS et WhatsApp (P1)                            | `notifications`                                                        | 🟡 outbox + modèles ✅ ; adaptateur fournisseur réel ⏳                           |
+| F15  | Tableau de bord vendeur (P1)                                  | `seller` (`/v1/seller/balance`, produits, aperçu commission), `orders` | ✅ API + écrans (à traiter, mon argent) ; statistiques de ventes ⏳               |
+| F16  | Back-office : modération, comptes, commissions, rapports (P1) | `admin`, `orders` (support)                                            | 🟡 API files KYC/litiges, modération, balance ✅ ; interface ⏳                   |
+| F17  | Journal d'audit (P1)                                          | `admin/audit`, table `audit_logs`                                      | ✅ écriture seule, verrouillé en base                                             |
 
 Légende : ✅ fait et testé · 🟡 partiel · ⏳ à faire.

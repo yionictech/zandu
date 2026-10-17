@@ -36,6 +36,23 @@ export default function RootLayout() {
               <Stack.Screen name="paiement/[checkoutId]" options={{ title: t.payment.title }} />
               <Stack.Screen name="commande/[id]" options={{ title: t.orders.order }} />
               <Stack.Screen name="litige/[orderId]" options={{ title: t.dispute.title }} />
+              <Stack.Screen name="vendeur/ouvrir" options={{ title: t.seller.openTitle }} />
+              <Stack.Screen name="vendeur/index" options={{ title: t.account.sellerSpace }} />
+              <Stack.Screen name="vendeur/commandes" options={{ title: t.seller.orders }} />
+              <Stack.Screen name="vendeur/commande/[id]" options={{ title: t.orders.order }} />
+              <Stack.Screen name="vendeur/produits" options={{ title: t.seller.products }} />
+              <Stack.Screen
+                name="vendeur/produit/nouveau"
+                options={{ title: t.seller.newProduct }}
+              />
+              <Stack.Screen name="vendeur/produit/[id]" options={{ title: t.seller.editProduct }} />
+              <Stack.Screen name="vendeur/argent" options={{ title: t.seller.money }} />
+              <Stack.Screen
+                name="vendeur/verification"
+                options={{ title: t.seller.verificationTitle }}
+              />
+              <Stack.Screen name="livreur/index" options={{ title: t.rider.title }} />
+              <Stack.Screen name="livreur/[orderId]" options={{ title: t.rider.codeTitle }} />
             </Stack>
           </CartProvider>
         </SessionProvider>

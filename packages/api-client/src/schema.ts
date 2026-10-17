@@ -195,12 +195,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Mes produits (hors archivés) */
+    /** Mes produits (hors archivés, brouillons compris) */
     get: operations['listMyProducts'];
     put?: never;
     /**
      * Publier un produit (F3)
-     * @description Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération).
+     * @description Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération). Avec `publish: false`, crée un brouillon (`draft`) : l'application y rattache les photos, puis le publie avec `PATCH status=published` (au moins une photo exigée).
      */
     post: operations['createProduct'];
     delete?: never;
@@ -233,8 +233,28 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Commandes de ma boutique */
+    /**
+     * Commandes de ma boutique
+     * @description Sans le téléphone ni le repère de l'acheteur (le livreur s'en charge).
+     */
     get: operations['sellerOrders'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/orders/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Détail d'une commande de ma boutique */
+    get: operations['sellerOrder'];
     put?: never;
     post?: never;
     delete?: never;
@@ -396,7 +416,7 @@ export interface paths {
     };
     /**
      * Détail et historique d'une commande
-     * @description Accessible à l'acheteur, au vendeur concerné et au support.
+     * @description Accessible à l'acheteur et au support. Le vendeur passe par `/v1/seller/orders/{id}`, qui ne contient pas le téléphone ni le repère de l'acheteur.
      */
     get: operations['getOrder'];
     put?: never;
@@ -484,6 +504,23 @@ export interface paths {
     };
     /** Mes missions en cours */
     get: operations['riderDeliveries'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Détail d'une mission (id = commande) */
+    get: operations['riderDelivery'];
     put?: never;
     post?: never;
     delete?: never;
@@ -746,15 +783,16 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Fiche complète d'un de mes produits (écran de modification) */
+    get: operations['getMyProduct'];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
     /**
-     * Modifier, archiver ou remettre en vente un produit
-     * @description Un vendeur non vérifié qui modifie le texte, la catégorie ou les photos repasse en modération.
+     * Modifier, publier, archiver ou remettre en vente un produit
+     * @description Un vendeur non vérifié qui modifie le texte, la catégorie ou les photos repasse en modération. `status=published` publie un brouillon (au moins une photo, sinon `photo_required`), remet en vente un produit archivé, ou soumet à nouveau un produit refusé (toujours en modération).
      */
     patch: operations['updateProduct'];
     trace?: never;
@@ -1007,7 +1045,85 @@ export interface components {
       phone: string;
       landmark: string;
     };
-    Order: {
+    OrderHistory: {
+      status: components['schemas']['OrderStatus'];
+      event: string;
+      /** Format: date-time */
+      at: string;
+    }[];
+    /** @description Commande vue par le vendeur, sans les coordonnées de l'acheteur. */
+    SellerOrder: components['schemas']['OrderCore'] & {
+      commission: components['schemas']['Amount'];
+      /** @description Ce que le vendeur recevra (articles − commission) */
+      sellerNet: components['schemas']['Amount'];
+      destination: {
+        city: string;
+        zone: string;
+        pickupPoint: string | null;
+      };
+    };
+    SellerProduct: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      description: string;
+      price: components['schemas']['Amount'];
+      stock: number;
+      status: components['schemas']['ProductStatus'];
+      /** Format: uuid */
+      categoryId: string;
+      rejectionReason: string | null;
+      /** Format: date-time */
+      updatedAt: string;
+      photos: {
+        /** Format: uuid */
+        id: string;
+        position: number;
+        /** Format: uri */
+        url: string;
+      }[];
+    };
+    /** @description Mission de livraison. Commande déjà payée : le livreur n'encaisse jamais d'argent. */
+    RiderMission: {
+      /** Format: uuid */
+      orderId: string;
+      /** @enum {string} */
+      status:
+        | 'awaiting_assignment'
+        | 'assigned'
+        | 'picked_up'
+        | 'at_pickup_point'
+        | 'delivered'
+        | 'failed'
+        | 'cancelled';
+      orderStatus: components['schemas']['OrderStatus'];
+      publicRef: string;
+      /** @enum {string} */
+      deliveryMode: 'home' | 'pickup_point';
+      recipient: components['schemas']['ShippingAddress'];
+      pickup: {
+        shopName: string;
+        phone: string;
+        city: string;
+        zone: string;
+      };
+      destination: {
+        city: string;
+        zone: string;
+        pickupPoint: {
+          name: string;
+          landmark: string;
+        } | null;
+      };
+      itemCount: number;
+      handoverAttemptsLeft: number;
+      /** Format: date-time */
+      assignedAt: string | null;
+      /** Format: date-time */
+      pickedUpAt: string | null;
+    };
+    /** @description Champs communs aux vues acheteur et vendeur d'une commande. */
+    OrderCore: {
       /** Format: uuid */
       id: string;
       /** @example ZD-7K3M9Q2P */
@@ -1042,7 +1158,6 @@ export interface components {
       currency: 'XAF';
       /** @enum {string} */
       deliveryMode: 'home' | 'pickup_point';
-      shippingAddress: components['schemas']['ShippingAddress'];
       /** Format: date-time */
       sellerAcceptDeadline: string | null;
       /** Format: date-time */
@@ -1058,6 +1173,10 @@ export interface components {
       /** Format: date-time */
       cancelledAt: string | null;
       cancelReason: string | null;
+    };
+    /** @description Commande vue par l'acheteur (et le support), coordonnées de livraison comprises. */
+    Order: components['schemas']['OrderCore'] & {
+      shippingAddress: components['schemas']['ShippingAddress'];
     };
     Checkout: {
       /** Format: uuid */
@@ -1177,8 +1296,8 @@ export interface components {
       content: {
         'application/json': {
           /** Format: uuid */
-          id?: string;
-          status?: components['schemas']['OrderStatus'];
+          id: string;
+          status: components['schemas']['OrderStatus'];
         };
       };
     };
@@ -1546,7 +1665,10 @@ export interface operations {
   };
   listMyProducts: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description `archived` pour lister les produits archivés */
+        status?: 'archived';
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -1598,6 +1720,8 @@ export interface operations {
           description?: string;
           price: components['schemas']['Amount'];
           stock: number;
+          /** @default true */
+          publish?: boolean;
         };
       };
     };
@@ -1610,9 +1734,9 @@ export interface operations {
         content: {
           'application/json': {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** @enum {string} */
-            status?: 'published' | 'pending_review';
+            status: 'published' | 'pending_review' | 'draft';
           };
         };
       };
@@ -1636,20 +1760,23 @@ export interface operations {
         };
         content: {
           'application/json': {
-            available?: components['schemas']['Amount'];
-            inEscrow?: components['schemas']['Amount'];
-            payouts?: {
+            /** @description Libéré, en attente du reversement automatique (plafond nouveau vendeur compris) */
+            available: components['schemas']['Amount'];
+            /** @description Part du vendeur (articles − commission) des commandes encore en séquestre : versée après la livraison et la fin du délai de réclamation */
+            inEscrow: components['schemas']['Amount'];
+            payouts: {
               /** Format: uuid */
-              id?: string;
-              amount?: components['schemas']['Amount'];
+              id: string;
+              amount: components['schemas']['Amount'];
               /** @enum {string} */
-              status?: 'pending' | 'processing' | 'succeeded' | 'failed';
+              status: 'pending' | 'processing' | 'succeeded' | 'failed';
               /** Format: uuid */
-              orderId?: string | null;
+              orderId: string | null;
+              publicRef: string | null;
               /** Format: date-time */
-              createdAt?: string;
+              createdAt: string;
               /** Format: date-time */
-              succeededAt?: string | null;
+              succeededAt: string | null;
             }[];
           };
         };
@@ -1660,7 +1787,8 @@ export interface operations {
   sellerOrders: {
     parameters: {
       query?: {
-        status?: components['schemas']['OrderStatus'];
+        /** @description Un ou plusieurs statuts séparés par des virgules (ex. `paid,preparing`) */
+        status?: string;
       };
       header?: never;
       path?: never;
@@ -1668,8 +1796,44 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      200: components['responses']['OrderList'];
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['SellerOrder'][];
+          };
+        };
+      };
+      400: components['responses']['Error'];
       401: components['responses']['Error'];
+    };
+  };
+  sellerOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SellerOrder'] & {
+            history: components['schemas']['OrderHistory'];
+          };
+        };
+      };
+      404: components['responses']['Error'];
     };
   };
   acceptOrder: {
@@ -1878,12 +2042,7 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['Order'] & {
-            history: {
-              status: components['schemas']['OrderStatus'];
-              event: string;
-              /** Format: date-time */
-              at: string;
-            }[];
+            history: components['schemas']['OrderHistory'];
           };
         };
       };
@@ -1999,21 +2158,35 @@ export interface operations {
         };
         content: {
           'application/json': {
-            items?: {
-              /** Format: uuid */
-              orderId?: string;
-              publicRef?: string;
-              status?: string;
-              /** @enum {string} */
-              deliveryMode?: 'home' | 'pickup_point';
-              shippingAddress?: components['schemas']['ShippingAddress'];
-              shopName?: string;
-              pickupZone?: string;
-            }[];
+            items: components['schemas']['RiderMission'][];
           };
         };
       };
       401: components['responses']['Error'];
+      403: components['responses']['Error'];
+    };
+  };
+  riderDelivery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RiderMission'];
+        };
+      };
+      404: components['responses']['Error'];
     };
   };
   riderPickup: {
@@ -2426,6 +2599,29 @@ export interface operations {
       409: components['responses']['Error'];
     };
   };
+  getMyProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SellerProduct'];
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
   updateProduct: {
     parameters: {
       query?: never;
@@ -2466,7 +2662,9 @@ export interface operations {
           };
         };
       };
+      403: components['responses']['Error'];
       404: components['responses']['Error'];
+      409: components['responses']['Error'];
     };
   };
   addProductPhoto: {
