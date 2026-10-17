@@ -34,10 +34,17 @@ export class MemoryNotificationSender implements NotificationSender {
   }
 }
 
-/** Développement local : affiche les messages dans la console (dont les codes de connexion). */
-export class ConsoleNotificationSender implements NotificationSender {
+/**
+ * Développement local : affiche les messages dans la console et garde les 200 derniers,
+ * consultables via `GET /dev/messages` (connexion sur un téléphone de test sans lire les journaux).
+ */
+export class DevNotificationSender implements NotificationSender {
+  readonly recent: Array<OutgoingMessage & { sentAt: string }> = [];
+
   async send(message: OutgoingMessage): Promise<{ providerRef?: string }> {
     console.log(`[${message.channel.toUpperCase()} -> ${message.recipient}] ${message.text}`);
+    this.recent.push({ ...message, sentAt: new Date().toISOString() });
+    if (this.recent.length > 200) this.recent.shift();
     return {};
   }
 }

@@ -1,3 +1,6 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, resolve, sep } from 'node:path';
+
 /**
  * Port vers le stockage objet (compatible S3 : AWS S3, MinIO, Scaleway, Cloudflare R2…).
  * Deux compartiments : « public » (photos produits, servies par le CDN) et « private »
@@ -43,13 +46,17 @@ interface MemoryObject extends StoredObject {
 }
 
 /**
- * Stockage en mémoire pour le développement et les tests (perdu au redémarrage).
+ * Stockage de développement et de test. En mémoire par défaut ; avec un dossier (`dir`), les
+ * fichiers sont aussi écrits sur disque et survivent au redémarrage de l'API.
  * Les envois passent par une route de développement de l'API (`/dev/storage/...`).
  */
 export class MemoryStorage implements ObjectStorage {
   private readonly objects = new Map<string, MemoryObject>();
 
-  constructor(private readonly apiBaseUrl: string) {}
+  constructor(
+    private readonly apiBaseUrl: string,
+    private readonly dir: string | null = null,
+  ) {}
 
   async presignUpload(input: {
     bucket: Bucket;
@@ -72,7 +79,7 @@ export class MemoryStorage implements ObjectStorage {
   }
 
   async head(input: { bucket: Bucket; key: string }): Promise<StoredObject | null> {
-    const object = this.objects.get(`${input.bucket}/${input.key}`);
+    const object = await this.get(input.bucket, input.key);
     return object ? { size: object.size, contentType: object.contentType } : null;
   }
 
@@ -80,11 +87,34 @@ export class MemoryStorage implements ObjectStorage {
     return `${this.apiBaseUrl}/dev/storage/public/${key}`;
   }
 
-  put(bucket: Bucket, key: string, body: Buffer, contentType: string): void {
+  async put(bucket: Bucket, key: string, body: Buffer, contentType: string): Promise<void> {
     this.objects.set(`${bucket}/${key}`, { body, size: body.length, contentType });
+    if (this.dir) {
+      const file = this.fileFor(bucket, key);
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(file, body);
+      await writeFile(`${file}.type`, contentType);
+    }
   }
 
-  get(bucket: Bucket, key: string): MemoryObject | undefined {
-    return this.objects.get(`${bucket}/${key}`);
+  async get(bucket: Bucket, key: string): Promise<MemoryObject | undefined> {
+    const cached = this.objects.get(`${bucket}/${key}`);
+    if (cached || !this.dir) return cached;
+    try {
+      const file = this.fileFor(bucket, key);
+      const body = await readFile(file);
+      const contentType = await readFile(`${file}.type`, 'utf8');
+      return { body, size: body.length, contentType };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private fileFor(bucket: Bucket, key: string): string {
+    const file = resolve(this.dir!, bucket, key);
+    // Défense en profondeur : une clé ne sort jamais du dossier de stockage.
+    if (!file.startsWith(resolve(this.dir!, bucket) + sep))
+      throw new Error(`Clé invalide : ${key}`);
+    return file;
   }
 }

@@ -6,6 +6,8 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
+import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
+import { DevNotificationSender } from './modules/notifications/sender.js';
 import { orderRoutes } from './modules/orders/orders.routes.js';
 import { SimulatorProvider } from './modules/payments/simulator.js';
 import { simulatorDevRoutes, webhookRoutes } from './modules/payments/webhooks.routes.js';
@@ -31,6 +33,20 @@ export async function buildApp(
   });
   app.decorateRequest('user', null);
   app.setErrorHandler(errorHandler);
+  // Tolérant : un POST sans corps mais avec « Content-Type: application/json » (fréquent chez
+  // certains clients HTTP) est traité comme un corps vide plutôt que rejeté.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+    if (body === '') return done(null, undefined);
+    try {
+      done(null, JSON.parse(body as string));
+    } catch {
+      done(
+        Object.assign(new Error('Corps JSON invalide'), { statusCode: 400, code: 'invalid_json' }),
+        undefined,
+      );
+    }
+  });
   // Les applications natives n'envoient pas d'en-tête Origin ; le web et le back-office si.
   await app.register(cors, {
     origin: ctx.config.corsOrigins ?? true,
@@ -53,6 +69,9 @@ export async function buildApp(
   await app.register(adminRoutes(ctx));
   await app.register(webhookRoutes(ctx));
 
+  if (ctx.config.env !== 'production' && ctx.notifier instanceof DevNotificationSender) {
+    await app.register(devMessagesRoutes(ctx.notifier, ctx.pool));
+  }
   if (ctx.config.env !== 'production' && ctx.storage instanceof MemoryStorage) {
     await app.register(devStorageRoutes(ctx.storage));
   }

@@ -1366,11 +1366,11 @@ export interface operations {
         content: {
           'application/json': {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            parentId?: string | null;
-            slug?: string;
-            name?: string;
+            parentId: string | null;
+            slug: string;
+            name: string;
           }[];
         };
       };
@@ -1464,14 +1464,14 @@ export interface operations {
         content: {
           'application/json': {
             /** Format: uuid */
-            id?: string;
-            city?: string;
-            name?: string;
-            pickupPoints?: {
+            id: string;
+            city: string;
+            name: string;
+            pickupPoints: {
               /** Format: uuid */
-              id?: string;
-              name?: string;
-              landmark?: string;
+              id: string;
+              name: string;
+              landmark: string;
             }[];
           }[];
         };

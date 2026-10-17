@@ -175,6 +175,7 @@ paths:
                 type: array
                 items:
                   type: object
+                  required: [id, parentId, slug, name]
                   properties:
                     id: { type: string, format: uuid }
                     parentId: { type: [string, 'null'], format: uuid }
@@ -285,6 +286,7 @@ paths:
                 type: array
                 items:
                   type: object
+                  required: [id, city, name, pickupPoints]
                   properties:
                     id: { type: string, format: uuid }
                     city: { type: string }
@@ -293,6 +295,7 @@ paths:
                       type: array
                       items:
                         type: object
+                        required: [id, name, landmark]
                         properties:
                           id: { type: string, format: uuid }
                           name: { type: string }

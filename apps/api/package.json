@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:migrate": "tsx --conditions=zandu-source src/db/migrate.ts",
     "db:seed": "tsx --conditions=zandu-source src/db/seed.ts",
-    "user:grant-role": "tsx --conditions=zandu-source src/cli/grant-role.ts"
+    "user:grant-role": "tsx --conditions=zandu-source src/cli/grant-role.ts",
+    "db:seed:demo": "tsx --conditions=zandu-source src/db/seed-demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

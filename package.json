@@ -18,11 +18,18 @@
     "dev:worker": "pnpm --filter @zandu/api dev:worker",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:openapi": "pnpm --package=@redocly/cli@2 dlx redocly lint docs/api/openapi.yaml"
+    "lint:openapi": "pnpm --package=@redocly/cli@2 dlx redocly lint docs/api/openapi.yaml",
+    "db:seed:demo": "pnpm --filter @zandu/api db:seed:demo",
+    "dev:mobile": "pnpm --filter @zandu/mobile start"
   },
   "devDependencies": {
     "prettier": "^3.9.9",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "~19.2.18"
+    }
   }
 }

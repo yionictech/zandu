@@ -1,6 +1,6 @@
 # ADR-0007 — Android en React Native + Expo
 
-**Statut** : proposée · **Date** : octobre 2026
+**Statut** : acceptée (octobre 2026) — Expo SDK 58, React Native 0.88, expo-router · **Date** : octobre 2026
 
 ## Décision
 

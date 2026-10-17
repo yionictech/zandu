@@ -1,0 +1,134 @@
+[
+  {
+    "slug": "samsung-galaxy-a15",
+    "shop": "electro",
+    "category": "telephones",
+    "title": "Téléphone Samsung Galaxy A15 128 Go",
+    "price": 95000,
+    "stock": 8,
+    "emoji": "📱",
+    "bg": ["#DBEAFE", "#93C5FD"],
+    "description": "Écran 6,5 pouces, double SIM, batterie 5 000 mAh. Garantie vendeur 6 mois. Livré avec chargeur."
+  },
+  {
+    "slug": "ecouteurs-bluetooth",
+    "shop": "electro",
+    "category": "telephones",
+    "title": "Écouteurs Bluetooth sans fil",
+    "price": 12500,
+    "stock": 25,
+    "emoji": "🎧",
+    "bg": ["#E0E7FF", "#A5B4FC"],
+    "description": "Autonomie 20 h avec le boîtier, réduction de bruit, compatibles Android et iPhone."
+  },
+  {
+    "slug": "ventilateur-16",
+    "shop": "electro",
+    "category": "maison",
+    "title": "Ventilateur sur pied 16 pouces",
+    "price": 35000,
+    "stock": 12,
+    "emoji": "🌀",
+    "bg": ["#CCFBF1", "#5EEAD4"],
+    "description": "3 vitesses, oscillation, silencieux. Idéal pour la saison sèche."
+  },
+  {
+    "slug": "ordinateur-hp-15",
+    "shop": "electro",
+    "category": "informatique",
+    "title": "Ordinateur portable HP 15 pouces reconditionné",
+    "price": 185000,
+    "stock": 3,
+    "emoji": "💻",
+    "bg": ["#E2E8F0", "#94A3B8"],
+    "description": "Core i5, 8 Go de RAM, SSD 256 Go, Windows 11. Testé et garanti 3 mois."
+  },
+  {
+    "slug": "fer-a-repasser",
+    "shop": "electro",
+    "category": "maison",
+    "title": "Fer à repasser vapeur",
+    "price": 18000,
+    "stock": 10,
+    "emoji": "👔",
+    "bg": ["#FEF3C7", "#FCD34D"],
+    "description": "Semelle céramique, réservoir 300 ml, arrêt automatique."
+  },
+  {
+    "slug": "pagne-wax",
+    "shop": "pagnes",
+    "category": "mode",
+    "title": "Pagne wax 6 yards",
+    "price": 12000,
+    "stock": 40,
+    "emoji": "🧵",
+    "bg": ["#FFEDD5", "#FB923C"],
+    "description": "Coton 100 %, motifs vifs, 6 yards. Plusieurs modèles disponibles en boutique."
+  },
+  {
+    "slug": "robe-wax",
+    "shop": "pagnes",
+    "category": "mode",
+    "title": "Robe en wax sur mesure",
+    "price": 25000,
+    "stock": 6,
+    "emoji": "👗",
+    "bg": ["#FCE7F3", "#F9A8D4"],
+    "description": "Cousue à vos mesures en 5 jours. Indiquez vos mesures dans la discussion."
+  },
+  {
+    "slug": "sac-raphia",
+    "shop": "pagnes",
+    "category": "mode",
+    "title": "Sac en raphia tressé main",
+    "price": 15000,
+    "stock": 9,
+    "emoji": "👜",
+    "bg": ["#FEF9C3", "#FDE047"],
+    "description": "Fabriqué à la main par des artisanes de Pointe-Noire. Doublure en wax."
+  },
+  {
+    "slug": "sandales-cuir",
+    "shop": "pagnes",
+    "category": "mode",
+    "title": "Sandales en cuir artisanales",
+    "price": 9000,
+    "stock": 15,
+    "emoji": "👡",
+    "bg": ["#FFE4E6", "#FDA4AF"],
+    "description": "Cuir véritable, semelle résistante. Pointures 36 à 45."
+  },
+  {
+    "slug": "beurre-karite",
+    "shop": "pagnes",
+    "category": "beaute",
+    "title": "Beurre de karité pur 500 g",
+    "price": 4500,
+    "stock": 30,
+    "emoji": "🧴",
+    "bg": ["#ECFCCB", "#BEF264"],
+    "description": "Non raffiné, pour la peau et les cheveux."
+  },
+  {
+    "slug": "cafe-congo",
+    "shop": "saveurs",
+    "category": "alimentation",
+    "title": "Café du Congo moulu 500 g",
+    "price": 6000,
+    "stock": 20,
+    "emoji": "☕",
+    "bg": ["#F5F5F4", "#D6D3D1"],
+    "description": "Torréfié localement, mouture moyenne pour cafetière."
+  },
+  {
+    "slug": "miel-foret",
+    "shop": "saveurs",
+    "category": "alimentation",
+    "title": "Miel de forêt 1 L",
+    "price": 8000,
+    "stock": 14,
+    "emoji": "🍯",
+    "bg": ["#FFFBEB", "#FBBF24"],
+    "description": "Miel naturel récolté dans le Mayombe."
+  }
+]

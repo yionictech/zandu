@@ -54,13 +54,13 @@ export function devStorageRoutes(storage: MemoryStorage): FastifyPluginAsync {
     app.put('/dev/storage/:bucket/*', async (request, reply) => {
       const params = Params.parse(request.params);
       const contentType = request.headers['content-type'] ?? 'application/octet-stream';
-      storage.put(params.bucket as Bucket, params['*'], request.body as Buffer, contentType);
+      await storage.put(params.bucket as Bucket, params['*'], request.body as Buffer, contentType);
       return reply.status(200).send();
     });
 
     app.get('/dev/storage/:bucket/*', async (request, reply) => {
       const params = Params.parse(request.params);
-      const object = storage.get(params.bucket as Bucket, params['*']);
+      const object = await storage.get(params.bucket as Bucket, params['*']);
       if (!object) return reply.status(404).send();
       return reply
         .type(object.contentType)

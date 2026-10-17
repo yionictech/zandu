@@ -39,6 +39,8 @@ const EnvSchema = z.object({
   /** Origines web autorisées (CORS), séparées par des virgules. Vide = toutes en développement. */
   CORS_ORIGINS: z.string().default(''),
   STORAGE_DRIVER: z.enum(['memory', 's3']).default('memory'),
+  /** Stockage de développement : dossier où conserver les fichiers (sinon en mémoire seulement). */
+  LOCAL_STORAGE_DIR: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().default('eu-west-3'),
   S3_ACCESS_KEY_ID: z.string().default(''),
@@ -92,7 +94,7 @@ export interface Config {
   /** null = toute origine (développement uniquement). */
   corsOrigins: string[] | null;
   storage:
-    | { driver: 'memory' }
+    | { driver: 'memory'; dir: string | null }
     | {
         driver: 's3';
         endpoint: string | undefined;
@@ -155,7 +157,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     corsOrigins: corsOrigins.length ? corsOrigins : null,
     storage:
       env.STORAGE_DRIVER === 'memory'
-        ? { driver: 'memory' }
+        ? { driver: 'memory', dir: env.LOCAL_STORAGE_DIR ?? null }
         : {
             driver: 's3',
             endpoint: env.S3_ENDPOINT,

@@ -9,19 +9,21 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 
 ## État du projet
 
-Socle technique du MVP en place et testé :
-
-- **Schéma de données complet** (PostgreSQL 16) avec garde-fous en base : grand livre en partie double
+- **Base de données complète** (PostgreSQL 16) avec garde-fous en base : grand livre en partie double
   en écriture seule, équilibre vérifié à chaque transaction, transitions de commande verrouillées.
 - **Règles métier pures** (`packages/domain`) : argent en FCFA entiers, commissions, machines à états
   commande et paiement, écritures comptables, plafonds des nouveaux vendeurs, filtre de messagerie.
 - **API** (`apps/api`) : connexion par SMS, catalogue et recherche, panier multi-vendeurs, paiement Mobile
   Money (simulateur d'agrégateur), séquestre, livraison avec code de remise, litiges, remboursements,
-  reversements automatiques, back-office minimal, journal d'audit.
-- **102 tests automatiques**, dont tous les cas d'erreur de paiement du cahier des charges.
+  reversements automatiques, espace vendeur, photos et pièces KYC par URL signées, avis, back-office.
+- **Application Android** (`apps/mobile`, Expo) : le parcours acheteur complet, de l'accueil à l'avis.
+- **122 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI) et un parcours de bout en bout piloté dans un navigateur.
 
-À construire : applications Android et web, back-office graphique, branchement de l'agrégateur réel et du
-fournisseur SMS/WhatsApp, envoi des photos et pièces KYC, rapprochement quotidien. Voir la
+![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
+
+À construire : écrans vendeur et livreur, site web Next.js, back-office graphique, branchement de
+l'agrégateur réel et du fournisseur SMS/WhatsApp, rapprochement quotidien. Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
 ## Documentation
@@ -36,7 +38,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 102 tests
+pnpm test            # 122 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 
@@ -46,7 +48,9 @@ Détails : [guide du développeur](docs/developpement.md).
 
 ```
 apps/api/          API HTTP + worker (Node.js, Fastify)
+apps/mobile/       Application Android (React Native, Expo)
 packages/domain/   Règles métier pures (argent, statuts, grand livre)
+packages/api-client/  Client typé généré depuis le contrat OpenAPI
 db/migrations/     Schéma SQL versionné
 db/seeds/          Données de référence (zones, tarifs, catégories, commissions)
 docs/              Dossier d'architecture

@@ -24,7 +24,7 @@ gantt
   section Cadrage
   Socle technique (FAIT)            :done,    s0, 2026-10-05, 1w
   Maquettes + design system         :active,  s1, 2026-10-05, 4w
-  Apps : squelettes, OTP, KYC       :         s2, 2026-10-19, 2w
+  Sprint 1 : fichiers, KYC, app acheteur (FAIT) :done, s2, 2026-10-12, 1w
   Jalon maquettes validées          :milestone, m1, 2026-11-02, 0d
   section Catalogue
   Photos produits + fiches + recherche :      s3, 2026-11-02, 2w
@@ -48,18 +48,27 @@ Schéma de données complet ; règles métier pures ; API : OTP, catalogue/reche
 multi-vendeurs, paiement + séquestre (simulateur), livraison avec code de remise, litiges, reversements,
 remboursements, back-office minimal, audit ; 102 tests ; CI.
 
-### Sprint 1 (S1-S2) — Maquettes et fondations des applications
+### Sprint 1 — Fichiers, KYC, application acheteur (✅ fait, ce dépôt)
+
+- Backend : stockage objet par URL signées (photos produits, pièces KYC privées, preuves de litige),
+  espace vendeur (produits, photos, KYC, aperçu de commission), avis (F11), files du support, CORS.
+- `packages/api-client` : client typé généré depuis le contrat ; test de contrat contre l'API réelle.
+- Application Android (Expo) : accueil, recherche, fiche produit, panier multi-vendeurs, connexion
+  SMS, livraison par repères, paiement Mobile Money avec attente du PIN, suivi, confirmation de
+  réception, litige, avis. Parcours de bout en bout automatisé (captures dans `docs/ux/captures`).
+
+### Prochaine étape (S1-S2) — Maquettes, écrans vendeur et livreur
 
 - Designer : parcours acheteur, vendeur, livreur ; design system (voir `docs/ux`).
-- Mobile : projet Expo, navigation par rôle, client d'API typé (généré depuis `docs/api/openapi.yaml`),
-  connexion OTP, cache local.
-- Backend : URL signées S3 (photos produits, pièces KYC dans le compartiment privé), endpoints KYC.
+- Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
+- Mobile : écrans vendeur (ouvrir sa boutique, ajouter un produit « photo d'abord », commandes à
+  traiter, mon argent, KYC) et livreur (missions, saisie du code de remise).
 - Fondateur : **choix de l'agrégateur** (voir décisions), rendez-vous juriste.
 
 ### Sprint 2 (S3-S4) — Comptes, KYC, boutique
 
 - Mobile : ouverture de boutique, KYC progressif, profil.
-- Backend : édition / archivage produit, avis (F11), messagerie (F13 : endpoints + filtre déjà prêt).
+- Backend : messagerie (F13 : endpoints + filtre déjà prêt), notifications push.
 - **Jalon : maquettes validées.**
 
 ### Sprint 3 (S5-S6) — Catalogue

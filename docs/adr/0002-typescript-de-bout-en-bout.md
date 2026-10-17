@@ -1,6 +1,6 @@
 # ADR-0002 — TypeScript de bout en bout
 
-**Statut** : proposée par l'architecte, à valider par le fondateur · **Date** : octobre 2026
+**Statut** : acceptée — le fondateur a lancé le codage sur cette base (octobre 2026) · **Date** : octobre 2026
 
 ## Contexte
 

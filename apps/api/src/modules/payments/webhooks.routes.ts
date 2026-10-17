@@ -11,6 +11,7 @@ import { SimulatorProvider } from './simulator.js';
  */
 export function webhookRoutes(ctx: AppContext): FastifyPluginAsync {
   return async (app) => {
+    app.removeContentTypeParser('application/json');
     app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_request, body, done) =>
       done(null, body),
     );

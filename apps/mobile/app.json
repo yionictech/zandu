@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Zandu",
+    "slug": "zandu",
+    "scheme": "zandu",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "cg.zandu.app",
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Zandu",
+      "themeColor": "#C2410C"
+    },
+    "plugins": ["expo-router", "expo-status-bar", "expo-secure-store", "expo-image", "expo-font"]
+  }
+}

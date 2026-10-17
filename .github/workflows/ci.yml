@@ -37,3 +37,9 @@ jobs:
       - run: pnpm build
       - name: Contrat d'API (OpenAPI)
         run: pnpm lint:openapi
+      - name: Client d'API à jour avec le contrat
+        run: pnpm --filter @zandu/api-client check-generated
+      - name: Application mobile — compilation Android (Metro + Hermes)
+        run: pnpm --filter @zandu/mobile exec expo export --platform android --output-dir ${{ runner.temp }}/android-bundle
+        env:
+          CI: '1'
