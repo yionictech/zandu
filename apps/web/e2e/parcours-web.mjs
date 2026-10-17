@@ -32,13 +32,23 @@ const product = own.find((p) => p.title === 'Téléphone Samsung Galaxy A15 128 
 await json('PATCH', `/v1/seller/products/${product.id}`, seller, { stock: 8 });
 const productUrl = `${SITE}/produit/${product.id}`;
 
-// 1. L'aperçu WhatsApp : ce que lit le robot de WhatsApp dans le HTML, sans JavaScript.
-const html = await (await fetch(productUrl)).text();
+// 1. L'aperçu WhatsApp : ce que lit le robot de WhatsApp dans le HTML, sans JavaScript. Le worker
+//    décline les photos en quelques secondes (ADR-0014) : l'aperçu doit utiliser le JPEG de partage.
+//    Le site garde la fiche 60 s en cache : on attend que l'aperçu soit à jour.
+let html = '';
 const og = (name) => html.match(new RegExp(`<meta property="og:${name}" content="([^"]*)"`))?.[1];
+for (let i = 0; i < 45; i++) {
+  html = await (await fetch(productUrl)).text();
+  if (/-share\d+\.jpg$/.test(og('image') ?? '')) break;
+  await sleep(2000);
+}
 for (const name of ['title', 'description', 'image', 'url']) {
   if (!og(name)) throw new Error(`Balise og:${name} absente de la fiche produit`);
 }
 if (!/FCFA/.test(og('title'))) throw new Error(`Prix absent de l'aperçu : ${og('title')}`);
+if (!/-share\d+\.jpg$/.test(og('image'))) {
+  throw new Error(`Aperçu sans JPEG de partage : ${og('image')}`);
+}
 if (!html.includes('"@type":"Product"')) throw new Error('Données structurées Product absentes');
 console.log(`Aperçu WhatsApp : « ${og('title')} » — image ${og('image')}`);
 

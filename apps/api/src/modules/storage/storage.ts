@@ -37,8 +37,19 @@ export interface ObjectStorage {
     expiresInSeconds: number;
   }): Promise<string>;
   head(input: { bucket: Bucket; key: string }): Promise<StoredObject | null>;
-  /** Dépôt direct par le serveur (données de démonstration, vérification du stockage). */
-  put(bucket: Bucket, key: string, body: Buffer, contentType: string): Promise<void>;
+  /**
+   * Dépôt direct par le serveur (déclinaisons des photos, démonstration, vérification).
+   * `cacheControl` : en-tête servi avec l'objet (ex. contenu immuable, mis en cache un an).
+   */
+  put(
+    bucket: Bucket,
+    key: string,
+    body: Buffer,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<void>;
+  /** Contenu d'un objet, ou null s'il n'existe pas. */
+  download(bucket: Bucket, key: string): Promise<Buffer | null>;
   /** URL publique (CDN) d'un objet du compartiment public. */
   publicUrl(key: string): string;
 }
@@ -97,6 +108,10 @@ export class MemoryStorage implements ObjectStorage {
       await writeFile(file, body);
       await writeFile(`${file}.type`, contentType);
     }
+  }
+
+  async download(bucket: Bucket, key: string): Promise<Buffer | null> {
+    return (await this.get(bucket, key))?.body ?? null;
   }
 
   async get(bucket: Bucket, key: string): Promise<MemoryObject | undefined> {

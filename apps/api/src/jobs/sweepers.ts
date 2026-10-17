@@ -1,6 +1,7 @@
 import { DomainError } from '@zandu/domain';
 import { SYSTEM, type AppContext } from '../context.js';
 import { withTx } from '../db/pool.js';
+import { processProductMedia } from '../modules/media/media.service.js';
 import { dispatchOutbox, sendNotifications } from '../modules/notifications/dispatcher.js';
 import { applyOrderEvent } from '../modules/orders/orders.service.js';
 import {
@@ -53,6 +54,8 @@ export const SWEEPERS: ReadonlyArray<[string, (ctx: AppContext) => Promise<numbe
   ['processPayouts', processPayouts],
   ['dispatchOutbox', dispatchOutbox],
   ['sendNotifications', sendNotifications],
+  // En dernier : le traitement d'image est le plus lent, l'argent et les messages passent avant.
+  ['processProductMedia', processProductMedia],
 ];
 
 export async function runSweepers(

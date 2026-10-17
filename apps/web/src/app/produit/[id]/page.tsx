@@ -19,7 +19,12 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const p = await loadProduct((await params).id);
   const title = `${p.title} — ${formatXaf(p.price)}`;
   const description = `Vendu par ${p.seller.shopName} à ${p.city}. Paiement Mobile Money protégé : votre argent reste bloqué jusqu'à la livraison.`;
-  const image = p.media[0]?.url ?? p.coverImage;
+  // JPEG de partage (ADR-0014) : tous les aperçus de lien le lisent, ce qui n'est pas sûr du WebP.
+  const share = p.shareImage
+    ? { url: p.shareImage }
+    : p.media[0]
+      ? { url: p.media[0].url, width: p.media[0].width ?? 600, height: p.media[0].height ?? 600 }
+      : null;
   return {
     title,
     description,
@@ -28,16 +33,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       title,
       description,
       url: `/produit/${p.id}`,
-      images: image
-        ? [
-            {
-              url: image,
-              width: p.media[0]?.width ?? 600,
-              height: p.media[0]?.height ?? 600,
-              alt: p.title,
-            },
-          ]
-        : [],
+      images: share ? [{ ...share, alt: p.title }] : [],
     },
     twitter: { card: 'summary_large_image', title, description },
   };

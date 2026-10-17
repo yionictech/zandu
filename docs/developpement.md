@@ -12,7 +12,7 @@ export $(grep -v '^#' .env | xargs)       # ou un outil comme direnv
 pnpm db:migrate && pnpm db:seed           # schéma + zones, tarifs, catégories, commissions
 pnpm db:seed:demo                         # facultatif : 3 boutiques et 12 produits avec photos
 pnpm dev:api                              # API sur http://localhost:3000
-pnpm dev:worker                           # tâches de fond (autre terminal)
+pnpm dev:worker                           # tâches de fond, dont les photos (autre terminal)
 ```
 
 En développement, les SMS (dont les **codes de connexion** et **codes de remise**) s'affichent dans la
@@ -99,16 +99,21 @@ pour le livreur 06 800 00 00. Les livraisons sont assignées par le support :
 
 ## Commandes utiles
 
-| Commande                                 | Effet                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| `pnpm test`                              | Tous les tests (domaine + intégration ; PostgreSQL requis)         |
-| `pnpm test:unit`                         | Règles métier seules (sans base, < 1 s)                            |
-| `pnpm test:integration`                  | API contre PostgreSQL (`TEST_DATABASE_URL`, base `zandu_test`)     |
-| `pnpm typecheck`                         | Vérification des types (TypeScript 7)                              |
-| `pnpm format`                            | Formatage Prettier                                                 |
-| `pnpm lint:openapi`                      | Validation du contrat `docs/api/openapi.yaml`                      |
-| `pnpm build`                             | Compilation de production (`dist/`)                                |
-| `pnpm --filter @zandu/api storage:check` | Crée les compartiments S3 et vérifie leurs droits (public / privé) |
+| Commande                                   | Effet                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `pnpm test`                                | Tous les tests (domaine + intégration ; PostgreSQL requis)             |
+| `pnpm test:unit`                           | Règles métier seules (sans base, < 1 s)                                |
+| `pnpm test:integration`                    | API contre PostgreSQL (`TEST_DATABASE_URL`, base `zandu_test`)         |
+| `pnpm typecheck`                           | Vérification des types (TypeScript 7)                                  |
+| `pnpm format`                              | Formatage Prettier                                                     |
+| `pnpm lint:openapi`                        | Validation du contrat `docs/api/openapi.yaml`                          |
+| `pnpm build`                               | Compilation de production (`dist/`)                                    |
+| `pnpm --filter @zandu/api storage:check`   | Crée les compartiments S3 et vérifie leurs droits (public / privé)     |
+| `pnpm --filter @zandu/api media:reprocess` | Remet en file les photos à redécliner (après un changement de réglage) |
+
+**Photos** : le worker décline chaque photo produit (vignette, fiche, partage ; ADR-0014, réglages
+dans `apps/api/src/modules/media/variants.ts`). En développement, l'API et le worker doivent voir le
+même `LOCAL_STORAGE_DIR` ; sinon le worker ne trouve pas les originaux et l'original reste affiché.
 
 ## Conteneurs et recette
 

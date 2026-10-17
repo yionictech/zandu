@@ -220,6 +220,8 @@ main {
 .tile .placeholder {
   aspect-ratio: 1;
   width: 100%;
+  /* Sinon l'attribut height=300 l'emporte sur aspect-ratio : tuiles hautes et inégales. */
+  height: auto;
   object-fit: cover;
   background: var(--border);
 }

@@ -6,6 +6,7 @@ import { HttpError, notFound } from '../../lib/errors.js';
 import { actor, requireAuth, requireStaff, staffActor } from '../auth/guards.js';
 import { resetTotp } from '../auth/mfa.service.js';
 import { allBalances, trialBalance } from '../ledger/ledger.repository.js';
+import { DISPLAYABLE, variantKeySql } from '../media/media.service.js';
 import { audit } from './audit.js';
 
 /** Back-office (F16) : vérification des vendeurs, modération, contrôle du grand livre. */
@@ -139,8 +140,8 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
         `SELECT p.id, p.title, p.description, p.price, p.stock, p.status, p.rejection_reason AS "rejectionReason",
                 p.updated_at AS "updatedAt", c.name AS "category",
                 s.id AS "sellerId", s.shop_name AS "shopName", s.verification_status AS "sellerVerification",
-                (SELECT coalesce(json_agg(m.storage_key ORDER BY m.position), '[]')
-                 FROM product_media m WHERE m.product_id = p.id) AS "photoKeys"
+                (SELECT coalesce(json_agg(${variantKeySql('large')} ORDER BY m.position), '[]')
+                 FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS "photoKeys"
          FROM products p JOIN seller_profiles s ON s.id = p.seller_id JOIN categories c ON c.id = p.category_id
          WHERE p.status = $1::product_status
          ORDER BY p.updated_at LIMIT 100`,

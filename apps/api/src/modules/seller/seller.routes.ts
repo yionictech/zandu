@@ -14,6 +14,7 @@ import { audit } from '../admin/audit.js';
 import { actor, currentUser, requireAuth } from '../auth/guards.js';
 import { loadCategoryPaths, loadCommissionRules } from '../checkout/checkout.service.js';
 import { accountBalance, sellerEscrowBalance } from '../ledger/ledger.repository.js';
+import { COVER_KEY_SQL, DISPLAYABLE, variantKeySql } from '../media/media.service.js';
 import { consumeUpload } from '../uploads/uploads.service.js';
 
 const MAX_PHOTOS = 6;
@@ -70,15 +71,17 @@ function statusAfterContentChange(shop: Shop, current: string): string {
 const publishedStatus = (shop: Shop): 'published' | 'pending_review' =>
   shop.verification_status === 'verified' ? 'published' : 'pending_review';
 
+/** Photos d'un produit vues par son vendeur : vignettes, y compris un fichier refusé (à retirer). */
 async function productPhotos(ctx: AppContext, db: Db, productId: string) {
-  const { rows } = await db.query<{ id: string; storage_key: string; position: number }>(
-    'SELECT id, storage_key, position FROM product_media WHERE product_id = $1 ORDER BY position',
+  const { rows } = await db.query<{ id: string; key: string; position: number }>(
+    `SELECT m.id, ${variantKeySql('thumb')} AS key, m.position
+     FROM product_media m WHERE m.product_id = $1 ORDER BY m.position`,
     [productId],
   );
   return rows.map((r) => ({
     id: r.id,
     position: r.position,
-    url: ctx.storage.publicUrl(r.storage_key),
+    url: ctx.storage.publicUrl(r.key),
   }));
 }
 
@@ -217,8 +220,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       const { rows } = await ctx.pool.query<{ coverImage: string | null }>(
         `SELECT p.id, p.title, p.price, p.stock, p.status, p.category_id AS "categoryId",
                 p.rejection_reason AS "rejectionReason", p.updated_at AS "updatedAt",
-                (SELECT storage_key FROM product_media m WHERE m.product_id = p.id ORDER BY position LIMIT 1) AS "coverImage",
-                (SELECT count(*)::int FROM product_media m WHERE m.product_id = p.id) AS "photoCount"
+                ${COVER_KEY_SQL} AS "coverImage",
+                (SELECT count(*)::int FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS "photoCount"
          FROM products p WHERE p.seller_id = $1 AND (p.status = 'archived') = $2
          ORDER BY p.updated_at DESC LIMIT 200`,
         [shop.id, status === 'archived'],
@@ -319,7 +322,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           }
           if (status === 'draft') {
             const { rowCount } = await tx.query(
-              'SELECT 1 FROM product_media WHERE product_id = $1 LIMIT 1',
+              `SELECT 1 FROM product_media m WHERE m.product_id = $1 AND ${DISPLAYABLE} LIMIT 1`,
               [id],
             );
             if (!rowCount) {

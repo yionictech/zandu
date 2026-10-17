@@ -26,11 +26,13 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **Back-office du support** (`apps/backoffice`, Next.js) : vérification des boutiques, modération,
   assignation des livreurs, litiges, recherche de commandes, alertes, contrôle comptable ; connexion
   avec **second facteur obligatoire** (application d'authentification).
+- **Photos légères** : le worker décline chaque photo (vignette, fiche, partage WhatsApp) et en retire
+  les métadonnées ; avec de vraies photos de téléphone, l'accueil passe de 5,2 Mo à 358 Ko en 3G.
 - **Prêt à mettre en ligne** (`Dockerfile`, `deploy/recette/`) : une image par service, une recette
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **157 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+- **160 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
   contrat OpenAPI), quatre parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
@@ -44,8 +46,10 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 
 ![Recette en ligne](docs/ux/captures/recette.jpg)
 
+![Photos légères](docs/ux/captures/photos-legeres.jpg)
+
 À construire : branchement de l'agrégateur réel et du fournisseur SMS/WhatsApp,
-commissions et rapports dans le back-office, miniatures d'images, rapprochement quotidien. Voir la
+commissions et rapports dans le back-office, rapprochement quotidien. Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
 ## Documentation
@@ -60,7 +64,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 157 tests
+pnpm test            # 160 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

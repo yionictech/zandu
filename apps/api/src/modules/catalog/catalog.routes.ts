@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AppContext } from '../../context.js';
 import type { Db } from '../../db/pool.js';
 import { notFound } from '../../lib/errors.js';
+import { COVER_KEY_SQL, DISPLAYABLE, variantKeySql } from '../media/media.service.js';
 import type { ObjectStorage } from '../storage/storage.js';
 
 const ProductQuery = z.object({
@@ -20,7 +21,7 @@ const ProductQuery = z.object({
 const PRODUCT_CARD = `
   p.id, p.title, p.price, p.compare_at_price AS "compareAtPrice", p.stock, p.city,
   p.category_id AS "categoryId",
-  (SELECT storage_key FROM product_media m WHERE m.product_id = p.id ORDER BY position LIMIT 1) AS "coverImage",
+  ${COVER_KEY_SQL} AS "coverImage",
   json_build_object('id', s.id, 'shopName', s.shop_name, 'slug', s.slug,
                     'verified', s.verification_status = 'verified',
                     'ratingAvg', s.rating_avg::float, 'ratingCount', s.rating_count) AS seller`;
@@ -98,11 +99,18 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
       const { rows } = await ctx.pool.query<{
         coverImage: string | null;
+        shareImage: string | null;
         media: Array<{ key: string; width: number | null; height: number | null }>;
       }>(
         `SELECT ${PRODUCT_CARD}, p.description,
-                (SELECT coalesce(json_agg(json_build_object('key', m.storage_key, 'width', m.width, 'height', m.height)
-                                          ORDER BY m.position), '[]') FROM product_media m WHERE m.product_id = p.id) AS media,
+                (SELECT coalesce(json_agg(json_build_object(
+                          'key', ${variantKeySql('large')},
+                          'width', coalesce((m.variants->'large'->>'width')::int, m.width),
+                          'height', coalesce((m.variants->'large'->>'height')::int, m.height))
+                        ORDER BY m.position), '[]')
+                 FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS media,
+                (SELECT ${variantKeySql('share')} FROM product_media m
+                 WHERE m.product_id = p.id AND ${DISPLAYABLE} ORDER BY m.position LIMIT 1) AS "shareImage",
                 (SELECT json_build_object('average', round(avg(r.rating), 1)::float, 'count', count(*))
                  FROM reviews r WHERE r.product_id = p.id AND NOT r.hidden) AS reviews
          FROM products p JOIN seller_profiles s ON s.id = p.seller_id
@@ -113,6 +121,7 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
       if (!product) throw notFound('Produit');
       return {
         ...withImageUrl(ctx.storage, product),
+        shareImage: product.shareImage ? ctx.storage.publicUrl(product.shareImage) : null,
         media: product.media.map(({ key, ...size }) => ({
           url: ctx.storage.publicUrl(key),
           ...size,

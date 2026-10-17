@@ -70,7 +70,9 @@ await check('Fiche produit : aperçu WhatsApp et photo', async () => {
   expect(meta('title')?.includes('FCFA'), 'og:title sans prix');
   const image = await get(meta('image') ?? '');
   expect(image.ok && image.headers.get('content-type')?.startsWith('image/'), 'photo illisible');
-  return meta('title');
+  // Déclinaison JPEG du worker (ADR-0014) ; juste après le chargement des données, l'original.
+  const declined = /-share\d+\.jpg$/.test(meta('image') ?? '');
+  return `${meta('title')}${declined ? '' : ' (photo originale : le worker ne l’a pas encore déclinée)'}`;
 });
 
 await check('Back-office : en ligne, jamais indexé', async () => {

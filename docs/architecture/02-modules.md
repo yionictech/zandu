@@ -49,6 +49,7 @@ zandu/
 | --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `auth`          | OTP, sessions, rôles, second facteur TOTP du personnel, gardes d'accès     | users, otp_challenges, sessions, user_mfa                   |
 | `catalog`       | Boutiques, produits, recherche, zones de livraison (lecture)               | seller_profiles, products, product_media, categories        |
+| `media`         | Déclinaisons des photos produits par le worker (vignette, fiche, partage)  | product_media (variants, processing_*)                      |
 | `checkout`      | Panier → checkout → une commande par vendeur, réservation du stock         | checkouts, orders (création), order_items                   |
 | `orders`        | **Seul point d'évolution d'une commande** + livraison + litiges            | orders (statut), order_status_history, deliveries, disputes |
 | `payments`      | Collecte Mobile Money, webhooks, interrogation, expiration, remboursements | payments, provider_events, refunds                          |
@@ -73,7 +74,7 @@ zandu/
 | ---- | ------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | F1   | Inscription / connexion par code SMS (P1)                     | `auth`                                                                 | ✅ OTP, limites anti-fraude, sessions révocables                                                 |
 | F2   | Vérification du vendeur (P1)                                  | `seller` (pièces), `uploads`, `admin` (file, consultation, décision)   | ✅ API + écran vendeur + écran de décision du back-office                                        |
-| F3   | Création d'un produit, 6 photos (P1)                          | `seller`, `uploads` (URL signées)                                      | ✅ API + écran « photo d'abord » (compression, brouillon) ; miniatures serveur ⏳                |
+| F3   | Création d'un produit, 6 photos (P1)                          | `seller`, `uploads` (URL signées)                                      | ✅ API + écran « photo d'abord » (compression, brouillon) ; déclinaisons serveur ✅ (ADR-0014)   |
 | F4   | Recherche, filtres, tri (P1)                                  | `catalog`                                                              | ✅ plein texte FR sans accents + fautes de frappe                                                |
 | F5   | Variantes et promotions (P2)                                  | `products.compare_at_price`                                            | ⏳ V2 (migration `product_variants` prévue)                                                      |
 | F6   | Panier, adresse, domicile / point relais (P1)                 | `checkout`                                                             | ✅ multi-vendeurs, adresse par repères                                                           |

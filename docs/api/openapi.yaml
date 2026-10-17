@@ -254,10 +254,13 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/ProductCard'
                   - type: object
-                    required: [description, media, reviews]
+                    required: [description, media, shareImage, reviews]
                     properties:
                       description: { type: string }
                       media:
+                        description: >-
+                          Photos dans l'ordre d'affichage, en grande image (800 px au plus, WebP) ;
+                          l'original tant que le worker ne les a pas déclinées.
                         type: array
                         items:
                           type: object
@@ -266,6 +269,12 @@ paths:
                             url: { type: string, format: uri }
                             width: { type: [integer, 'null'] }
                             height: { type: [integer, 'null'] }
+                      shareImage:
+                        description: >-
+                          Première photo en JPEG de 1200 px au plus, pour les aperçus de lien
+                          (Open Graph : WhatsApp, Facebook).
+                        type: [string, 'null']
+                        format: uri
                       reviews:
                         type: object
                         required: [average, count]
@@ -2020,7 +2029,9 @@ components:
         stock: { type: integer }
         city: { type: string }
         categoryId: { type: string, format: uuid }
-        coverImage: { type: [string, 'null'] }
+        coverImage:
+          description: Vignette de la première photo (320 px au plus, WebP), ou l'original en attendant.
+          type: [string, 'null']
         seller:
           type: object
           properties:

@@ -18,3 +18,4 @@ jamais effacée ; si on change d'avis, on écrit un nouvel ADR qui « remplace �
 | 0011 | [Une commande par vendeur, un paiement par panier](0011-une-commande-par-vendeur.md)                       | Acceptée |
 | 0012 | [Back-office : rendu serveur, sans kit d'admin, second facteur](0012-back-office-rendu-serveur.md)         | Acceptée |
 | 0013 | [Mise en ligne : une image par service, une recette sur un seul serveur](0013-mise-en-ligne-conteneurs.md) | Acceptée |
+| 0014 | [Photos produits déclinées par le worker](0014-declinaisons-des-photos.md)                                 | Acceptée |

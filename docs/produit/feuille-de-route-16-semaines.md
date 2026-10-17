@@ -104,6 +104,18 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - CI : construction des images et démarrage de toute la recette à chaque pull request.
 - Guide pas à pas : [mettre la recette en ligne](../exploitation/mise-en-ligne-recette.md).
 
+### Sprint 1 sexies — Photos légères (✅ fait, ce dépôt)
+
+- Le worker décline chaque photo produit (ADR-0014) : vignette WebP 320 px, grande image WebP
+  800 px, JPEG de partage 1200 px pour les aperçus WhatsApp ; orientation appliquée, métadonnées
+  supprimées, faux fichiers image écartés. L'original s'affiche en attendant.
+- Mesuré avec 12 vraies photos de téléphone, en 3G simulée : accueil **5,2 Mo → 358 Ko**, premières
+  photos **54 s → 3,5 s** ; fiche produit **551 Ko → 236 Ko**.
+- Tuiles du site enfin carrées quelle que soit la photo (défaut caché par les illustrations carrées
+  de démonstration).
+- CI : exécution à chaque envoi (le dépôt n'a pas de branche `main`) ; première exécution verte,
+  recette en conteneurs comprise.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

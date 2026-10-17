@@ -2,16 +2,16 @@
 
 ## 6.1 Réponse aux exigences du cahier §7
 
-| Exigence                                                       | Réponse d'architecture                                                                                                         | Comment on le vérifie                                |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Catalogue < 3 s en 3G                                          | Web en rendu serveur (HTML utile dès le premier octet), images WebP 400 px ≈ 25 Ko par vignette, CDN, JS initial ≤ 170 Ko gzip | Lighthouse « Slow 4G / mobile bas de gamme » en CI   |
-| API < 500 ms pour 95 % des requêtes                            | SQL indexé (index listés dans la migration), une transaction courte par requête, aucun appel externe tenant un verrou          | Mesure p95 par route (métriques) ; test de charge k6 |
-| 5 000 utilisateurs/jour, 100 commandes/h, sans refonte         | ≈ 0,03 commande/s : une instance suffit ; 2 instances API + 1 worker pour la disponibilité                                     | Test de charge à 10× la cible avant lancement        |
-| Disponibilité 99,5 %/mois (≈ 3 h 40 d'arrêt toléré)            | 2 instances API, base managée avec bascule, déploiements sans coupure, sauvegardes                                             | Sonde externe sur `/health` toutes les minutes       |
-| Sauvegardes quotidiennes, restauration testée chaque trimestre | Sauvegarde continue (PITR, 7 à 30 jours) + export quotidien hors hébergeur                                                     | Exercice de restauration trimestriel chronométré     |
-| Android 8+, entrée de gamme, < 30 Mo                           | React Native + Hermes, AAB avec découpage par architecture : cible **< 15 Mo** installée                                       | Taille mesurée en CI à chaque build                  |
-| Connexion faible : photos compressées, hors ligne              | Compression côté téléphone avant envoi ; commandes et brouillons en cache local ; file d'envoi différé                         | Tests manuels en mode avion / 2G simulée             |
-| Français, textes séparés du code (lingala, kituba)             | Catalogues de traduction (`fr`, `ln`, `mkw`), aucun texte en dur ; modèles de messages dans `templates.ts`                     | Revue de code + test de couverture des clés          |
+| Exigence                                                       | Réponse d'architecture                                                                                                          | Comment on le vérifie                                |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Catalogue < 3 s en 3G                                          | Web en rendu serveur (HTML utile dès le premier octet), vignettes WebP 320 px ≈ 18 Ko (ADR-0014), CDN, JS initial ≤ 170 Ko gzip | Lighthouse « Slow 4G / mobile bas de gamme » en CI   |
+| API < 500 ms pour 95 % des requêtes                            | SQL indexé (index listés dans la migration), une transaction courte par requête, aucun appel externe tenant un verrou           | Mesure p95 par route (métriques) ; test de charge k6 |
+| 5 000 utilisateurs/jour, 100 commandes/h, sans refonte         | ≈ 0,03 commande/s : une instance suffit ; 2 instances API + 1 worker pour la disponibilité                                      | Test de charge à 10× la cible avant lancement        |
+| Disponibilité 99,5 %/mois (≈ 3 h 40 d'arrêt toléré)            | 2 instances API, base managée avec bascule, déploiements sans coupure, sauvegardes                                              | Sonde externe sur `/health` toutes les minutes       |
+| Sauvegardes quotidiennes, restauration testée chaque trimestre | Sauvegarde continue (PITR, 7 à 30 jours) + export quotidien hors hébergeur                                                      | Exercice de restauration trimestriel chronométré     |
+| Android 8+, entrée de gamme, < 30 Mo                           | React Native + Hermes, AAB avec découpage par architecture : cible **< 15 Mo** installée                                        | Taille mesurée en CI à chaque build                  |
+| Connexion faible : photos compressées, hors ligne              | Compression côté téléphone avant envoi ; commandes et brouillons en cache local ; file d'envoi différé                          | Tests manuels en mode avion / 2G simulée             |
+| Français, textes séparés du code (lingala, kituba)             | Catalogues de traduction (`fr`, `ln`, `mkw`), aucun texte en dur ; modèles de messages dans `templates.ts`                      | Revue de code + test de couverture des clés          |
 
 ## 6.2 Budgets de performance (contrat avec l'équipe front)
 
@@ -27,6 +27,17 @@ d'aller-retour) : fiche produit **167 Ko** au total dont 142 Ko de JavaScript ; 
 (titre, prix) **0,8 s**, photo **1,2 s**, page interactive **2,4 s**. Le script échoue si le poids
 dépasse le budget. Le gros du poids est le socle Next.js/React : chaque composant client ajouté doit
 rester petit.
+
+**Mesuré avec de vraies photos de téléphone** (12 produits, photos compressées comme par l'application,
+422 Ko en moyenne ; recette en conteneurs, même 3G simulée, ADR-0014) :
+
+| Page          | Avant les déclinaisons                 | Avec les déclinaisons                       |
+| ------------- | -------------------------------------- | ------------------------------------------- |
+| Accueil       | 5 232 Ko ; 4 premières photos à 54,1 s | **358 Ko** ; 4 premières photos à **3,5 s** |
+| Fiche produit | 551 Ko ; photo à 6,6 s                 | **236 Ko** ; photo à **3,2 s**              |
+
+Les deux pages tiennent leur budget de poids. Les photos de démonstration du dépôt sont de petites
+illustrations : elles ne suffisent pas à juger le poids réel d'une page.
 
 **Mode économie de données** (activé par défaut sous 3G) : vignettes 200 px, pas de lecture
 automatique de vidéo, préchargement désactivé.

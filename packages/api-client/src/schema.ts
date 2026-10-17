@@ -1263,6 +1263,7 @@ export interface components {
       city: string;
       /** Format: uuid */
       categoryId: string;
+      /** @description Vignette de la première photo (320 px au plus, WebP), ou l'original en attendant. */
       coverImage: string | null;
       seller: {
         /** Format: uuid */
@@ -1901,12 +1902,18 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ProductCard'] & {
             description: string;
+            /** @description Photos dans l'ordre d'affichage, en grande image (800 px au plus, WebP) ; l'original tant que le worker ne les a pas déclinées. */
             media: {
               /** Format: uri */
               url: string;
               width?: number | null;
               height?: number | null;
             }[];
+            /**
+             * Format: uri
+             * @description Première photo en JPEG de 1200 px au plus, pour les aperçus de lien (Open Graph : WhatsApp, Facebook).
+             */
+            shareImage: string | null;
             reviews: {
               average: number | null;
               count: number;

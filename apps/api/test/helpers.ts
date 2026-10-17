@@ -350,10 +350,10 @@ export async function uploadFile(
   env: TestEnv,
   session: Session,
   purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence',
-  options: { contentType?: string; bytes?: number; declaredSize?: number } = {},
+  options: { contentType?: string; bytes?: number; declaredSize?: number; body?: Buffer } = {},
 ): Promise<string> {
   const contentType = options.contentType ?? 'image/jpeg';
-  const body = Buffer.alloc(options.bytes ?? 2048, 7);
+  const body = options.body ?? Buffer.alloc(options.bytes ?? 2048, 7);
   const reserved = await call(env, session, {
     method: 'POST',
     url: '/v1/uploads',

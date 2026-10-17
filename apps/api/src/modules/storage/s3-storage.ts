@@ -98,15 +98,35 @@ export class S3Storage implements ObjectStorage {
     }
   }
 
-  async put(bucket: Bucket, key: string, body: Buffer, contentType: string): Promise<void> {
+  async put(
+    bucket: Bucket,
+    key: string,
+    body: Buffer,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.config.buckets[bucket],
         Key: key,
         Body: body,
         ContentType: contentType,
+        ...(cacheControl ? { CacheControl: cacheControl } : {}),
       }),
     );
+  }
+
+  async download(bucket: Bucket, key: string): Promise<Buffer | null> {
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.config.buckets[bucket], Key: key }),
+      );
+      return Buffer.from(await result.Body!.transformToByteArray());
+    } catch (error) {
+      if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404)
+        return null;
+      throw error;
+    }
   }
 
   publicUrl(key: string): string {
