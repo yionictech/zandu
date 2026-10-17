@@ -99,6 +99,8 @@ listes sont identiques.
 Chaque mouvement d'argent est une **transaction** dont les lignes somment à zéro (débit > 0, crédit < 0).
 La base refuse au `COMMIT` toute transaction déséquilibrée ou à une seule ligne, et refuse toute
 modification ou suppression (`UPDATE`, `DELETE`, `TRUNCATE`). On corrige par une écriture inverse.
+Chaque écriture porte la date de l'événement selon l'horloge de l'application : c'est elle qui range
+la commission dans le bon mois du rapport d'activité (back-office, « Rapports »).
 
 | Compte                             | Nature  | Signification                                          |
 | ---------------------------------- | ------- | ------------------------------------------------------ |

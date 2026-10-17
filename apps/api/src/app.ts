@@ -4,6 +4,7 @@ import { isDeployed } from './config.js';
 import type { AppContext } from './context.js';
 import { errorHandler } from './lib/errors.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { commissionRuleRoutes } from './modules/admin/commission-rules.routes.js';
 import { supportRoutes } from './modules/support/support.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
@@ -11,6 +12,7 @@ import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
 import { DevNotificationSender } from './modules/notifications/sender.js';
 import { orderRoutes } from './modules/orders/orders.routes.js';
+import { reportRoutes } from './modules/reports/reports.routes.js';
 import { SimulatorProvider } from './modules/payments/simulator.js';
 import { simulatorDevRoutes, webhookRoutes } from './modules/payments/webhooks.routes.js';
 import { sellerRoutes } from './modules/seller/seller.routes.js';
@@ -69,6 +71,8 @@ export async function buildApp(
   await app.register(checkoutRoutes(ctx));
   await app.register(orderRoutes(ctx));
   await app.register(adminRoutes(ctx));
+  await app.register(commissionRuleRoutes(ctx));
+  await app.register(reportRoutes(ctx));
   await app.register(supportRoutes(ctx));
   await app.register(webhookRoutes(ctx));
 

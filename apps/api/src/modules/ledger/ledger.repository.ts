@@ -36,15 +36,17 @@ async function ensureAccount(tx: Tx, code: string): Promise<string> {
  * Enregistre une écriture. Idempotent : si la clé métier existe déjà (webhook rejoué,
  * tâche relancée), rien n'est écrit et `posted` vaut false. L'équilibre est vérifié ici
  * ET par la base au COMMIT (trigger ledger_entries_balanced).
+ * `at` : moment de l'événement selon l'horloge de l'application (période comptable des rapports).
  */
 export async function postJournal(
   tx: Tx,
   journal: Journal,
+  at: Date,
 ): Promise<{ posted: boolean; transactionId: string | null }> {
   assertBalanced(journal);
   const { rows } = await tx.query<{ id: string }>(
-    `INSERT INTO ledger_transactions (kind, idempotency_key, payment_id, order_id, payout_id, refund_id)
-     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (idempotency_key) DO NOTHING RETURNING id`,
+    `INSERT INTO ledger_transactions (kind, idempotency_key, payment_id, order_id, payout_id, refund_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (idempotency_key) DO NOTHING RETURNING id`,
     [
       journal.kind,
       journal.idempotencyKey,
@@ -52,6 +54,7 @@ export async function postJournal(
       journal.refs.orderId ?? null,
       journal.refs.payoutId ?? null,
       journal.refs.refundId ?? null,
+      at,
     ],
   );
   const transactionId = rows[0]?.id;
@@ -60,8 +63,9 @@ export async function postJournal(
   for (const line of journal.lines) {
     const accountId = await ensureAccount(tx, line.account);
     await tx.query(
-      'INSERT INTO ledger_entries (transaction_id, account_id, amount, order_id) VALUES ($1, $2, $3, $4)',
-      [transactionId, accountId, line.amount, line.orderId ?? null],
+      `INSERT INTO ledger_entries (transaction_id, account_id, amount, order_id, created_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [transactionId, accountId, line.amount, line.orderId ?? null, at],
     );
   }
   return { posted: true, transactionId };

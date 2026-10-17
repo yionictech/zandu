@@ -244,6 +244,7 @@ export async function applyCollectionSignal(
     await postJournal(
       tx,
       recordProviderFee({ provider: payment.provider, reference: payment.id, amount: details.fee }),
+      ctx.clock.now(),
     );
   }
 
@@ -267,6 +268,7 @@ export async function applyCollectionSignal(
         provider: payment.provider,
         orders: orders.map((o) => ({ orderId: o.id, total: o.total })),
       }),
+      ctx.clock.now(),
     );
     for (const order of orders) {
       await applyOrderEvent(ctx, tx, order.id, { type: 'payment_succeeded' }, SYSTEM);
@@ -279,6 +281,7 @@ export async function applyCollectionSignal(
   await postJournal(
     tx,
     captureLatePayment({ paymentId, provider: payment.provider, amount: payment.amount }),
+    ctx.clock.now(),
   );
   await createRefund(ctx, tx, {
     paymentId,

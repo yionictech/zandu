@@ -25,7 +25,7 @@
 | Application      | Injections, limitation de débit, validation des entrées          | ✅ Requêtes paramétrées uniquement ; validation zod de toutes les entrées ; ⏳ débit en bordure.    |
 | Paiement         | Aucune donnée de portefeuille au-delà du numéro ; clés en coffre | ✅ Seuls numéro et opérateur sont stockés ; secrets par variables d'environnement issues du coffre. |
 | Conformité       | Audit, KYC, conservation des pièces, données personnelles        | ✅ Journal d'audit en écriture seule ; ⏳ politique de conservation (voir 5.4).                     |
-| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 160 tests + 4 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
+| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 168 tests + 5 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
 
 ## 5.3 Règles anti-fraude du MVP
 
@@ -56,6 +56,8 @@
 - [x] Aucune route de test en production : simulateur refusé au démarrage ; en recette, SMS de test
       lisibles seulement avec `RECETTE_KEY` (ADR-0013).
 - [x] Stockage vérifié avant chaque démarrage : pièces d'identité illisibles sans URL signée.
+- [x] Chiffre d'affaires, exports et taux de commission réservés aux administrateurs ; chaque export
+      et chaque changement de taux est journalisé ; formules de tableur neutralisées dans le CSV.
 - [x] Photos publiques réencodées par le worker : métadonnées (position GPS, appareil) supprimées,
       faux fichiers image jamais affichés, images de plus de 40 mégapixels refusées (ADR-0014).
 - [ ] Rôle PostgreSQL applicatif **non superutilisateur**, sans droit `UPDATE/DELETE` sur `ledger_*` et `audit_logs`.

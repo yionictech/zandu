@@ -378,6 +378,21 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       200,
       unwrap(await admin.GET('/v1/admin/ledger/balances')),
     );
+    const report = unwrap(await admin.GET('/v1/admin/reports/activity'));
+    expectConforms('/v1/admin/reports/activity', 'get', 200, report);
+    expect(report.sales.paidOrders).toBeGreaterThan(0);
+    const created = unwrap(
+      await admin.POST('/v1/admin/commission-rules', {
+        body: { scope: 'default', rateBps: 1000, note: 'Contrat' },
+      }),
+    );
+    expectConforms('/v1/admin/commission-rules', 'post', 201, created);
+    expectConforms(
+      '/v1/admin/commission-rules',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/commission-rules')),
+    );
   });
 
   it('les erreurs suivent le format documenté', async () => {

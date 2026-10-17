@@ -116,6 +116,18 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - CI : exécution à chaque envoi (le dépôt n'a pas de branche `main`) ; première exécution verte,
   recette en conteneurs comprise.
 
+### Sprint 1 septies — Rapports et commissions (✅ fait, ce dépôt)
+
+- Back-office, administrateurs seulement : **rapport du mois** (volume d'affaires, panier moyen,
+  commissions acquises et à venir, ventes par jour, par catégorie, meilleures boutiques, argent des
+  vendeurs) et **export CSV** des commandes pour le comptable (format des tableurs français,
+  formules neutralisées, export journalisé).
+- **Taux de commission modifiables** sans développeur (D8) : par défaut, par catégorie, par
+  boutique ; date d'effet ; offres temporaires qui laissent reprendre le taux habituel ; motif
+  obligatoire et journal d'audit. Les commandes passées gardent leur taux.
+- Écritures comptables datées par l'horloge de l'application : chaque commission tombe dans le bon
+  mois, et les rapports se testent sur plusieurs jours simulés.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

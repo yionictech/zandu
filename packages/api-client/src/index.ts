@@ -17,6 +17,7 @@ export type KycDocumentType = Schemas['KycDocumentType'];
 export type VerificationStatus = Schemas['VerificationStatus'];
 export type SupportOrder = Schemas['SupportOrder'];
 export type DisputeReason = Schemas['DisputeReason'];
+export type CommissionRule = Schemas['CommissionRule'];
 
 export interface ClientOptions {
   baseUrl: string;

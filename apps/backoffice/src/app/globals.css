@@ -235,6 +235,13 @@ tr:last-child td {
   padding: 0;
   overflow: hidden;
 }
+.table-card > h2 {
+  padding: 16px 16px 0;
+  margin: 0 0 8px;
+}
+.table-card > .definitions {
+  padding: 0 16px 14px;
+}
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -484,4 +491,83 @@ textarea:focus {
   font-weight: 700;
   text-align: center;
   padding: 4px 12px;
+}
+
+/* ---------- Rapports ---------- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.filters select {
+  min-width: 200px;
+}
+.kpi .note {
+  color: var(--muted);
+  font-size: 13px;
+}
+.chart {
+  position: relative;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-baseline {
+  stroke: #9ca3af;
+  stroke-width: 1;
+}
+.chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.chart-value {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.chart-bar {
+  fill: var(--brand);
+}
+.chart-bar.active {
+  fill: var(--brand-dark);
+}
+.chart-hit {
+  fill: transparent;
+  cursor: default;
+  outline: none;
+}
+.chart-hit:focus-visible {
+  stroke: var(--text);
+  stroke-width: 1;
+}
+.chart-tooltip {
+  position: absolute;
+  transform: translateY(calc(-100% - 10px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-tooltip strong {
+  font-size: 15px;
+}
+.definitions {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0 0;
 }

@@ -41,6 +41,7 @@ export async function createRefund(
         ? { kind: 'escrow', orderId: input.orderId }
         : { kind: 'suspense', paymentId: input.paymentId },
     }),
+    ctx.clock.now(),
   );
   return refundId;
 }
@@ -80,6 +81,7 @@ export const refundSpec: DisbursementSpec<RefundRow> = {
     await postJournal(
       tx,
       settleRefund({ refundId: row.id, provider: row.provider, amount: row.amount }),
+      ctx.clock.now(),
     );
     await publish(
       tx,

@@ -176,6 +176,11 @@ assigner** · **Alertes** (reversements/remboursements en échec, paiements tard
 par référence de commande (`ZD-…`) ou numéro de téléphone. Écran « Contrôle comptable » : balance
 générale (doit afficher 0) et soldes des comptes.
 
+Réservés aux administrateurs ([captures](captures/rapports.jpg)) : **Rapports** — volume d'affaires,
+panier moyen, commissions acquises et à venir, ventes par jour, par catégorie et par boutique, argent
+des vendeurs, export CSV du mois pour le comptable ; **Commissions** — taux par défaut, par catégorie
+et par boutique (offres temporaires comprises), avec date d'effet et motif journalisé.
+
 ## 5. Textes de référence
 
 ### Statuts de commande

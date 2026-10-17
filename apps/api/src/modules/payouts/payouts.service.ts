@@ -96,7 +96,7 @@ export async function schedulePayout(
     ],
   );
   const payoutId = created[0]!.id;
-  await postJournal(tx, reservePayout({ payoutId, sellerId, amount }));
+  await postJournal(tx, reservePayout({ payoutId, sellerId, amount }), ctx.clock.now());
   return { payoutId, amount, blockedReason: null };
 }
 
@@ -133,6 +133,7 @@ export const payoutSpec: DisbursementSpec<PayoutRow> = {
     await postJournal(
       tx,
       settlePayout({ payoutId: row.id, provider: row.provider, amount: row.amount }),
+      ctx.clock.now(),
     );
     await publish(
       tx,
@@ -147,6 +148,7 @@ export const payoutSpec: DisbursementSpec<PayoutRow> = {
     await postJournal(
       tx,
       reversePayout({ payoutId: row.id, sellerId: row.seller_id, amount: row.amount }),
+      ctx.clock.now(),
     );
     await publish(
       tx,

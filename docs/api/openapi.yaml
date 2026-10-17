@@ -51,6 +51,8 @@ tags:
     description: Missions, collecte, remise avec code
   - name: Support
     description: Back-office — vérification, modération, litiges, contrôle comptable
+  - name: Rapports
+    description: Back-office (administrateurs) — activité, export comptable, règles de commission
   - name: Webhooks
     description: Notifications signées des agrégateurs
   - name: Système
@@ -1863,6 +1865,221 @@ paths:
                         at: { type: string, format: date-time }
         '403': { $ref: '#/components/responses/Error' }
 
+  /v1/admin/reports/activity:
+    get:
+      tags: [Rapports]
+      summary: Activité d'une période — ventes, revenus, catégories, boutiques, reversements (administrateur)
+      description: >-
+        Ventes : commandes payées dans la période (date du paiement, heure du Congo). Revenus :
+        écritures du grand livre de la période ; la commission n'est acquise qu'à la libération du
+        séquestre. Reversements et séquestre : état au moment du rapport. Sans période : le mois
+        en cours.
+      operationId: activityReport
+      parameters:
+        - {
+            name: from,
+            in: query,
+            schema: { type: string, format: date },
+            description: Premier jour (inclus),
+          }
+        - {
+            name: to,
+            in: query,
+            schema: { type: string, format: date },
+            description: 'Dernier jour (inclus), 366 jours au plus',
+          }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [period, sales, revenue, daily, categories, topShops, payouts]
+                properties:
+                  period:
+                    type: object
+                    required: [from, to, timeZone]
+                    properties:
+                      from: { type: string, format: date }
+                      to: { type: string, format: date }
+                      timeZone: { type: string, examples: [Africa/Brazzaville] }
+                  sales:
+                    type: object
+                    required:
+                      [
+                        paidOrders,
+                        gmv,
+                        itemsSubtotal,
+                        deliveryFees,
+                        averageBasket,
+                        expectedCommission,
+                        cancelledOrRefundedOrders,
+                        refunds,
+                      ]
+                    properties:
+                      paidOrders: { type: integer }
+                      gmv: { $ref: '#/components/schemas/Amount' }
+                      itemsSubtotal: { $ref: '#/components/schemas/Amount' }
+                      deliveryFees: { $ref: '#/components/schemas/Amount' }
+                      averageBasket: { $ref: '#/components/schemas/Amount' }
+                      expectedCommission:
+                        description: Commission figée sur ces commandes (acquise ou à venir)
+                        allOf: [{ $ref: '#/components/schemas/Amount' }]
+                      cancelledOrRefundedOrders: { type: integer }
+                      refunds:
+                        type: object
+                        required: [count, amount]
+                        properties:
+                          count: { type: integer }
+                          amount: { $ref: '#/components/schemas/Amount' }
+                  revenue:
+                    type: object
+                    required: [commission, deliveryMargin, paymentFees, net, upcomingCommission]
+                    properties:
+                      commission: { type: integer }
+                      deliveryMargin: { type: integer }
+                      paymentFees: { type: integer }
+                      net: { type: integer }
+                      upcomingCommission:
+                        description: Commission des commandes encore au séquestre (état actuel)
+                        type: integer
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      required: [date, orders, gmv]
+                      properties:
+                        date: { type: string, format: date }
+                        orders: { type: integer }
+                        gmv: { type: integer }
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [categoryId, name, orders, sales, commission, averageRateBps]
+                      properties:
+                        categoryId: { type: string, format: uuid }
+                        name: { type: string }
+                        orders: { type: integer }
+                        sales: { type: integer }
+                        commission: { type: integer }
+                        averageRateBps: { type: integer }
+                  topShops:
+                    type: array
+                    items:
+                      type: object
+                      required: [sellerId, shopName, orders, sales, commission]
+                      properties:
+                        sellerId: { type: string, format: uuid }
+                        shopName: { type: string }
+                        orders: { type: integer }
+                        sales: { type: integer }
+                        commission: { type: integer }
+                  payouts:
+                    type: object
+                    required: [sent, failed, pending, owedToSellers, inEscrow]
+                    properties:
+                      sent: { $ref: '#/components/schemas/CountAmount' }
+                      failed: { $ref: '#/components/schemas/CountAmount' }
+                      pending: { $ref: '#/components/schemas/CountAmount' }
+                      owedToSellers: { type: integer }
+                      inEscrow: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/reports/orders.csv:
+    get:
+      tags: [Rapports]
+      summary: Commandes payées de la période, en CSV pour le comptable (administrateur, journalisé)
+      description: Séparateur « ; », UTF-8 avec BOM, montants en FCFA ; formules de tableur neutralisées.
+      operationId: ordersCsv
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Fichier CSV
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/commission-rules:
+    get:
+      tags: [Rapports]
+      summary: Règles de commission, en vigueur, programmées et passées (administrateur)
+      operationId: listCommissionRules
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CommissionRule' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Rapports]
+      summary: Nouvelle règle de commission (administrateur, journalisée)
+      description: >-
+        Règle permanente : termine celle en vigueur à sa date d'effet. Règle temporaire (validTo) :
+        passe devant, la règle habituelle reprend à son expiration. Jamais dans le passé ; les
+        commandes déjà passées gardent leur taux.
+      operationId: createCommissionRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, rateBps, note]
+              properties:
+                scope: { type: string, enum: [default, category, seller] }
+                categoryId: { type: string, format: uuid }
+                sellerId: { type: string, format: uuid }
+                rateBps: { type: integer, minimum: 0, maximum: 5000, description: '1 000 = 10 %' }
+                validFrom: { type: string, format: date-time, description: Par défaut maintenant }
+                validTo: { type: string, format: date-time, description: Offre temporaire }
+                note:
+                  {
+                    type: string,
+                    minLength: 3,
+                    maxLength: 200,
+                    description: Motif (journal d'audit),
+                  }
+      responses:
+        '201':
+          description: Créée
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/commission-rules/{id}/end:
+    post:
+      tags: [Rapports]
+      summary: Terminer maintenant une règle de catégorie ou de boutique, ou annuler une règle programmée
+      operationId: endCommissionRule
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Terminée (ou annulée si elle n'avait pas commencé) }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     session:
@@ -1980,6 +2197,47 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    CountAmount:
+      type: object
+      required: [count, amount]
+      properties:
+        count: { type: integer }
+        amount: { type: integer }
+    CommissionRule:
+      type: object
+      required:
+        [
+          id,
+          scope,
+          categoryId,
+          categoryName,
+          sellerId,
+          shopName,
+          rateBps,
+          validFrom,
+          validTo,
+          note,
+          createdAt,
+          status,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        scope: { type: string, enum: [default, category, seller] }
+        categoryId: { type: [string, 'null'], format: uuid }
+        categoryName: { type: [string, 'null'] }
+        sellerId: { type: [string, 'null'], format: uuid }
+        shopName: { type: [string, 'null'] }
+        rateBps: { type: integer }
+        validFrom: { type: string, format: date-time }
+        validTo: { type: [string, 'null'], format: date-time }
+        note: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        status:
+          description: >-
+            active = s'applique ; overridden = en vigueur mais une offre temporaire passe devant ;
+            scheduled = programmée ; ended = terminée
+          type: string
+          enum: [active, overridden, scheduled, ended]
     VerificationStatus:
       type: string
       enum: [unverified, pending_review, verified, rejected, suspended]

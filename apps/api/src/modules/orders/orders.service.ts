@@ -198,7 +198,7 @@ async function runEffects(
           commissionTotal: order.commission_total,
           refundedAmount: order.refunded_amount,
         });
-        await postJournal(tx, release.journal);
+        await postJournal(tx, release.journal, ctx.clock.now());
         sellerNet = release.sellerNet;
         // F8 : reversement automatique après réception, dans la limite de la politique vendeur.
         if (release.sellerNet > 0) {

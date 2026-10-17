@@ -19,6 +19,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
     load((api) => api.GET('/v1/support/overview')),
   ]);
   const q = overview.queues;
+  const admin = me.roles.includes('admin');
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -41,11 +42,18 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
             { href: '/commandes', label: 'Commandes' },
             { href: '/alertes', label: 'Alertes', count: q.alerts, hot: q.alerts > 0 },
             { href: '/comptabilite', label: 'Comptabilité' },
+            // Chiffre d'affaires et taux : administrateurs seulement (l'API le vérifie aussi).
+            ...(admin
+              ? [
+                  { href: '/rapports', label: 'Rapports' },
+                  { href: '/commissions', label: 'Commissions' },
+                ]
+              : []),
           ]}
         />
         <div className="sidebar-footer">
           <span>
-            {displayPhone(me.phone)} · {me.roles.includes('admin') ? 'administrateur' : 'support'}
+            {displayPhone(me.phone)} · {admin ? 'administrateur' : 'support'}
           </span>
           <form action={logout}>
             <button type="submit" className="button secondary">
