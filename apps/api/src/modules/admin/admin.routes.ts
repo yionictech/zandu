@@ -32,6 +32,20 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
           [id, body.decision, body.reason ?? null, ctx.clock.now()],
         );
         if (!rowCount) throw notFound('Vendeur');
+        if (body.decision !== 'suspended') {
+          await tx.query(
+            `UPDATE kyc_documents SET status = $2::kyc_document_status, reviewed_by = $3, reviewed_at = $4,
+                    rejection_reason = $5
+             WHERE seller_id = $1 AND status = 'pending'`,
+            [
+              id,
+              body.decision === 'verified' ? 'accepted' : 'rejected',
+              a.userId,
+              ctx.clock.now(),
+              body.reason ?? null,
+            ],
+          );
+        }
         await audit(
           tx,
           a,
@@ -41,6 +55,58 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
         );
       });
       return { id, verificationStatus: body.decision };
+    });
+
+    /** File de vérification des vendeurs (dossiers complets en attente). */
+    app.get('/v1/admin/sellers', async (request) => {
+      const { status } = z
+        .object({
+          status: z
+            .enum(['unverified', 'pending_review', 'verified', 'rejected', 'suspended'])
+            .default('pending_review'),
+        })
+        .parse(request.query);
+      const { rows } = await ctx.pool.query(
+        `SELECT s.id, s.shop_name AS "shopName", s.kind, s.city, s.verification_status AS "verificationStatus",
+                s.created_at AS "createdAt", u.phone,
+                (SELECT count(*)::int FROM kyc_documents k WHERE k.seller_id = s.id AND k.status = 'pending') AS "pendingDocuments"
+         FROM seller_profiles s JOIN users u ON u.id = s.user_id
+         WHERE s.verification_status = $1::seller_verification_status
+         ORDER BY s.updated_at LIMIT 200`,
+        [status],
+      );
+      return { items: rows };
+    });
+
+    /** Pièces d'un vendeur : URL signées de 5 min, chaque consultation est journalisée. */
+    app.get('/v1/admin/sellers/:id/kyc-documents', async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { rows } = await ctx.pool.query<{
+        id: string;
+        type: string;
+        status: string;
+        storage_key: string;
+        created_at: Date;
+      }>(
+        'SELECT id, type, status, storage_key, created_at FROM kyc_documents WHERE seller_id = $1 ORDER BY created_at',
+        [id],
+      );
+      await audit(ctx.pool, staffActor(request), 'seller.kyc_viewed', { type: 'seller', id });
+      return {
+        items: await Promise.all(
+          rows.map(async (d) => ({
+            id: d.id,
+            type: d.type,
+            status: d.status,
+            createdAt: d.created_at,
+            url: await ctx.storage.presignDownload({
+              bucket: 'private',
+              key: d.storage_key,
+              expiresInSeconds: 300,
+            }),
+          })),
+        ),
+      };
     });
 
     app.post('/v1/admin/products/:id/moderation', async (request) => {

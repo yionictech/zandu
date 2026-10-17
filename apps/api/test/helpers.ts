@@ -10,6 +10,7 @@ import type { Clock } from '../src/lib/clock.js';
 import { MemoryNotificationSender } from '../src/modules/notifications/sender.js';
 import { ProviderRegistry } from '../src/modules/payments/provider.js';
 import { SimulatorProvider } from '../src/modules/payments/simulator.js';
+import { MemoryStorage } from '../src/modules/storage/storage.js';
 import { TEST_DATABASE_URL } from './global-setup.js';
 
 export const ZONES = {
@@ -44,6 +45,7 @@ export interface TestEnv {
   clock: FakeClock;
   simulator: SimulatorProvider;
   notifier: MemoryNotificationSender;
+  storage: MemoryStorage;
   close(): Promise<void>;
 }
 
@@ -59,12 +61,14 @@ export async function createTestEnv(): Promise<TestEnv> {
   const clock = new FakeClock();
   const simulator = new SimulatorProvider(config.simulatorWebhookSecret);
   const notifier = new MemoryNotificationSender();
+  const storage = new MemoryStorage('http://api.test');
   const ctx: AppContext = {
     config,
     pool,
     clock,
     providers: new ProviderRegistry([simulator], 'simulator'),
     notifier,
+    storage,
   };
   const app = await buildApp(ctx, { logger: false });
   return {
@@ -74,6 +78,7 @@ export async function createTestEnv(): Promise<TestEnv> {
     clock,
     simulator,
     notifier,
+    storage,
     close: async () => {
       await app.close();
       await pool.end();
@@ -310,4 +315,57 @@ export async function orderStatus(env: TestEnv, orderId: string): Promise<string
 export async function handoverCodeFor(env: TestEnv, buyerPhone: string): Promise<string> {
   await sweep(env); // outbox -> notifications -> envoi
   return env.notifier.lastTo(buyerPhone, 'buyer_handover_code')!.variables.code!;
+}
+
+/** Paie puis livre une commande d'un article (vendeur et livreur du marché de test). */
+export async function buyAndDeliver(
+  env: TestEnv,
+  m: Marketplace,
+  productId = m.productId,
+): Promise<string> {
+  const co = await checkout(env, m.buyer, [{ productId, quantity: 1 }]);
+  const payment = await pay(env, m.buyer, co.id);
+  await approveAndNotify(env, payment.body.id);
+  const orderId: string = co.orders[0].id;
+  const code = await handoverCodeFor(env, m.buyer.phone);
+  await call(env, m.seller, { method: 'POST', url: `/v1/seller/orders/${orderId}/accept` });
+  await call(env, m.seller, { method: 'POST', url: `/v1/seller/orders/${orderId}/ready` });
+  await call(env, m.admin, {
+    method: 'POST',
+    url: `/v1/support/deliveries/${orderId}/assign`,
+    payload: { riderId: m.rider.riderId },
+  });
+  await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
+  await call(env, m.rider, {
+    method: 'POST',
+    url: `/v1/rider/deliveries/${orderId}/handover`,
+    payload: { code },
+  });
+  return orderId;
+}
+
+/** Envoie un fichier comme le ferait l'application : réservation, dépôt, puis identifiant. */
+export async function uploadFile(
+  env: TestEnv,
+  session: Session,
+  purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence',
+  options: { contentType?: string; bytes?: number; declaredSize?: number } = {},
+): Promise<string> {
+  const contentType = options.contentType ?? 'image/jpeg';
+  const body = Buffer.alloc(options.bytes ?? 2048, 7);
+  const reserved = await call(env, session, {
+    method: 'POST',
+    url: '/v1/uploads',
+    payload: { purpose, contentType, sizeBytes: options.declaredSize ?? body.length },
+  });
+  if (reserved.status !== 201) throw new Error(JSON.stringify(reserved.body));
+  const path = new URL(reserved.body.url).pathname;
+  const put = await env.app.inject({
+    method: 'PUT',
+    url: path,
+    headers: { 'content-type': contentType },
+    payload: body,
+  });
+  if (put.statusCode !== 200) throw new Error(`Dépôt refusé : ${put.statusCode}`);
+  return reserved.body.uploadId;
 }

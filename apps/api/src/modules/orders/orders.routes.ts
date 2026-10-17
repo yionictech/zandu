@@ -9,6 +9,7 @@ import { HttpError, notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import { actor, currentUser, requireAuth, requireRole, staffActor } from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
+import { consumeUpload } from '../uploads/uploads.service.js';
 import {
   applyOrderEvent,
   handoverHash,
@@ -168,6 +169,86 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
         await publish(tx, 'order.handover_code', { type: 'order', id }, { code }, now());
       });
       return reply.status(202).send({ sent: true });
+    });
+
+    /** F11 : noter un article reçu. Un seul avis par article, réservé à l'acheteur livré. */
+    app.post('/v1/order-items/:id/review', async (request, reply) => {
+      const { id } = IdParam.parse(request.params);
+      const body = z
+        .object({ rating: z.int().min(1).max(5), comment: z.string().trim().max(2000).optional() })
+        .parse(request.body);
+      const a = actor(request, 'buyer');
+      const review = await withTx(ctx.pool, async (tx) => {
+        const { rows } = await tx.query<{
+          product_id: string;
+          seller_id: string;
+          buyer_id: string;
+          status: string;
+        }>(
+          `SELECT oi.product_id, o.seller_id, o.buyer_id, o.status
+           FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.id = $1`,
+          [id],
+        );
+        const item = rows[0];
+        if (!item || item.buyer_id !== a.userId) throw notFound('Article');
+        if (!['delivered', 'completed'].includes(item.status)) {
+          throw new HttpError(
+            409,
+            'not_delivered',
+            'Vous pourrez noter cet article après sa réception',
+          );
+        }
+        const inserted = await tx.query<{ id: string }>(
+          `INSERT INTO reviews (order_item_id, product_id, seller_id, buyer_id, rating, comment, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (order_item_id) DO NOTHING RETURNING id`,
+          [id, item.product_id, item.seller_id, a.userId, body.rating, body.comment ?? null, now()],
+        );
+        if (!inserted.rows[0])
+          throw new HttpError(409, 'already_reviewed', 'Vous avez déjà noté cet article');
+        await tx.query(
+          `UPDATE seller_profiles s SET rating_count = agg.n, rating_avg = agg.avg
+           FROM (SELECT count(*)::int AS n, round(avg(rating), 2) AS avg FROM reviews
+                 WHERE seller_id = $1 AND NOT hidden) agg
+           WHERE s.id = $1`,
+          [item.seller_id],
+        );
+        return inserted.rows[0];
+      });
+      return reply.status(201).send({ id: review.id });
+    });
+
+    /** Photos à l'appui d'un litige (F12), visibles seulement par le support. */
+    app.post('/v1/disputes/:id/evidence', async (request, reply) => {
+      const { id } = IdParam.parse(request.params);
+      const { uploadId } = z.object({ uploadId: z.uuid() }).parse(request.body);
+      const a = actor(request, 'buyer');
+      await withTx(ctx.pool, async (tx) => {
+        const { rows } = await tx.query<{ status: string; buyer_id: string }>(
+          `SELECT d.status, o.buyer_id FROM disputes d JOIN orders o ON o.id = d.order_id
+           WHERE d.id = $1 FOR UPDATE OF d`,
+          [id],
+        );
+        const dispute = rows[0];
+        if (!dispute || dispute.buyer_id !== a.userId) throw notFound('Litige');
+        if (dispute.status !== 'open')
+          throw new HttpError(409, 'dispute_closed', 'Litige déjà tranché');
+        const { rows: count } = await tx.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM dispute_evidence WHERE dispute_id = $1',
+          [id],
+        );
+        if (count[0]!.n >= 6) throw new HttpError(409, 'too_many_files', '6 photos au maximum');
+        const upload = await consumeUpload(ctx, tx, {
+          uploadId,
+          userId: a.userId!,
+          purpose: 'dispute_evidence',
+        });
+        await tx.query(
+          `INSERT INTO dispute_evidence (dispute_id, uploaded_by, storage_key, kind, upload_id)
+           VALUES ($1, $2, $3, 'photo', $4)`,
+          [id, a.userId, upload.storageKey, upload.id],
+        );
+      });
+      return reply.status(201).send({ disputeId: id });
     });
 
     // ---------------- Vendeur ----------------
@@ -355,6 +436,59 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       });
 
       /** Décision de litige (F12, F9) : reverser au vendeur, rembourser tout ou partie. */
+      /** File des litiges ouverts, les plus urgents d'abord (SLA 72 h). */
+      staff.get('/v1/support/disputes', async () => {
+        const { rows } = await ctx.pool.query(
+          `SELECT d.id, d.reason, d.status, d.sla_due_at AS "slaDueAt", d.created_at AS "createdAt",
+                  o.id AS "orderId", o.public_ref AS "publicRef", o.total
+           FROM disputes d JOIN orders o ON o.id = d.order_id
+           WHERE d.status = 'open' ORDER BY d.sla_due_at LIMIT 200`,
+        );
+        return { items: rows };
+      });
+
+      /** Détail d'un litige avec preuves (URL signées de 5 min, consultation journalisée). */
+      staff.get('/v1/support/disputes/:id', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const { rows } = await ctx.pool.query<{ orderId: string }>(
+          `SELECT d.id, d.order_id AS "orderId", d.reason, d.description, d.status, d.resolution,
+                  d.refund_amount AS "refundAmount", d.decision_note AS "decisionNote",
+                  d.sla_due_at AS "slaDueAt", d.created_at AS "createdAt"
+           FROM disputes d WHERE d.id = $1`,
+          [id],
+        );
+        const dispute = rows[0];
+        if (!dispute) throw notFound('Litige');
+        const { rows: files } = await ctx.pool.query<{
+          id: string;
+          storage_key: string;
+          kind: string;
+        }>(
+          'SELECT id, storage_key, kind FROM dispute_evidence WHERE dispute_id = $1 ORDER BY created_at',
+          [id],
+        );
+        await audit(ctx.pool, staffActor(request), 'dispute.evidence_viewed', {
+          type: 'dispute',
+          id,
+        });
+        const [order] = await orderViews(ctx.pool, 'o.id = $1', [dispute.orderId]);
+        return {
+          ...dispute,
+          order,
+          evidence: await Promise.all(
+            files.map(async (f) => ({
+              id: f.id,
+              kind: f.kind,
+              url: await ctx.storage.presignDownload({
+                bucket: 'private',
+                key: f.storage_key,
+                expiresInSeconds: 300,
+              }),
+            })),
+          ),
+        };
+      });
+
       staff.post('/v1/support/disputes/:id/resolve', async (request) => {
         const { id } = IdParam.parse(request.params);
         const body = z

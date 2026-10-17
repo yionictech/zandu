@@ -15,8 +15,11 @@ info:
       intention) : renvoyer la même requête avec la même clé renvoie la même ressource, sans doublon.
     - Erreurs : `{ "error": { "code": "…", "message": "…", "details": { … } } }` ; `code` est stable.
 
-    **Prévu (non encore exposé)** : envoi des photos produits et des pièces KYC par URL signées,
-    édition de produit, avis (F11), messagerie (F13), retrait manuel du solde vendeur, statistiques
+    **Envoi de fichiers** (photos, pièces KYC, preuves) : `POST /v1/uploads` renvoie une URL signée ;
+    l'application y dépose le fichier (POST multipart avec `fields` puis `file`, ou PUT du contenu
+    brut selon `method`), puis rattache `uploadId` à son usage. L'API ne voit jamais passer les octets.
+
+    **Prévu (non encore exposé)** : messagerie (F13), retrait manuel du solde vendeur, statistiques
     vendeur, gestion des commissions et rapports dans le back-office.
   contact:
     name: Zandu
@@ -37,6 +40,8 @@ tags:
     description: Boutique, produits, commandes à traiter, argent du vendeur
   - name: Achat
     description: Panier validé, paiement Mobile Money et suivi du paiement
+  - name: Fichiers
+    description: Envoi direct des photos et pièces vers le stockage, par URL signée
   - name: Commandes
     description: Suivi, confirmation de réception, litiges (acheteur)
   - name: Livreur
@@ -193,6 +198,12 @@ paths:
             schema: { type: string, format: uuid },
           }
         - { name: city, in: query, schema: { type: string } }
+        - {
+            name: sellerId,
+            in: query,
+            description: Produits d'une boutique,
+            schema: { type: string, format: uuid },
+          }
         - { name: minPrice, in: query, schema: { type: integer, minimum: 0 } }
         - { name: maxPrice, in: query, schema: { type: integer, minimum: 1 } }
         - name: sort
@@ -216,6 +227,7 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
@@ -238,18 +250,21 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/ProductCard'
                   - type: object
+                    required: [description, media, reviews]
                     properties:
                       description: { type: string }
                       media:
                         type: array
                         items:
                           type: object
+                          required: [url]
                           properties:
-                            key: { type: string }
+                            url: { type: string, format: uri }
                             width: { type: [integer, 'null'] }
                             height: { type: [integer, 'null'] }
                       reviews:
                         type: object
+                        required: [average, count]
                         properties:
                           average: { type: [number, 'null'] }
                           count: { type: integer }
@@ -285,6 +300,44 @@ paths:
 
         '429': { $ref: '#/components/responses/Error' }
   /v1/seller/shop:
+    get:
+      tags: [Vendeur]
+      summary: Ma boutique
+      operationId: getMyShop
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    id,
+                    shopName,
+                    slug,
+                    kind,
+                    city,
+                    pickupZoneId,
+                    payoutPhone,
+                    payoutOperator,
+                    verificationStatus,
+                    ratingAvg,
+                    ratingCount,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  shopName: { type: string }
+                  slug: { type: string }
+                  kind: { type: string, enum: [individual, business] }
+                  city: { type: string }
+                  pickupZoneId: { type: string, format: uuid }
+                  payoutPhone: { type: string }
+                  payoutOperator: { $ref: '#/components/schemas/Operator' }
+                  verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+                  ratingAvg: { type: [number, 'null'] }
+                  ratingCount: { type: integer }
+        '404': { $ref: '#/components/responses/Error' }
     post:
       tags: [Vendeur]
       summary: Ouvrir sa boutique
@@ -309,6 +362,48 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
 
   /v1/seller/products:
+    get:
+      tags: [Vendeur]
+      summary: Mes produits (hors archivés)
+      operationId: listMyProducts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          title,
+                          price,
+                          stock,
+                          status,
+                          categoryId,
+                          rejectionReason,
+                          updatedAt,
+                          coverImage,
+                          photoCount,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        price: { $ref: '#/components/schemas/Amount' }
+                        stock: { type: integer }
+                        status: { $ref: '#/components/schemas/ProductStatus' }
+                        categoryId: { type: string, format: uuid }
+                        rejectionReason: { type: [string, 'null'] }
+                        updatedAt: { type: string, format: date-time }
+                        coverImage: { type: [string, 'null'], format: uri }
+                        photoCount: { type: integer }
+        '409': { $ref: '#/components/responses/Error' }
     post:
       tags: [Vendeur]
       summary: Publier un produit (F3)
@@ -543,11 +638,13 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/Order'
                   - type: object
+                    required: [history]
                     properties:
                       history:
                         type: array
                         items:
                           type: object
+                          required: [status, event, at]
                           properties:
                             status: { $ref: '#/components/schemas/OrderStatus' }
                             event: { type: string }
@@ -878,6 +975,368 @@ paths:
                   outcome: { type: string, enum: [processed, duplicate, ignored] }
         '401': { $ref: '#/components/responses/Error' }
 
+  /v1/products/{id}/reviews:
+    get:
+      tags: [Catalogue]
+      summary: Avis vérifiés d'un produit (F11)
+      operationId: listProductReviews
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 50, default: 20 },
+          }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, rating, comment, createdAt, authorName]
+                      properties:
+                        id: { type: string, format: uuid }
+                        rating: { type: integer, minimum: 1, maximum: 5 }
+                        comment: { type: [string, 'null'] }
+                        createdAt: { type: string, format: date-time }
+                        authorName: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/uploads:
+    post:
+      tags: [Fichiers]
+      summary: Réserver l'envoi d'un fichier et obtenir une URL signée
+      description: |
+        Photos produits (vendeur, compartiment public, JPEG/PNG/WebP ≤ 2 Mo), pièces KYC (vendeur,
+        compartiment privé, image ou PDF ≤ 5 Mo), preuves de litige (acheteur, privé, image ≤ 3 Mo).
+        L'URL est valable 15 min ; le fichier doit être rattaché dans les 24 h.
+      operationId: reserveUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, contentType, sizeBytes]
+              properties:
+                purpose: { type: string, enum: [product_photo, kyc_document, dispute_evidence] }
+                contentType: { type: string, examples: [image/jpeg] }
+                sizeBytes: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Envoi réservé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [uploadId, method, url, fields, headers, expiresAt, maxBytes]
+                properties:
+                  uploadId: { type: string, format: uuid }
+                  method: { type: string, enum: [POST, PUT] }
+                  url: { type: string, format: uri }
+                  fields: { type: object, additionalProperties: { type: string } }
+                  headers: { type: object, additionalProperties: { type: string } }
+                  expiresAt: { type: string, format: date-time }
+                  maxBytes: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/commission-preview:
+    get:
+      tags: [Vendeur]
+      summary: « Vous recevrez » — commission et net pour un prix et une catégorie
+      operationId: commissionPreview
+      parameters:
+        - { name: categoryId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: price, in: query, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rateBps, commission, net]
+                properties:
+                  rateBps: { type: integer, description: Taux en points de base (1000 = 10 %) }
+                  commission: { $ref: '#/components/schemas/Amount' }
+                  net: { $ref: '#/components/schemas/Amount' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/products/{id}:
+    patch:
+      tags: [Vendeur]
+      summary: Modifier, archiver ou remettre en vente un produit
+      description: Un vendeur non vérifié qui modifie le texte, la catégorie ou les photos repasse en modération.
+      operationId: updateProduct
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                categoryId: { type: string, format: uuid }
+                title: { type: string, minLength: 3, maxLength: 140 }
+                description: { type: string, maxLength: 5000 }
+                price: { $ref: '#/components/schemas/Amount' }
+                stock: { type: integer, minimum: 0 }
+                status: { type: string, enum: [archived, published] }
+      responses:
+        '200':
+          description: Modifié
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, title, price, stock, status]
+                properties:
+                  id: { type: string, format: uuid }
+                  title: { type: string }
+                  price: { $ref: '#/components/schemas/Amount' }
+                  stock: { type: integer }
+                  status: { $ref: '#/components/schemas/ProductStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/products/{id}/photos:
+    post:
+      tags: [Vendeur]
+      summary: Ajouter une photo déjà envoyée (6 au maximum)
+      operationId: addProductPhoto
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadId]
+              properties:
+                uploadId: { type: string, format: uuid }
+      responses:
+        '201': { $ref: '#/components/responses/PhotoList' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/products/{id}/photos/{photoId}:
+    delete:
+      tags: [Vendeur]
+      summary: Retirer une photo
+      operationId: removeProductPhoto
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: photoId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/PhotoList' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/kyc:
+    get:
+      tags: [Vendeur]
+      summary: État de ma vérification (F2)
+      operationId: getMyKyc
+      responses:
+        '200': { $ref: '#/components/responses/KycStatus' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/kyc-documents:
+    post:
+      tags: [Vendeur]
+      summary: Ajouter une pièce à mon dossier de vérification
+      description: Dossier complet (identité + selfie, + RCCM et NIU pour une entreprise) → « pending_review ».
+      operationId: addKycDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadId, type]
+              properties:
+                uploadId: { type: string, format: uuid }
+                type: { $ref: '#/components/schemas/KycDocumentType' }
+      responses:
+        '201': { $ref: '#/components/responses/KycStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/order-items/{id}/review:
+    post:
+      tags: [Commandes]
+      summary: Noter un article reçu (F11)
+      description: Réservé à l'acheteur, après la remise ; un seul avis par article.
+      operationId: reviewOrderItem
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '201': { $ref: '#/components/responses/Created' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/disputes/{id}/evidence:
+    post:
+      tags: [Commandes]
+      summary: Joindre une photo à mon litige (6 au maximum)
+      operationId: addDisputeEvidence
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadId]
+              properties:
+                uploadId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Ajoutée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disputeId: { type: string, format: uuid }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/support/disputes:
+    get:
+      tags: [Support]
+      summary: Litiges ouverts, les plus urgents d'abord
+      operationId: listOpenDisputes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        reason: { type: string }
+                        status: { type: string }
+                        slaDueAt: { type: string, format: date-time }
+                        createdAt: { type: string, format: date-time }
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        total: { $ref: '#/components/schemas/Amount' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/disputes/{id}:
+    get:
+      tags: [Support]
+      summary: Détail d'un litige, commande et preuves (URL signées 5 min, consultation journalisée)
+      operationId: getDispute
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  orderId: { type: string, format: uuid }
+                  reason: { type: string }
+                  description: { type: string }
+                  status: { type: string, enum: [open, resolved] }
+                  slaDueAt: { type: string, format: date-time }
+                  order: { $ref: '#/components/schemas/Order' }
+                  evidence:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        kind: { type: string }
+                        url: { type: string, format: uri }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/sellers:
+    get:
+      tags: [Support]
+      summary: File de vérification des vendeurs
+      operationId: listSellersByStatus
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/VerificationStatus' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        shopName: { type: string }
+                        kind: { type: string }
+                        city: { type: string }
+                        verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+                        phone: { type: string }
+                        pendingDocuments: { type: integer }
+                        createdAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/sellers/{id}/kyc-documents:
+    get:
+      tags: [Support]
+      summary: Pièces d'un vendeur (URL signées 5 min, consultation journalisée)
+      operationId: listSellerKycDocuments
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        type: { $ref: '#/components/schemas/KycDocumentType' }
+                        status: { type: string, enum: [pending, accepted, rejected] }
+                        createdAt: { type: string, format: date-time }
+                        url: { type: string, format: uri }
+        '403': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     session:
@@ -909,6 +1368,47 @@ components:
               reason: { type: string, minLength: 3, maxLength: 300 }
 
   responses:
+    PhotoList:
+      description: Photos du produit, dans l'ordre d'affichage
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [photos]
+            properties:
+              photos:
+                type: array
+                items:
+                  type: object
+                  required: [id, position, url]
+                  properties:
+                    id: { type: string, format: uuid }
+                    position: { type: integer, minimum: 0, maximum: 5 }
+                    url: { type: string, format: uri }
+    KycStatus:
+      description: État du dossier de vérification
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [verificationStatus, rejectionReason, documents, missing]
+            properties:
+              verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+              rejectionReason: { type: [string, 'null'] }
+              documents:
+                type: array
+                items:
+                  type: object
+                  required: [id, type, status, createdAt]
+                  properties:
+                    id: { type: string, format: uuid }
+                    type: { $ref: '#/components/schemas/KycDocumentType' }
+                    status: { type: string, enum: [pending, accepted, rejected] }
+                    createdAt: { type: string, format: date-time }
+              missing:
+                type: array
+                description: Pièces encore attendues
+                items: { $ref: '#/components/schemas/KycDocumentType' }
     Error:
       description: Erreur
       content:
@@ -937,12 +1437,22 @@ components:
         application/json:
           schema:
             type: object
+            required: [items]
             properties:
               items:
                 type: array
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    VerificationStatus:
+      type: string
+      enum: [unverified, pending_review, verified, rejected, suspended]
+    ProductStatus:
+      type: string
+      enum: [draft, pending_review, published, rejected, archived]
+    KycDocumentType:
+      type: string
+      enum: [national_id, passport, residence_proof, selfie, rccm, niu]
     Amount:
       type: integer
       minimum: 0
@@ -964,6 +1474,7 @@ components:
             details: { type: object }
     User:
       type: object
+      required: [id, phone, fullName, roles]
       properties:
         id: { type: string, format: uuid }
         phone: { type: string, examples: ['+242066123456'] }
@@ -973,6 +1484,7 @@ components:
           items: { type: string, enum: [buyer, seller, rider, support, admin] }
     ProductCard:
       type: object
+      required: [id, title, price, compareAtPrice, stock, city, categoryId, coverImage, seller]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -989,7 +1501,9 @@ components:
             shopName: { type: string }
             slug: { type: string }
             verified: { type: boolean }
-            ratingAvg: { type: [string, 'null'] }
+            ratingAvg: { type: [number, 'null'] }
+            ratingCount: { type: integer }
+          required: [id, shopName, slug, verified, ratingAvg, ratingCount]
     OrderStatus:
       type: string
       enum:
@@ -1008,12 +1522,37 @@ components:
         ]
     ShippingAddress:
       type: object
+      required: [recipientName, phone, landmark]
       properties:
         recipientName: { type: string }
         phone: { type: string }
         landmark: { type: string }
     Order:
       type: object
+      required:
+        [
+          id,
+          publicRef,
+          checkoutId,
+          status,
+          seller,
+          items,
+          itemsSubtotal,
+          deliveryFee,
+          total,
+          refundedAmount,
+          currency,
+          deliveryMode,
+          shippingAddress,
+          sellerAcceptDeadline,
+          disputeWindowEndsAt,
+          createdAt,
+          paidAt,
+          deliveredAt,
+          completedAt,
+          cancelledAt,
+          cancelReason,
+        ]
       properties:
         id: { type: string, format: uuid }
         publicRef: { type: string, examples: [ZD-7K3M9Q2P] }
@@ -1021,6 +1560,7 @@ components:
         status: { $ref: '#/components/schemas/OrderStatus' }
         seller:
           type: object
+          required: [id, shopName]
           properties:
             id: { type: string, format: uuid }
             shopName: { type: string }
@@ -1028,12 +1568,15 @@ components:
           type: array
           items:
             type: object
+            required: [itemId, productId, title, unitPrice, quantity, lineTotal, reviewed]
             properties:
+              itemId: { type: string, format: uuid, description: À utiliser pour noter l'article }
               productId: { type: string, format: uuid }
               title: { type: string }
               unitPrice: { $ref: '#/components/schemas/Amount' }
               quantity: { type: integer }
               lineTotal: { $ref: '#/components/schemas/Amount' }
+              reviewed: { type: boolean }
         itemsSubtotal: { $ref: '#/components/schemas/Amount' }
         deliveryFee: { $ref: '#/components/schemas/Amount' }
         total: { $ref: '#/components/schemas/Amount' }
@@ -1051,6 +1594,8 @@ components:
         cancelReason: { type: [string, 'null'] }
     Checkout:
       type: object
+      required:
+        [id, status, itemsTotal, deliveryTotal, grandTotal, currency, expiresAt, paidAt, orders]
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [awaiting_payment, paid, expired] }
@@ -1065,6 +1610,19 @@ components:
           items: { $ref: '#/components/schemas/Order' }
     Payment:
       type: object
+      required:
+        [
+          id,
+          checkoutId,
+          status,
+          operator,
+          msisdn,
+          amount,
+          currency,
+          expiresAt,
+          lateSuccess,
+          failure,
+        ]
       properties:
         id: { type: string, format: uuid }
         checkoutId: { type: string, format: uuid }
@@ -1079,6 +1637,7 @@ components:
           description: Succès reçu après expiration — remboursé automatiquement
         failure:
           type: [object, 'null']
+          required: [code, message]
           properties:
             code:
               type: string

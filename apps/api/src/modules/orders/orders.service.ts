@@ -247,8 +247,10 @@ export interface OrderView {
   status: OrderStatus;
   seller: { id: string; shopName: string };
   items: Array<{
+    itemId: string;
     productId: string;
     title: string;
+    reviewed: boolean;
     unitPrice: number;
     quantity: number;
     lineTotal: number;
@@ -274,8 +276,10 @@ export async function orderViews(db: Db, where: string, params: unknown[]): Prom
   const { rows } = await db.query<OrderRow & { shop_name: string; items: OrderView['items'] }>(
     `SELECT o.*, s.shop_name,
             (SELECT json_agg(json_build_object(
-                'productId', oi.product_id, 'title', oi.title_snapshot, 'unitPrice', oi.unit_price,
-                'quantity', oi.quantity, 'lineTotal', oi.line_total) ORDER BY oi.title_snapshot)
+                'itemId', oi.id, 'productId', oi.product_id, 'title', oi.title_snapshot,
+                'unitPrice', oi.unit_price, 'quantity', oi.quantity, 'lineTotal', oi.line_total,
+                'reviewed', EXISTS (SELECT 1 FROM reviews r WHERE r.order_item_id = oi.id))
+                ORDER BY oi.title_snapshot)
              FROM order_items oi WHERE oi.order_id = o.id) AS items
      FROM orders o JOIN seller_profiles s ON s.id = o.seller_id
      WHERE ${where}

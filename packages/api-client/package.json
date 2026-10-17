@@ -1,0 +1,26 @@
+{
+  "name": "@zandu/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client HTTP typé de l'API Zandu, généré depuis docs/api/openapi.yaml.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "zandu-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate": "pnpm --package=openapi-typescript@7.13.0 --package=typescript@5.9 dlx openapi-typescript ../../docs/api/openapi.yaml -o src/schema.ts && prettier --write src/schema.ts",
+    "check-generated": "pnpm generate && git diff --exit-code -- src/schema.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "~0.17.0"
+  }
+}

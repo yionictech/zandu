@@ -241,7 +241,7 @@ export async function createCheckout(
   });
 }
 
-async function loadCommissionRules(db: Db): Promise<CommissionRule[]> {
+export async function loadCommissionRules(db: Db): Promise<CommissionRule[]> {
   const { rows } = await db.query<{
     scope: CommissionRule['scope'];
     rate_bps: number;
@@ -261,7 +261,7 @@ async function loadCommissionRules(db: Db): Promise<CommissionRule[]> {
 }
 
 /** Chemin de chaque catégorie vers la racine : [smartphones, electronique]. */
-async function loadCategoryPaths(db: Db): Promise<Map<string, string[]>> {
+export async function loadCategoryPaths(db: Db): Promise<Map<string, string[]>> {
   const { rows } = await db.query<{ id: string; parent_id: string | null }>(
     'SELECT id, parent_id FROM categories',
   );
