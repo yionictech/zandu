@@ -21,6 +21,7 @@ import {
   launchBrowser,
   phone as openPhone,
   sleep,
+  staffLogin,
   WEB,
 } from './lib.mjs';
 
@@ -93,7 +94,7 @@ await shot('07-mes-produits-en-verification');
 
 // 5. Support (API) : boutique vérifiée, produit approuvé
 const token = await page.evaluate(() => localStorage.getItem('zandu.session'));
-const admin = await apiLogin('+242069000000');
+const admin = await staffLogin('+242069000000');
 const shop = await json('GET', '/v1/seller/shop', token);
 await json('POST', `/v1/admin/sellers/${shop.id}/verification`, admin, { decision: 'verified' });
 const { items: products } = await json('GET', '/v1/seller/products', token);

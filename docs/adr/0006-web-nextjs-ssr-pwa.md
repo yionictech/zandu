@@ -8,6 +8,7 @@ Le site acheteur/vendeur est une application **Next.js** : fiches produit et cat
 serveur (HTML complet, balises Open Graph), mis en cache au CDN ; PWA installable avec service worker
 (cache hors ligne, mode économie de données). Le back-office est une application Next.js distincte,
 sur un domaine distinct, construite avec un kit d'administration (Refine, React-Admin ou équivalent).
+_Précisé par l'ADR-0012 : back-office en rendu serveur, sans kit d'administration._
 
 ## Raisons
 

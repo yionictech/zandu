@@ -30,6 +30,22 @@ curl -X POST http://localhost:3000/dev/simulator/collections/<paymentId>/approve
 
 Donner un rôle support/admin/livreur : `pnpm --filter @zandu/api user:grant-role "06 612 34 56" admin`.
 
+## Back-office (support et administration)
+
+```bash
+cp apps/backoffice/.env.example apps/backoffice/.env.local   # ZANDU_API_URL
+pnpm dev:backoffice                                          # http://localhost:3100
+```
+
+Connexion avec le compte administrateur de démonstration `06 900 00 00` : code SMS (visible dans la
+console de l'API), puis **second facteur** : à la première connexion, scanner le QR code avec une
+application d'authentification (Google Authenticator, Aegis…), puis saisir son code à chaque connexion.
+Le second facteur est exigé par l'API pour toutes les routes `/v1/support` et `/v1/admin`
+(`STAFF_MFA_REQUIRED`, toujours actif en production, désactivé par défaut dans les tests).
+Téléphone perdu : `POST /v1/admin/users/{id}/mfa/reset` par un administrateur.
+
+Ne pas lancer `next build` avec `NODE_ENV=development` dans l'environnement (Next.js le refuse).
+
 ## Application mobile (Android)
 
 ```bash
@@ -52,7 +68,12 @@ EXPO_PUBLIC_API_URL=http://localhost:3998 EXPO_PUBLIC_SIMULATOR=1 npx expo expor
 node e2e/serve.mjs &                         # sert dist/ sur http://localhost:8081
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-acheteur.mjs
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-vendeur-livreur.mjs
+# back-office démarré sur http://localhost:3100 (pnpm --filter @zandu/backoffice build && … start)
+cd ../backoffice && DATABASE_URL=… SHOTS=./captures node e2e/parcours-support.mjs
 ```
+
+Les scripts configurent eux-mêmes le second facteur du compte administrateur (secret gardé dans un
+fichier temporaire) et calculent ses codes.
 
 Le second parcours crée à chaque fois un nouveau vendeur (boutique, pièces, produit avec photo), puis
 fait livrer la commande par le livreur de démonstration (06 800 00 00). Sur la version web, l'appareil

@@ -1,4 +1,6 @@
 // Outils communs aux parcours de bout en bout (API de développement + Chromium au format téléphone).
+import { execFileSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { chromium } from 'playwright-core';
@@ -64,6 +66,58 @@ export async function apiLogin(phone) {
     code: variables.code,
   });
   await writeFile(SESSIONS_FILE, JSON.stringify({ ...cache, [phone]: token }));
+  return token;
+}
+
+/** Code TOTP (RFC 6238, SHA-1, 30 s, 6 chiffres) d'un secret base32 : l'« application d'authentification ». */
+export function totp(secretBase32, at = Date.now()) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const char of secretBase32.replace(/[\s=]/g, '').toUpperCase())
+    bits += alphabet.indexOf(char).toString(2).padStart(5, '0');
+  const key = Buffer.from(bits.match(/.{8}/g).map((b) => parseInt(b, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
+  const digest = createHmac('sha1', key).update(counter).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0');
+}
+
+/** Attend le prochain pas de 30 s : un code TOTP ne sert qu'une fois. */
+export const nextTotpStep = () => sleep(30_000 - (Date.now() % 30_000) + 500);
+
+const SECRETS_FILE = `${tmpdir()}/zandu-e2e-totp.json`;
+
+/**
+ * Session du personnel (support, administration) avec second facteur : configuré au premier
+ * passage (secret gardé dans un fichier temporaire), code TOTP ensuite. Développement seulement.
+ */
+export async function staffLogin(phone) {
+  const token = await apiLogin(phone);
+  const status = await json('GET', '/v1/auth/mfa', token);
+  if (!status.required || status.verified) return token;
+  const secrets = JSON.parse(await readFile(SECRETS_FILE, 'utf8').catch(() => '{}'));
+  if (status.enrolled && !secrets[phone]) {
+    // Secret perdu (fichier temporaire effacé) : on repart de zéro, en base de développement.
+    execFileSync('psql', [
+      process.env.DATABASE_URL,
+      '-c',
+      `DELETE FROM user_mfa WHERE user_id = (SELECT id FROM users WHERE phone = '${phone}')`,
+    ]);
+  }
+  let path = '/v1/auth/mfa/verify';
+  if (!status.enrolled || !secrets[phone]) {
+    const { secret } = await json('POST', '/v1/auth/mfa/setup', token);
+    secrets[phone] = secret;
+    await writeFile(SECRETS_FILE, JSON.stringify(secrets));
+    path = '/v1/auth/mfa/confirm';
+  }
+  try {
+    await json('POST', path, token, { code: totp(secrets[phone]) });
+  } catch {
+    await nextTotpStep(); // code de ce pas déjà utilisé par une exécution précédente
+    await json('POST', path, token, { code: totp(secrets[phone]) });
+  }
   return token;
 }
 

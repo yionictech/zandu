@@ -20,6 +20,8 @@ flowchart LR
   LB --> A2[API #2]
   W[Worker] --- PG
   A1 & A2 --- PG[(PostgreSQL managé<br/>bascule + PITR)]
+  S([Support]) -->|admin.zandu.cg<br/>IP filtrées| BO[Back-office Next.js]
+  BO -->|HTTPS, jeton serveur| LB
   A1 & A2 -. URL signées .-> S3[(Stockage objet<br/>public · privé KYC)]
   CF --> S3
   PG -. export quotidien chiffré .-> BK[(Sauvegarde hors hébergeur)]
@@ -27,6 +29,8 @@ flowchart LR
 
 - **2 instances API** (1 vCPU / 1 Go chacune suffisent largement à 100 commandes/h) ;
 - **1 worker** (peut passer à 2 : les balayeurs utilisent `FOR UPDATE SKIP LOCKED`) ;
+- **1 instance back-office** (Next.js, `pnpm --filter @zandu/backoffice start`) sur un domaine
+  distinct, filtré par IP ou VPN, variable `ZANDU_API_URL` vers l'API ;
 - **PostgreSQL managé** avec bascule automatique et restauration à la minute près (PITR) ;
 - **Stockage objet** compatible S3 : compartiment public derrière le CDN (photos), compartiment privé (KYC) ;
 - Migrations appliquées par une étape de déploiement (`pnpm db:migrate`), verrou consultatif anti-concurrence.

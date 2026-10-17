@@ -20,6 +20,7 @@ jobs:
           --health-cmd "pg_isready -U zandu" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://zandu:zandu@localhost:5432/zandu_test
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -34,7 +35,8 @@ jobs:
         run: pnpm test:unit
       - name: Tests d'intégration (API + PostgreSQL)
         run: pnpm test:integration
-      - run: pnpm build
+      - name: Compilation (paquets, API, back-office Next.js)
+        run: pnpm build
       - name: Contrat d'API (OpenAPI)
         run: pnpm lint:openapi
       - name: Client d'API à jour avec le contrat

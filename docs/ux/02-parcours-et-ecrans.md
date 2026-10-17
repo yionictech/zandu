@@ -163,6 +163,9 @@ Après 5 codes erronés : verrouillage et appel au support (anti-fraude).
 
 ## 4. Back-office (support et administration)
 
+Réalisé dans `apps/backoffice` ([captures](captures/back-office.jpg)). Connexion par code SMS puis
+code de l'application d'authentification (QR code à la première connexion).
+
 Files de travail triées par urgence, chacune avec son délai cible :
 **Litiges** (SLA 72 h) · **Vérifications vendeurs** · **Modération produits** · **Livraisons à
 assigner** · **Alertes** (reversements/remboursements en échec, paiements tardifs). Recherche universelle

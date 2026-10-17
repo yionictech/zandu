@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { AppContext } from './context.js';
 import { errorHandler } from './lib/errors.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { supportRoutes } from './modules/support/support.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
@@ -67,6 +68,7 @@ export async function buildApp(
   await app.register(checkoutRoutes(ctx));
   await app.register(orderRoutes(ctx));
   await app.register(adminRoutes(ctx));
+  await app.register(supportRoutes(ctx));
   await app.register(webhookRoutes(ctx));
 
   if (ctx.config.env !== 'production' && ctx.notifier instanceof DevNotificationSender) {

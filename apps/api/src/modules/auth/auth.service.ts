@@ -16,7 +16,13 @@ export interface AuthUser {
   roles: Role[];
 }
 
-const STAFF_ROLES: Role[] = ['support', 'admin'];
+export const STAFF_ROLES: Role[] = ['support', 'admin'];
+
+export interface AuthSession {
+  sessionId: string;
+  /** Code TOTP vérifié pour cette session (personnel uniquement). */
+  mfaVerified: boolean;
+}
 
 const otpHash = (ctx: AppContext, challengeId: string, code: string): string =>
   hmac(ctx.config.appSecret, `otp:${challengeId}:${code}`);
@@ -161,22 +167,31 @@ export async function verifyOtp(
 export async function authenticate(
   ctx: AppContext,
   token: string,
-): Promise<(AuthUser & { sessionId: string }) | null> {
+): Promise<(AuthUser & AuthSession) | null> {
   const { rows } = await ctx.pool.query<{
     session_id: string;
+    mfa_verified: boolean;
     id: string;
     phone: string;
     full_name: string | null;
     roles: Role[];
   }>(
-    `SELECT s.id AS session_id, u.id, u.phone, u.full_name, u.roles::text[] AS roles
+    `SELECT s.id AS session_id, s.mfa_verified_at IS NOT NULL AS mfa_verified,
+            u.id, u.phone, u.full_name, u.roles::text[] AS roles
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND u.status = 'active'`,
     [sha256(token), ctx.clock.now()],
   );
   const r = rows[0];
   return r
-    ? { sessionId: r.session_id, id: r.id, phone: r.phone, fullName: r.full_name, roles: r.roles }
+    ? {
+        sessionId: r.session_id,
+        mfaVerified: r.mfa_verified,
+        id: r.id,
+        phone: r.phone,
+        fullName: r.full_name,
+        roles: r.roles,
+      }
     : null;
 }
 

@@ -33,20 +33,20 @@ erDiagram
 
 ## 4.2 Ce qui a été ajouté au modèle du cahier, et pourquoi
 
-| Ajout                                                                             | Raison                                                                                     |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `checkouts`                                                                       | Un paiement pour un panier multi-vendeurs, découpé en une commande par vendeur (ADR-0011). |
-| `order_status_transitions` + trigger                                              | Second verrou sur les transitions (en plus du code).                                       |
-| `order_status_history`                                                            | Historique complet affiché à l'acheteur et au support ; preuve en cas de litige.           |
-| `ledger_accounts`, `ledger_transactions`                                          | Partie double : comptes nommés, transactions équilibrées et idempotentes.                  |
-| `refunds`                                                                         | Remboursements suivis comme les reversements (tentatives, statut, alerte).                 |
-| `provider_events`                                                                 | Boîte de réception des webhooks : dédoublonnage, rejeu, preuve.                            |
-| `idempotency_keys`                                                                | Idempotence de toutes les requêtes sensibles (checkout, paiement).                         |
-| `outbox_events`, `notifications`                                                  | Aucune notification perdue ni envoyée pour une transaction annulée.                        |
-| `commission_rules`                                                                | Commission par défaut / catégorie / vendeur, datée (offre de lancement à 0 %).             |
-| `delivery_zones`, `delivery_rates`, `pickup_points`, `courier_partners`, `riders` | F10 : tarifs par zone, points relais, livreurs.                                            |
-| `otp_challenges`, `sessions`, `user_mfa`                                          | F1 et double authentification.                                                             |
-| `reconciliation_runs`, `reconciliation_discrepancies`                             | Rapprochement quotidien avec l'agrégateur.                                                 |
+| Ajout                                                                             | Raison                                                                                                                                                |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkouts`                                                                       | Un paiement pour un panier multi-vendeurs, découpé en une commande par vendeur (ADR-0011).                                                            |
+| `order_status_transitions` + trigger                                              | Second verrou sur les transitions (en plus du code).                                                                                                  |
+| `order_status_history`                                                            | Historique complet affiché à l'acheteur et au support ; preuve en cas de litige.                                                                      |
+| `ledger_accounts`, `ledger_transactions`                                          | Partie double : comptes nommés, transactions équilibrées et idempotentes.                                                                             |
+| `refunds`                                                                         | Remboursements suivis comme les reversements (tentatives, statut, alerte).                                                                            |
+| `provider_events`                                                                 | Boîte de réception des webhooks : dédoublonnage, rejeu, preuve.                                                                                       |
+| `idempotency_keys`                                                                | Idempotence de toutes les requêtes sensibles (checkout, paiement).                                                                                    |
+| `outbox_events`, `notifications`                                                  | Aucune notification perdue ni envoyée pour une transaction annulée.                                                                                   |
+| `commission_rules`                                                                | Commission par défaut / catégorie / vendeur, datée (offre de lancement à 0 %).                                                                        |
+| `delivery_zones`, `delivery_rates`, `pickup_points`, `courier_partners`, `riders` | F10 : tarifs par zone, points relais, livreurs.                                                                                                       |
+| `otp_challenges`, `sessions`, `user_mfa`                                          | F1 et second facteur du personnel : secret TOTP chiffré, dernier pas utilisé (anti-rejeu) ; `sessions.mfa_verified_at` ouvre les routes du personnel. |
+| `reconciliation_runs`, `reconciliation_discrepancies`                             | Rapprochement quotidien avec l'agrégateur.                                                                                                            |
 
 ## 4.3 Conventions
 

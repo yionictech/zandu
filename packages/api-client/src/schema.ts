@@ -973,6 +973,233 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/auth/mfa': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** État du second facteur (personnel) */
+    get: operations['mfaStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/auth/mfa/setup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Configurer le second facteur — nouveau secret à scanner (QR code) */
+    post: operations['mfaSetup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/auth/mfa/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Premier code de l'application — active le second facteur et valide la session */
+    post: operations['mfaConfirm'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/auth/mfa/verify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Code TOTP à chaque connexion du personnel
+     * @description Un code ne sert qu'une fois ; 5 codes erronés révoquent la session (`mfa_locked`).
+     */
+    post: operations['mfaVerify'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/users/{id}/mfa/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Téléphone perdu — effacer le second facteur d'un membre du personnel (administrateur) */
+    post: operations['mfaReset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/sellers/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fiche d'une boutique (décision de vérification) */
+    get: operations['getSellerForReview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/products': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** File de modération des produits */
+    get: operations['listProductsForModeration'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/overview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Tableau de bord — taille des files et activité du jour (heure de Pointe-Noire) */
+    get: operations['supportOverview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/deliveries': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Livraisons à assigner — colis prêts d'abord */
+    get: operations['deliveriesToAssign'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/riders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Livreurs actifs et missions en cours */
+    get: operations['listRiders'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/orders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Recherche de commandes par référence (ZD-…) ou téléphone
+     * @description Téléphone de l'acheteur, du vendeur ou du destinataire. Sans `q` : les 50 dernières commandes.
+     */
+    get: operations['searchOrders'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/orders/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Dossier complet d'une commande (argent, livraison, litige) */
+    get: operations['getOrderForSupport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/alerts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Alertes — reversements et remboursements en échec (30 j), litiges en retard */
+    get: operations['supportAlerts'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1044,6 +1271,103 @@ export interface components {
       recipientName: string;
       phone: string;
       landmark: string;
+    };
+    /** @enum {string} */
+    DisputeReason:
+      'not_received' | 'not_as_described' | 'damaged' | 'counterfeit' | 'missing_items' | 'other';
+    /** @description Commande vue par le support, avec tout le circuit de l'argent. */
+    SupportOrder: components['schemas']['Order'] & {
+      history: components['schemas']['OrderHistory'];
+      buyer: {
+        /** Format: uuid */
+        id: string;
+        phone: string;
+        name: string | null;
+      };
+      sellerContact: {
+        phone: string;
+        verificationStatus: components['schemas']['VerificationStatus'];
+      };
+      /** @description Tentatives de paiement du panier (qui peut couvrir plusieurs boutiques) */
+      payments: {
+        /** Format: uuid */
+        id: string;
+        /** @enum {string} */
+        status: 'created' | 'pending' | 'succeeded' | 'failed' | 'expired';
+        operator: components['schemas']['Operator'];
+        msisdn: string;
+        amount: components['schemas']['Amount'];
+        provider: string;
+        lateSuccess: boolean;
+        failureCode: string | null;
+        failureMessage: string | null;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: date-time */
+        succeededAt: string | null;
+      }[];
+      refunds: {
+        /** Format: uuid */
+        id: string;
+        amount: components['schemas']['Amount'];
+        /** @enum {string} */
+        status: 'pending' | 'processing' | 'succeeded' | 'failed';
+        reason: string;
+        lastError: string | null;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: date-time */
+        succeededAt: string | null;
+      }[];
+      payouts: {
+        /** Format: uuid */
+        id: string;
+        amount: components['schemas']['Amount'];
+        /** @enum {string} */
+        status: 'pending' | 'processing' | 'succeeded' | 'failed';
+        operator: components['schemas']['Operator'];
+        msisdn: string;
+        attempts: number;
+        lastError: string | null;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: date-time */
+        succeededAt: string | null;
+      }[];
+      delivery: {
+        /** @enum {string} */
+        status:
+          | 'awaiting_assignment'
+          | 'assigned'
+          | 'picked_up'
+          | 'at_pickup_point'
+          | 'delivered'
+          | 'failed'
+          | 'cancelled';
+        handoverAttempts: number;
+        /** Format: date-time */
+        assignedAt: string | null;
+        /** Format: date-time */
+        pickedUpAt: string | null;
+        /** Format: date-time */
+        deliveredAt: string | null;
+        failureReason: string | null;
+        riderPhone: string | null;
+        riderName: string | null;
+      } | null;
+      dispute: {
+        /** Format: uuid */
+        id: string;
+        /** @enum {string} */
+        status: 'open' | 'resolved';
+        reason: components['schemas']['DisputeReason'];
+        resolution: string | null;
+        refundAmount: number | null;
+        /** Format: date-time */
+        slaDueAt: string;
+        /** Format: date-time */
+        createdAt: string;
+      } | null;
     };
     OrderHistory: {
       status: components['schemas']['OrderStatus'];
@@ -1318,6 +1642,13 @@ export interface components {
     IdempotencyKey: string;
   };
   requestBodies: {
+    TotpCode: {
+      content: {
+        'application/json': {
+          code: string;
+        };
+      };
+    };
     Reason: {
       content: {
         'application/json': {
@@ -2442,12 +2773,12 @@ export interface operations {
         };
         content: {
           'application/json': {
-            /** @constant */
-            trialBalance?: 0;
-            accounts?: {
+            /** @description Somme de toutes les écritures ; tout autre résultat que 0 est un incident */
+            trialBalance: number;
+            accounts: {
               /** @example liability:escrow */
-              code?: string;
-              balance?: number;
+              code: string;
+              balance: number;
             }[];
           };
         };
@@ -2815,19 +3146,20 @@ export interface operations {
         };
         content: {
           'application/json': {
-            items?: {
+            items: {
               /** Format: uuid */
-              id?: string;
-              reason?: string;
-              status?: string;
+              id: string;
+              reason: components['schemas']['DisputeReason'];
+              /** @enum {string} */
+              status: 'open' | 'resolved';
               /** Format: date-time */
-              slaDueAt?: string;
+              slaDueAt: string;
               /** Format: date-time */
-              createdAt?: string;
+              createdAt: string;
               /** Format: uuid */
-              orderId?: string;
-              publicRef?: string;
-              total?: components['schemas']['Amount'];
+              orderId: string;
+              publicRef: string;
+              total: components['schemas']['Amount'];
             }[];
           };
         };
@@ -2854,22 +3186,28 @@ export interface operations {
         content: {
           'application/json': {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            orderId?: string;
-            reason?: string;
-            description?: string;
+            orderId: string;
+            reason: components['schemas']['DisputeReason'];
+            description: string;
             /** @enum {string} */
-            status?: 'open' | 'resolved';
+            status: 'open' | 'resolved';
+            /** @enum {string|null} */
+            resolution: 'release_to_seller' | 'refund_full' | 'refund_partial' | null;
+            refundAmount: number | null;
+            decisionNote: string | null;
             /** Format: date-time */
-            slaDueAt?: string;
-            order?: components['schemas']['Order'];
-            evidence?: {
+            slaDueAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            order: components['schemas']['Order'];
+            evidence: {
               /** Format: uuid */
-              id?: string;
-              kind?: string;
+              id: string;
+              kind: string;
               /** Format: uri */
-              url?: string;
+              url: string;
             }[];
           };
         };
@@ -2895,17 +3233,18 @@ export interface operations {
         };
         content: {
           'application/json': {
-            items?: {
+            items: {
               /** Format: uuid */
-              id?: string;
-              shopName?: string;
-              kind?: string;
-              city?: string;
-              verificationStatus?: components['schemas']['VerificationStatus'];
-              phone?: string;
-              pendingDocuments?: number;
+              id: string;
+              shopName: string;
+              /** @enum {string} */
+              kind: 'individual' | 'business';
+              city: string;
+              verificationStatus: components['schemas']['VerificationStatus'];
+              phone: string;
+              pendingDocuments: number;
               /** Format: date-time */
-              createdAt?: string;
+              createdAt: string;
             }[];
           };
         };
@@ -2931,16 +3270,396 @@ export interface operations {
         };
         content: {
           'application/json': {
-            items?: {
+            items: {
               /** Format: uuid */
-              id?: string;
-              type?: components['schemas']['KycDocumentType'];
+              id: string;
+              type: components['schemas']['KycDocumentType'];
               /** @enum {string} */
-              status?: 'pending' | 'accepted' | 'rejected';
+              status: 'pending' | 'accepted' | 'rejected';
               /** Format: date-time */
-              createdAt?: string;
+              createdAt: string;
               /** Format: uri */
-              url?: string;
+              url: string;
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  mfaStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Le compte doit valider un code TOTP pour les routes du personnel */
+            required: boolean;
+            enrolled: boolean;
+            /** @description Code validé pour cette session */
+            verified: boolean;
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  mfaSetup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Secret à saisir ou scanner dans l'application d'authentification */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Base32, à saisir à la main si besoin */
+            secret: string;
+            /** @example otpauth://totp/… */
+            otpauthUrl: string;
+          };
+        };
+      };
+      403: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  mfaConfirm: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: components['requestBodies']['TotpCode'];
+    responses: {
+      /** @description Second facteur actif, session validée */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  mfaVerify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: components['requestBodies']['TotpCode'];
+    responses: {
+      /** @description Session validée */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  mfaReset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Effacé ; sessions ouvertes à revalider */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+    };
+  };
+  getSellerForReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            id: string;
+            shopName: string;
+            /** @enum {string} */
+            kind: 'individual' | 'business';
+            city: string;
+            verificationStatus: components['schemas']['VerificationStatus'];
+            rejectionReason: string | null;
+            payoutPhone: string;
+            payoutOperator: components['schemas']['Operator'];
+            /** Format: date-time */
+            createdAt: string;
+            phone: string;
+            fullName: string | null;
+            pickupZone: string;
+            productCount: number;
+            orderCount: number;
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  listProductsForModeration: {
+    parameters: {
+      query?: {
+        status?: 'pending_review' | 'rejected' | 'published';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK, les plus anciens d'abord */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              id: string;
+              title: string;
+              description: string;
+              price: components['schemas']['Amount'];
+              stock: number;
+              status: components['schemas']['ProductStatus'];
+              rejectionReason: string | null;
+              /** Format: date-time */
+              updatedAt: string;
+              category: string;
+              /** Format: uuid */
+              sellerId: string;
+              shopName: string;
+              sellerVerification: components['schemas']['VerificationStatus'];
+              photos: string[];
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  supportOverview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            queues: {
+              kycPending: number;
+              productsPending: number;
+              deliveriesToAssign: number;
+              disputesOpen: number;
+              disputesOverdue: number;
+              alerts: number;
+            };
+            today: {
+              paidOrders: number;
+              paidAmount: components['schemas']['Amount'];
+              completedOrders: number;
+              newShops: number;
+            };
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  deliveriesToAssign: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              orderId: string;
+              publicRef: string;
+              orderStatus: components['schemas']['OrderStatus'];
+              /** @enum {string} */
+              deliveryMode: 'home' | 'pickup_point';
+              shopName: string;
+              pickupZone: string;
+              destinationZone: string;
+              city: string;
+              pickupPoint: string | null;
+              /** Format: date-time */
+              paidAt: string | null;
+              /** Format: date-time */
+              readyAt: string | null;
+              itemCount: number;
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  listRiders: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK, les moins chargés d'abord */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              id: string;
+              phone: string;
+              name: string | null;
+              partner: string;
+              zone: string | null;
+              activeMissions: number;
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  searchOrders: {
+    parameters: {
+      query?: {
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderList'];
+      400: components['responses']['Error'];
+      403: components['responses']['Error'];
+    };
+  };
+  getOrderForSupport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SupportOrder'];
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  supportAlerts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK, les plus anciennes d'abord */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** @enum {string} */
+              kind: 'payout_failed' | 'refund_failed' | 'dispute_overdue';
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              orderId: string | null;
+              publicRef: string | null;
+              amount: components['schemas']['Amount'];
+              message: string | null;
+              /** Format: date-time */
+              at: string;
             }[];
           };
         };

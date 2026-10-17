@@ -50,6 +50,8 @@ const EnvSchema = z.object({
   S3_PRIVATE_BUCKET: z.string().default('zandu-private'),
   /** CDN devant le compartiment public, ex. https://media.exemple.cg */
   MEDIA_PUBLIC_BASE_URL: z.string().default(''),
+  /** Second facteur (TOTP) du personnel. Toujours exigé en production ; désactivé par défaut en test. */
+  STAFF_MFA_REQUIRED: z.stringbool().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -85,6 +87,10 @@ export interface Config {
     otpMaxPerIpPerHour: number;
     sessionDays: number;
     staffSessionHours: number;
+    /** Routes du support et de l'administration : code TOTP vérifié pour la session. */
+    staffMfaRequired: boolean;
+    /** Codes TOTP erronés tolérés avant révocation de la session. */
+    mfaMaxAttempts: number;
   };
   orderPolicy: OrderPolicy;
   payoutPolicy: PayoutPolicy;
@@ -111,6 +117,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
   const env = EnvSchema.parse(source);
   if (env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'simulator') {
     throw new Error('Le simulateur de paiement est interdit en production (PAYMENT_PROVIDER).');
+  }
+  if (env.NODE_ENV === 'production' && env.STAFF_MFA_REQUIRED === false) {
+    throw new Error('Le second facteur du personnel ne peut pas être désactivé en production.');
   }
   if (env.NODE_ENV === 'production' && (env.STORAGE_DRIVER !== 's3' || !env.CORS_ORIGINS)) {
     throw new Error(
@@ -145,6 +154,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
       otpMaxPerIpPerHour: 30,
       sessionDays: 30,
       staffSessionHours: 12,
+      staffMfaRequired: env.STAFF_MFA_REQUIRED ?? env.NODE_ENV !== 'test',
+      mfaMaxAttempts: 5,
     },
     orderPolicy: {
       sellerAcceptanceHours: env.SELLER_ACCEPT_HOURS,

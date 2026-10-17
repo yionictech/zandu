@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { AppContext } from '../../context.js';
 import { withTx } from '../../db/pool.js';
 import { HttpError, notFound } from '../../lib/errors.js';
-import { requireAuth, requireRole, staffActor } from '../auth/guards.js';
+import { actor, requireAuth, requireStaff, staffActor } from '../auth/guards.js';
+import { resetTotp } from '../auth/mfa.service.js';
 import { allBalances, trialBalance } from '../ledger/ledger.repository.js';
 import { audit } from './audit.js';
 
@@ -11,7 +12,7 @@ import { audit } from './audit.js';
 export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
   return async (app) => {
     app.addHook('preHandler', requireAuth(ctx));
-    app.addHook('preHandler', requireRole('support', 'admin'));
+    app.addHook('preHandler', requireStaff(ctx));
 
     app.post('/v1/admin/sellers/:id/verification', async (request) => {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
@@ -78,6 +79,24 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
       return { items: rows };
     });
 
+    /** Fiche d'une boutique pour la décision de vérification. */
+    app.get('/v1/admin/sellers/:id', async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { rows } = await ctx.pool.query(
+        `SELECT s.id, s.shop_name AS "shopName", s.kind, s.city, s.verification_status AS "verificationStatus",
+                s.rejection_reason AS "rejectionReason", s.payout_msisdn AS "payoutPhone",
+                s.payout_operator AS "payoutOperator", s.created_at AS "createdAt", u.phone,
+                u.full_name AS "fullName", z.name AS "pickupZone",
+                (SELECT count(*)::int FROM products p WHERE p.seller_id = s.id AND p.status <> 'archived') AS "productCount",
+                (SELECT count(*)::int FROM orders o WHERE o.seller_id = s.id AND o.paid_at IS NOT NULL) AS "orderCount"
+         FROM seller_profiles s JOIN users u ON u.id = s.user_id JOIN delivery_zones z ON z.id = s.pickup_zone_id
+         WHERE s.id = $1`,
+        [id],
+      );
+      if (!rows[0]) throw notFound('Vendeur');
+      return rows[0];
+    });
+
     /** Pièces d'un vendeur : URL signées de 5 min, chaque consultation est journalisée. */
     app.get('/v1/admin/sellers/:id/kyc-documents', async (request) => {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
@@ -109,6 +128,32 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
       };
     });
 
+    /** File de modération (produits des boutiques non vérifiées, ou signalés). */
+    app.get('/v1/admin/products', async (request) => {
+      const { status } = z
+        .object({
+          status: z.enum(['pending_review', 'rejected', 'published']).default('pending_review'),
+        })
+        .parse(request.query);
+      const { rows } = await ctx.pool.query<{ photoKeys: string[] }>(
+        `SELECT p.id, p.title, p.description, p.price, p.stock, p.status, p.rejection_reason AS "rejectionReason",
+                p.updated_at AS "updatedAt", c.name AS "category",
+                s.id AS "sellerId", s.shop_name AS "shopName", s.verification_status AS "sellerVerification",
+                (SELECT coalesce(json_agg(m.storage_key ORDER BY m.position), '[]')
+                 FROM product_media m WHERE m.product_id = p.id) AS "photoKeys"
+         FROM products p JOIN seller_profiles s ON s.id = p.seller_id JOIN categories c ON c.id = p.category_id
+         WHERE p.status = $1::product_status
+         ORDER BY p.updated_at LIMIT 100`,
+        [status],
+      );
+      return {
+        items: rows.map(({ photoKeys, ...p }) => ({
+          ...p,
+          photos: photoKeys.map((key) => ctx.storage.publicUrl(key)),
+        })),
+      };
+    });
+
     app.post('/v1/admin/products/:id/moderation', async (request) => {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
       const body = z
@@ -135,6 +180,14 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
         );
       });
       return { id, status: body.decision };
+    });
+
+    /** Téléphone perdu : efface le second facteur d'un membre du personnel (administrateur). */
+    app.post('/v1/admin/users/:id/mfa/reset', async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const a = actor(request, 'admin');
+      await resetTotp(ctx, { userId: a.userId!, ip: request.ip }, id);
+      return reply.status(204).send();
     });
 
     /** Contrôle comptable : la balance générale doit valoir 0, chaque compte est détaillé. */

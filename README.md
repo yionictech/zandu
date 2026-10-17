@@ -21,15 +21,20 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   - Vendeur : ouvrir sa boutique, vérifier son identité, publier un produit « photo d'abord »,
     traiter les commandes, suivre son argent.
   - Livreur : ses missions et la remise contre le code de l'acheteur.
-- **133 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI) et deux parcours de bout en bout pilotés dans un navigateur.
+- **Back-office du support** (`apps/backoffice`, Next.js) : vérification des boutiques, modération,
+  assignation des livreurs, litiges, recherche de commandes, alertes, contrôle comptable ; connexion
+  avec **second facteur obligatoire** (application d'authentification).
+- **150 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI) et trois parcours de bout en bout pilotés dans un navigateur.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
 
 ![Parcours vendeur et livreur](docs/ux/captures/parcours-vendeur-livreur.jpg)
 
-À construire : site web Next.js, back-office graphique, branchement de l'agrégateur réel et du
-fournisseur SMS/WhatsApp, miniatures d'images, rapprochement quotidien. Voir la
+![Back-office du support](docs/ux/captures/back-office.jpg)
+
+À construire : site web Next.js, branchement de l'agrégateur réel et du fournisseur SMS/WhatsApp,
+commissions et rapports dans le back-office, miniatures d'images, rapprochement quotidien. Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
 ## Documentation
@@ -44,7 +49,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 133 tests
+pnpm test            # 150 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 
@@ -55,6 +60,7 @@ Détails : [guide du développeur](docs/developpement.md).
 ```
 apps/api/          API HTTP + worker (Node.js, Fastify)
 apps/mobile/       Application Android : acheteur, vendeur, livreur (React Native, Expo)
+apps/backoffice/   Back-office du support (Next.js, rendu serveur)
 packages/domain/   Règles métier pures (argent, statuts, grand livre)
 packages/api-client/  Client typé généré depuis le contrat OpenAPI
 db/migrations/     Schéma SQL versionné

@@ -4,3 +4,5 @@ coverage
 *.sql
 apps/mobile/dist
 .expo
+apps/backoffice/.next
+apps/backoffice/next-env.d.ts

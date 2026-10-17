@@ -14,13 +14,16 @@ info:
     - Les créations sensibles exigent l'en-tête `Idempotency-Key` (8 à 128 caractères, unique par
       intention) : renvoyer la même requête avec la même clé renvoie la même ressource, sans doublon.
     - Erreurs : `{ "error": { "code": "…", "message": "…", "details": { … } } }` ; `code` est stable.
+    - Personnel (rôles `support`, `admin`) : les routes `/v1/support/*` et `/v1/admin/*` exigent en
+      plus un code TOTP validé pour la session (`/v1/auth/mfa/*`), sinon `403 mfa_required`.
+      Sessions du personnel : 12 h.
 
     **Envoi de fichiers** (photos, pièces KYC, preuves) : `POST /v1/uploads` renvoie une URL signée ;
     l'application y dépose le fichier (POST multipart avec `fields` puis `file`, ou PUT du contenu
     brut selon `method`), puis rattache `uploadId` à son usage. L'API ne voit jamais passer les octets.
 
     **Prévu (non encore exposé)** : messagerie (F13), retrait manuel du solde vendeur, statistiques
-    vendeur, gestion des commissions et rapports dans le back-office.
+    vendeur, gestion des commissions et rapports dans le back-office, recherche d'utilisateurs.
   contact:
     name: Zandu
   license:
@@ -988,12 +991,16 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [trialBalance, accounts]
                 properties:
-                  trialBalance: { type: integer, const: 0 }
+                  trialBalance:
+                    type: integer
+                    description: Somme de toutes les écritures ; tout autre résultat que 0 est un incident
                   accounts:
                     type: array
                     items:
                       type: object
+                      required: [code, balance]
                       properties:
                         code: { type: string, examples: ['liability:escrow'] }
                         balance: { type: integer }
@@ -1308,15 +1315,17 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
                     items:
                       type: object
+                      required: [id, reason, status, slaDueAt, createdAt, orderId, publicRef, total]
                       properties:
                         id: { type: string, format: uuid }
-                        reason: { type: string }
-                        status: { type: string }
+                        reason: { $ref: '#/components/schemas/DisputeReason' }
+                        status: { type: string, enum: [open, resolved] }
                         slaDueAt: { type: string, format: date-time }
                         createdAt: { type: string, format: date-time }
                         orderId: { type: string, format: uuid }
@@ -1337,18 +1346,40 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  [
+                    id,
+                    orderId,
+                    reason,
+                    description,
+                    status,
+                    resolution,
+                    refundAmount,
+                    decisionNote,
+                    slaDueAt,
+                    createdAt,
+                    order,
+                    evidence,
+                  ]
                 properties:
                   id: { type: string, format: uuid }
                   orderId: { type: string, format: uuid }
-                  reason: { type: string }
+                  reason: { $ref: '#/components/schemas/DisputeReason' }
                   description: { type: string }
                   status: { type: string, enum: [open, resolved] }
+                  resolution:
+                    type: [string, 'null']
+                    enum: [release_to_seller, refund_full, refund_partial, null]
+                  refundAmount: { type: [integer, 'null'] }
+                  decisionNote: { type: [string, 'null'] }
                   slaDueAt: { type: string, format: date-time }
+                  createdAt: { type: string, format: date-time }
                   order: { $ref: '#/components/schemas/Order' }
                   evidence:
                     type: array
                     items:
                       type: object
+                      required: [id, kind, url]
                       properties:
                         id: { type: string, format: uuid }
                         kind: { type: string }
@@ -1369,15 +1400,27 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
                     items:
                       type: object
+                      required:
+                        [
+                          id,
+                          shopName,
+                          kind,
+                          city,
+                          verificationStatus,
+                          phone,
+                          pendingDocuments,
+                          createdAt,
+                        ]
                       properties:
                         id: { type: string, format: uuid }
                         shopName: { type: string }
-                        kind: { type: string }
+                        kind: { type: string, enum: [individual, business] }
                         city: { type: string }
                         verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
                         phone: { type: string }
@@ -1398,17 +1441,374 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items]
                 properties:
                   items:
                     type: array
                     items:
                       type: object
+                      required: [id, type, status, createdAt, url]
                       properties:
                         id: { type: string, format: uuid }
                         type: { $ref: '#/components/schemas/KycDocumentType' }
                         status: { type: string, enum: [pending, accepted, rejected] }
                         createdAt: { type: string, format: date-time }
                         url: { type: string, format: uri }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/mfa:
+    get:
+      tags: [Authentification]
+      summary: État du second facteur (personnel)
+      operationId: mfaStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [required, enrolled, verified]
+                properties:
+                  required:
+                    type: boolean
+                    description: Le compte doit valider un code TOTP pour les routes du personnel
+                  enrolled: { type: boolean }
+                  verified: { type: boolean, description: Code validé pour cette session }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/mfa/setup:
+    post:
+      tags: [Authentification]
+      summary: Configurer le second facteur — nouveau secret à scanner (QR code)
+      operationId: mfaSetup
+      responses:
+        '200':
+          description: Secret à saisir ou scanner dans l'application d'authentification
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [secret, otpauthUrl]
+                properties:
+                  secret: { type: string, description: 'Base32, à saisir à la main si besoin' }
+                  otpauthUrl: { type: string, examples: ['otpauth://totp/…'] }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/mfa/confirm:
+    post:
+      tags: [Authentification]
+      summary: Premier code de l'application — active le second facteur et valide la session
+      operationId: mfaConfirm
+      requestBody: { $ref: '#/components/requestBodies/TotpCode' }
+      responses:
+        '204': { description: 'Second facteur actif, session validée' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/auth/mfa/verify:
+    post:
+      tags: [Authentification]
+      summary: Code TOTP à chaque connexion du personnel
+      description: Un code ne sert qu'une fois ; 5 codes erronés révoquent la session (`mfa_locked`).
+      operationId: mfaVerify
+      requestBody: { $ref: '#/components/requestBodies/TotpCode' }
+      responses:
+        '204': { description: Session validée }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/users/{id}/mfa/reset:
+    post:
+      tags: [Support]
+      summary: Téléphone perdu — effacer le second facteur d'un membre du personnel (administrateur)
+      operationId: mfaReset
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Effacé ; sessions ouvertes à revalider }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/sellers/{id}:
+    get:
+      tags: [Support]
+      summary: Fiche d'une boutique (décision de vérification)
+      operationId: getSellerForReview
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    id,
+                    shopName,
+                    kind,
+                    city,
+                    verificationStatus,
+                    rejectionReason,
+                    payoutPhone,
+                    payoutOperator,
+                    createdAt,
+                    phone,
+                    fullName,
+                    pickupZone,
+                    productCount,
+                    orderCount,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  shopName: { type: string }
+                  kind: { type: string, enum: [individual, business] }
+                  city: { type: string }
+                  verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+                  rejectionReason: { type: [string, 'null'] }
+                  payoutPhone: { type: string }
+                  payoutOperator: { $ref: '#/components/schemas/Operator' }
+                  createdAt: { type: string, format: date-time }
+                  phone: { type: string }
+                  fullName: { type: [string, 'null'] }
+                  pickupZone: { type: string }
+                  productCount: { type: integer }
+                  orderCount: { type: integer }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/products:
+    get:
+      tags: [Support]
+      summary: File de modération des produits
+      operationId: listProductsForModeration
+      parameters:
+        - name: status
+          in: query
+          schema:
+            { type: string, enum: [pending_review, rejected, published], default: pending_review }
+      responses:
+        '200':
+          description: OK, les plus anciens d'abord
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          title,
+                          description,
+                          price,
+                          stock,
+                          status,
+                          rejectionReason,
+                          updatedAt,
+                          category,
+                          sellerId,
+                          shopName,
+                          sellerVerification,
+                          photos,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        description: { type: string }
+                        price: { $ref: '#/components/schemas/Amount' }
+                        stock: { type: integer }
+                        status: { $ref: '#/components/schemas/ProductStatus' }
+                        rejectionReason: { type: [string, 'null'] }
+                        updatedAt: { type: string, format: date-time }
+                        category: { type: string }
+                        sellerId: { type: string, format: uuid }
+                        shopName: { type: string }
+                        sellerVerification: { $ref: '#/components/schemas/VerificationStatus' }
+                        photos: { type: array, items: { type: string, format: uri } }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/overview:
+    get:
+      tags: [Support]
+      summary: Tableau de bord — taille des files et activité du jour (heure de Pointe-Noire)
+      operationId: supportOverview
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queues, today]
+                properties:
+                  queues:
+                    type: object
+                    required:
+                      [
+                        kycPending,
+                        productsPending,
+                        deliveriesToAssign,
+                        disputesOpen,
+                        disputesOverdue,
+                        alerts,
+                      ]
+                    properties:
+                      kycPending: { type: integer }
+                      productsPending: { type: integer }
+                      deliveriesToAssign: { type: integer }
+                      disputesOpen: { type: integer }
+                      disputesOverdue: { type: integer }
+                      alerts: { type: integer }
+                  today:
+                    type: object
+                    required: [paidOrders, paidAmount, completedOrders, newShops]
+                    properties:
+                      paidOrders: { type: integer }
+                      paidAmount: { $ref: '#/components/schemas/Amount' }
+                      completedOrders: { type: integer }
+                      newShops: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/deliveries:
+    get:
+      tags: [Support]
+      summary: Livraisons à assigner — colis prêts d'abord
+      operationId: deliveriesToAssign
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          orderId,
+                          publicRef,
+                          orderStatus,
+                          deliveryMode,
+                          shopName,
+                          pickupZone,
+                          destinationZone,
+                          city,
+                          pickupPoint,
+                          paidAt,
+                          readyAt,
+                          itemCount,
+                        ]
+                      properties:
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        orderStatus: { $ref: '#/components/schemas/OrderStatus' }
+                        deliveryMode: { type: string, enum: [home, pickup_point] }
+                        shopName: { type: string }
+                        pickupZone: { type: string }
+                        destinationZone: { type: string }
+                        city: { type: string }
+                        pickupPoint: { type: [string, 'null'] }
+                        paidAt: { type: [string, 'null'], format: date-time }
+                        readyAt: { type: [string, 'null'], format: date-time }
+                        itemCount: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/riders:
+    get:
+      tags: [Support]
+      summary: Livreurs actifs et missions en cours
+      operationId: listRiders
+      responses:
+        '200':
+          description: OK, les moins chargés d'abord
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, phone, name, partner, zone, activeMissions]
+                      properties:
+                        id: { type: string, format: uuid }
+                        phone: { type: string }
+                        name: { type: [string, 'null'] }
+                        partner: { type: string }
+                        zone: { type: [string, 'null'] }
+                        activeMissions: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/orders:
+    get:
+      tags: [Support]
+      summary: Recherche de commandes par référence (ZD-…) ou téléphone
+      description: >-
+        Téléphone de l'acheteur, du vendeur ou du destinataire. Sans `q` : les 50 dernières
+        commandes.
+      operationId: searchOrders
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 40, examples: [ZD-7K3M9Q2P, 06 612 34 56] }
+      responses:
+        '200': { $ref: '#/components/responses/OrderList' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/orders/{id}:
+    get:
+      tags: [Support]
+      summary: Dossier complet d'une commande (argent, livraison, litige)
+      operationId: getOrderForSupport
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportOrder' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/support/alerts:
+    get:
+      tags: [Support]
+      summary: Alertes — reversements et remboursements en échec (30 j), litiges en retard
+      operationId: supportAlerts
+      responses:
+        '200':
+          description: OK, les plus anciennes d'abord
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [kind, id, orderId, publicRef, amount, message, at]
+                      properties:
+                        kind:
+                          { type: string, enum: [payout_failed, refund_failed, dispute_overdue] }
+                        id: { type: string, format: uuid }
+                        orderId: { type: [string, 'null'], format: uuid }
+                        publicRef: { type: [string, 'null'] }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                        message: { type: [string, 'null'] }
+                        at: { type: string, format: date-time }
         '403': { $ref: '#/components/responses/Error' }
 
 components:
@@ -1431,6 +1831,15 @@ components:
       schema: { type: string, minLength: 8, maxLength: 128 }
 
   requestBodies:
+    TotpCode:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string, pattern: '^\d{6}$' }
     Reason:
       required: true
       content:
@@ -1602,6 +2011,144 @@ components:
         recipientName: { type: string }
         phone: { type: string }
         landmark: { type: string }
+    DisputeReason:
+      type: string
+      enum: [not_received, not_as_described, damaged, counterfeit, missing_items, other]
+    SupportOrder:
+      description: Commande vue par le support, avec tout le circuit de l'argent.
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          required: [history, buyer, sellerContact, payments, refunds, payouts, delivery, dispute]
+          properties:
+            history: { $ref: '#/components/schemas/OrderHistory' }
+            buyer:
+              type: object
+              required: [id, phone, name]
+              properties:
+                id: { type: string, format: uuid }
+                phone: { type: string }
+                name: { type: [string, 'null'] }
+            sellerContact:
+              type: object
+              required: [phone, verificationStatus]
+              properties:
+                phone: { type: string }
+                verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+            payments:
+              type: array
+              description: Tentatives de paiement du panier (qui peut couvrir plusieurs boutiques)
+              items:
+                type: object
+                required:
+                  [
+                    id,
+                    status,
+                    operator,
+                    msisdn,
+                    amount,
+                    provider,
+                    lateSuccess,
+                    failureCode,
+                    failureMessage,
+                    createdAt,
+                    succeededAt,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string, enum: [created, pending, succeeded, failed, expired] }
+                  operator: { $ref: '#/components/schemas/Operator' }
+                  msisdn: { type: string }
+                  amount: { $ref: '#/components/schemas/Amount' }
+                  provider: { type: string }
+                  lateSuccess: { type: boolean }
+                  failureCode: { type: [string, 'null'] }
+                  failureMessage: { type: [string, 'null'] }
+                  createdAt: { type: string, format: date-time }
+                  succeededAt: { type: [string, 'null'], format: date-time }
+            refunds:
+              type: array
+              items:
+                type: object
+                required: [id, amount, status, reason, lastError, createdAt, succeededAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  amount: { $ref: '#/components/schemas/Amount' }
+                  status: { type: string, enum: [pending, processing, succeeded, failed] }
+                  reason: { type: string }
+                  lastError: { type: [string, 'null'] }
+                  createdAt: { type: string, format: date-time }
+                  succeededAt: { type: [string, 'null'], format: date-time }
+            payouts:
+              type: array
+              items:
+                type: object
+                required:
+                  [
+                    id,
+                    amount,
+                    status,
+                    operator,
+                    msisdn,
+                    attempts,
+                    lastError,
+                    createdAt,
+                    succeededAt,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  amount: { $ref: '#/components/schemas/Amount' }
+                  status: { type: string, enum: [pending, processing, succeeded, failed] }
+                  operator: { $ref: '#/components/schemas/Operator' }
+                  msisdn: { type: string }
+                  attempts: { type: integer }
+                  lastError: { type: [string, 'null'] }
+                  createdAt: { type: string, format: date-time }
+                  succeededAt: { type: [string, 'null'], format: date-time }
+            delivery:
+              type: [object, 'null']
+              required:
+                [
+                  status,
+                  handoverAttempts,
+                  assignedAt,
+                  pickedUpAt,
+                  deliveredAt,
+                  failureReason,
+                  riderPhone,
+                  riderName,
+                ]
+              properties:
+                status:
+                  type: string
+                  enum:
+                    [
+                      awaiting_assignment,
+                      assigned,
+                      picked_up,
+                      at_pickup_point,
+                      delivered,
+                      failed,
+                      cancelled,
+                    ]
+                handoverAttempts: { type: integer }
+                assignedAt: { type: [string, 'null'], format: date-time }
+                pickedUpAt: { type: [string, 'null'], format: date-time }
+                deliveredAt: { type: [string, 'null'], format: date-time }
+                failureReason: { type: [string, 'null'] }
+                riderPhone: { type: [string, 'null'] }
+                riderName: { type: [string, 'null'] }
+            dispute:
+              type: [object, 'null']
+              required: [id, status, reason, resolution, refundAmount, slaDueAt, createdAt]
+              properties:
+                id: { type: string, format: uuid }
+                status: { type: string, enum: [open, resolved] }
+                reason: { $ref: '#/components/schemas/DisputeReason' }
+                resolution: { type: [string, 'null'] }
+                refundAmount: { type: [integer, 'null'] }
+                slaDueAt: { type: string, format: date-time }
+                createdAt: { type: string, format: date-time }
     OrderHistory:
       type: array
       items:

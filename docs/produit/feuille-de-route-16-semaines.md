@@ -26,6 +26,7 @@ gantt
   Maquettes + design system         :active,  s1, 2026-10-05, 4w
   Sprint 1 : fichiers, KYC, app acheteur (FAIT) :done, s2, 2026-10-12, 1w
   Écrans vendeur et livreur (FAIT)  :done,    s2b, 2026-10-16, 2d
+  Back-office + second facteur (FAIT) :done,  s2c, 2026-10-17, 1d
   Jalon maquettes validées          :milestone, m1, 2026-11-02, 0d
   section Catalogue
   Photos produits + fiches + recherche :      s3, 2026-11-02, 2w
@@ -69,11 +70,21 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
   ligne sans photo), fiche produit vendeur, missions livreur détaillées, part vendeur en séquestre.
 - Parcours vendeur + livreur de bout en bout automatisé (captures dans `docs/ux/captures`).
 
-### Prochaine étape — Maquettes, test sur téléphones réels, back-office
+### Sprint 1 ter — Back-office du support (✅ fait, ce dépôt)
 
-- Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
+- `apps/backoffice` (Next.js, rendu serveur, ADR-0012) : tableau de bord des files avec leurs
+  objectifs de délai, vérification des boutiques (pièces privées), modération, assignation des
+  livreurs, litiges (preuves, décision qui déclenche remboursement et reversement), recherche de
+  commande par référence ou téléphone avec tout le circuit de l'argent, alertes, contrôle comptable.
+- API : **second facteur TOTP obligatoire** pour le personnel (anti-rejeu, révocation après 5
+  erreurs, réinitialisation par un administrateur), files et recherche du support, alertes.
+- Parcours du support de bout en bout automatisé (captures dans `docs/ux/captures`).
+
+### Prochaine étape — Test sur téléphones réels, agrégateur, maquettes
+
 - Testeur : parcours sur 2-3 téléphones Android d'entrée de gamme (photo, envoi en 3G).
-- Back-office graphique minimal : file KYC, modération, **assignation des livreurs**, litiges.
+- Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
+- Backend : adaptateur de l'agrégateur dès l'accès au bac à sable ; SMS/WhatsApp réels.
 - Fondateur : **choix de l'agrégateur** (voir décisions D1), rendez-vous juriste (D2), mode
   d'attribution des livraisons (D15).
 

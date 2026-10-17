@@ -49,13 +49,14 @@ export interface TestEnv {
   close(): Promise<void>;
 }
 
-export async function createTestEnv(): Promise<TestEnv> {
+export async function createTestEnv(overrides: Record<string, string> = {}): Promise<TestEnv> {
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: TEST_DATABASE_URL,
     APP_SECRET: 'test-secret-test-secret-test-secret-42',
     SIMULATOR_WEBHOOK_SECRET: 'test-webhook-secret-123',
     SUPPORT_ALERT_PHONE: '+242060000001',
+    ...overrides,
   });
   const pool = createPool(TEST_DATABASE_URL);
   const clock = new FakeClock();

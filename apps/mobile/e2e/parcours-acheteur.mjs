@@ -17,6 +17,7 @@ import {
   launchBrowser,
   phone as openPhone,
   sleep,
+  staffLogin,
   WEB,
 } from './lib.mjs';
 
@@ -91,7 +92,7 @@ await shot('09-suivi-commande');
 const orderId = page.url().split('/').pop();
 
 // 7. Vendeur, support et livreur font avancer la commande (API)
-const [admin, rider] = [await apiLogin('+242069000000'), await apiLogin('+242068000000')];
+const [admin, rider] = [await staffLogin('+242069000000'), await apiLogin('+242068000000')];
 await json('POST', `/v1/seller/orders/${orderId}/accept`, seller);
 await json('POST', `/v1/seller/orders/${orderId}/ready`, seller);
 const riderId = execFileSync('psql', [

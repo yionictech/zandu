@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../../context.js';
 import { requestOtp, revokeSession, verifyOtp } from './auth.service.js';
+import { mfaStatus, setupTotp, verifyTotp } from './mfa.service.js';
 import { currentUser, requireAuth } from './guards.js';
 
 export function authRoutes(ctx: AppContext): FastifyPluginAsync {
@@ -27,12 +28,38 @@ export function authRoutes(ctx: AppContext): FastifyPluginAsync {
     });
 
     app.get('/v1/me', { preHandler: requireAuth(ctx) }, async (request) => {
-      const { sessionId: _sessionId, ...user } = currentUser(request);
+      const { sessionId: _sessionId, mfaVerified: _mfa, ...user } = currentUser(request);
       return user;
     });
 
     app.post('/v1/auth/logout', { preHandler: requireAuth(ctx) }, async (request, reply) => {
       await revokeSession(ctx, currentUser(request).sessionId);
+      return reply.status(204).send();
+    });
+
+    // ---------------- Second facteur du personnel (TOTP) ----------------
+    const Code = z.object({ code: z.string().regex(/^\d{6}$/) });
+
+    app.get('/v1/auth/mfa', { preHandler: requireAuth(ctx) }, async (request) =>
+      mfaStatus(ctx, currentUser(request)),
+    );
+
+    /** Nouveau secret à scanner (QR code) ; refusé si le second facteur est déjà actif. */
+    app.post('/v1/auth/mfa/setup', { preHandler: requireAuth(ctx) }, async (request) =>
+      setupTotp(ctx, currentUser(request)),
+    );
+
+    /** Premier code de l'application : active le second facteur et valide la session. */
+    app.post('/v1/auth/mfa/confirm', { preHandler: requireAuth(ctx) }, async (request, reply) => {
+      const { code } = Code.parse(request.body);
+      await verifyTotp(ctx, currentUser(request), code, { ip: request.ip, enrol: true });
+      return reply.status(204).send();
+    });
+
+    /** Code à chaque connexion : ouvre les routes du support et de l'administration. */
+    app.post('/v1/auth/mfa/verify', { preHandler: requireAuth(ctx) }, async (request, reply) => {
+      const { code } = Code.parse(request.body);
+      await verifyTotp(ctx, currentUser(request), code, { ip: request.ip, enrol: false });
       return reply.status(204).send();
     });
   };

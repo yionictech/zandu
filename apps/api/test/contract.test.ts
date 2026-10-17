@@ -5,6 +5,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { base32Decode, totpCode, totpStep } from '../src/lib/totp.js';
 import {
   ZONES,
   approveAndNotify,
@@ -296,6 +297,77 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     expectConforms('/v1/rider/deliveries/{id}', 'get', 200, mission);
     expect(mission.status).toBe('picked_up');
+  });
+
+  it('back-office : second facteur, files, recherche, dossier de commande, alertes', async () => {
+    const admin = clientFor(m.admin.headers.authorization!.slice(7));
+    expectConforms('/v1/auth/mfa', 'get', 200, unwrap(await admin.GET('/v1/auth/mfa')));
+    const setup = unwrap(await admin.POST('/v1/auth/mfa/setup'));
+    expectConforms('/v1/auth/mfa/setup', 'post', 200, setup);
+    const confirmed = await admin.POST('/v1/auth/mfa/confirm', {
+      body: { code: totpCode(base32Decode(setup.secret), totpStep(env.clock.now())) },
+    });
+    expect(confirmed.response.status).toBe(204);
+
+    expectConforms(
+      '/v1/support/overview',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/overview')),
+    );
+    expectConforms(
+      '/v1/admin/products',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/products', { params: { query: { status: 'published' } } })),
+    );
+    expectConforms(
+      '/v1/admin/sellers/{id}',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/admin/sellers/{id}', { params: { path: { id: m.seller.sellerId } } }),
+      ),
+    );
+    expectConforms(
+      '/v1/admin/sellers/{id}/kyc-documents',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/admin/sellers/{id}/kyc-documents', {
+          params: { path: { id: m.seller.sellerId } },
+        }),
+      ),
+    );
+    expectConforms(
+      '/v1/support/deliveries',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/deliveries')),
+    );
+    expectConforms('/v1/support/riders', 'get', 200, unwrap(await admin.GET('/v1/support/riders')));
+    const found = unwrap(
+      await admin.GET('/v1/support/orders', { params: { query: { q: '05 666 66 66' } } }),
+    );
+    expectConforms('/v1/support/orders', 'get', 200, found);
+    expect(found.items.length).toBeGreaterThan(0);
+    expectConforms(
+      '/v1/support/orders/{id}',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/support/orders/{id}', {
+          params: { path: { id: found.items[0]!.id } },
+        }),
+      ),
+    );
+    expectConforms('/v1/support/alerts', 'get', 200, unwrap(await admin.GET('/v1/support/alerts')));
+    expectConforms(
+      '/v1/admin/ledger/balances',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/ledger/balances')),
+    );
   });
 
   it('les erreurs suivent le format documenté', async () => {

@@ -1,11 +1,17 @@
 import type { FastifyRequest } from 'fastify';
 import type { Actor, AppContext } from '../../context.js';
 import { HttpError } from '../../lib/errors.js';
-import { authenticate, type AuthUser, type Role } from './auth.service.js';
+import {
+  authenticate,
+  STAFF_ROLES,
+  type AuthSession,
+  type AuthUser,
+  type Role,
+} from './auth.service.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    user: (AuthUser & { sessionId: string }) | null;
+    user: (AuthUser & AuthSession) | null;
   }
 }
 
@@ -29,7 +35,25 @@ export function requireRole(...roles: Role[]) {
   };
 }
 
-export function currentUser(request: FastifyRequest): AuthUser & { sessionId: string } {
+/**
+ * preHandler des routes du support et de l'administration (après requireAuth) : rôle du
+ * personnel ET second facteur vérifié pour cette session.
+ */
+export function requireStaff(ctx: AppContext) {
+  const role = requireRole(...STAFF_ROLES);
+  return async (request: FastifyRequest): Promise<void> => {
+    await role(request);
+    if (ctx.config.auth.staffMfaRequired && !request.user?.mfaVerified) {
+      throw new HttpError(
+        403,
+        'mfa_required',
+        "Saisissez le code de votre application d'authentification",
+      );
+    }
+  };
+}
+
+export function currentUser(request: FastifyRequest): AuthUser & AuthSession {
   if (!request.user) throw new HttpError(401, 'unauthenticated', 'Connexion requise');
   return request.user;
 }

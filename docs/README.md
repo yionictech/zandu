@@ -23,7 +23,7 @@
 6. [Exigences non fonctionnelles](architecture/06-exigences-non-fonctionnelles.md) — performance, hors ligne, supervision
 7. [Infrastructure et déploiement](architecture/07-infrastructure-deploiement.md)
 
-**Décisions** — [ADR 0001 à 0011](adr/README.md)
+**Décisions** — [ADR 0001 à 0012](adr/README.md)
 
 **Expérience utilisateur** — [Principes](ux/01-principes-experience.md) · [Parcours et écrans](ux/02-parcours-et-ecrans.md)
 

@@ -8,7 +8,8 @@
   Code stocké sous forme d'empreinte HMAC, valable 5 min, 5 essais, limites par numéro et par IP.
 - **Jetons de session opaques** (32 octets aléatoires), stockés hachés en base, révocables
   individuellement ; 30 jours pour les clients, 12 h pour le support et les administrateurs.
-- Second facteur TOTP obligatoire pour support/admin ; confirmation OTP pour les actions vendeur sensibles.
+- Second facteur TOTP obligatoire pour support/admin (en place, voir ADR-0012) ; confirmation OTP pour
+  les actions vendeur sensibles (à venir).
 
 ## Raisons
 

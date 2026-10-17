@@ -7,7 +7,14 @@ import { addHours } from '../../lib/clock.js';
 import { randomDigits, safeEqualHex } from '../../lib/crypto.js';
 import { HttpError, notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
-import { actor, currentUser, requireAuth, requireRole, staffActor } from '../auth/guards.js';
+import {
+  actor,
+  currentUser,
+  requireAuth,
+  requireRole,
+  requireStaff,
+  staffActor,
+} from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
 import { consumeUpload } from '../uploads/uploads.service.js';
 import {
@@ -479,7 +486,7 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
 
     // ---------------- Support / administration ----------------
     app.register(async (staff) => {
-      staff.addHook('preHandler', requireRole('support', 'admin'));
+      staff.addHook('preHandler', requireStaff(ctx));
 
       staff.post('/v1/support/orders/:id/cancel', async (request) => {
         const { id } = IdParam.parse(request.params);

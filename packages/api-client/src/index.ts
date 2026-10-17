@@ -15,6 +15,8 @@ export type RiderMission = Schemas['RiderMission'];
 export type ProductStatus = Schemas['ProductStatus'];
 export type KycDocumentType = Schemas['KycDocumentType'];
 export type VerificationStatus = Schemas['VerificationStatus'];
+export type SupportOrder = Schemas['SupportOrder'];
+export type DisputeReason = Schemas['DisputeReason'];
 
 export interface ClientOptions {
   baseUrl: string;

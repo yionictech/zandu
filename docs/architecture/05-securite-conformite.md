@@ -2,30 +2,30 @@
 
 ## 5.1 Ce qu'on protège, contre qui
 
-| Actif                           | Menace principale                                        | Parade (✅ en place · ⏳ à faire)                                                            |
-| ------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| L'argent en séquestre           | Faux webhook « paiement réussi »                         | ✅ Signature HMAC + horodatage ±5 min ; ⏳ liste blanche d'IP de l'agrégateur                |
-|                                 | Double reversement (bug, rejeu, timeout)                 | ✅ Clés métier uniques au grand livre, vérification avant nouvelle tentative                 |
-|                                 | Détournement du numéro de reversement                    | ✅ Gel de 48 h après changement de numéro ; ⏳ re-vérification OTP pour le changer           |
-|                                 | Faux vendeurs (risque n°1 du business plan)              | ✅ Séquestre + KYC avant tout reversement + plafond 30 jours + modération des non-vérifiés   |
-| Comptes utilisateurs            | Vol de session, force brute OTP                          | ✅ OTP 6 chiffres, 5 essais, 5 min ; jetons opaques révocables, stockés hachés               |
-|                                 | « SMS pumping » (bots qui font envoyer des SMS surtaxés) | ✅ 1 code / 60 s et 5 / h par numéro, 30 / h par IP ; ⏳ CAPTCHA invisible au-delà de seuils |
-| Données des autres utilisateurs | IDOR (lire la commande d'un autre en changeant l'id)     | ✅ Contrôle de propriété sur chaque route (404 sinon) ; tests dédiés                         |
-| Pièces d'identité (KYC)         | Fuite                                                    | ⏳ Compartiment privé séparé, chiffré, URL signées de 5 min, accès journalisé                |
-| Le back-office                  | Prise de contrôle d'un compte support                    | ✅ Sessions de 12 h ; ⏳ TOTP obligatoire (table `user_mfa`), domaine séparé, IP filtrées    |
-| Intégrité des statuts           | Bug ou requête SQL manuelle                              | ✅ Trigger de transitions, tables en écriture seule, audit                                   |
-| Disponibilité                   | Déni de service, bots                                    | ⏳ CDN + pare-feu applicatif + limitation de débit en bordure                                |
+| Actif                           | Menace principale                                        | Parade (✅ en place · ⏳ à faire)                                                                                  |
+| ------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| L'argent en séquestre           | Faux webhook « paiement réussi »                         | ✅ Signature HMAC + horodatage ±5 min ; ⏳ liste blanche d'IP de l'agrégateur                                      |
+|                                 | Double reversement (bug, rejeu, timeout)                 | ✅ Clés métier uniques au grand livre, vérification avant nouvelle tentative                                       |
+|                                 | Détournement du numéro de reversement                    | ✅ Gel de 48 h après changement de numéro ; ⏳ re-vérification OTP pour le changer                                 |
+|                                 | Faux vendeurs (risque n°1 du business plan)              | ✅ Séquestre + KYC avant tout reversement + plafond 30 jours + modération des non-vérifiés                         |
+| Comptes utilisateurs            | Vol de session, force brute OTP                          | ✅ OTP 6 chiffres, 5 essais, 5 min ; jetons opaques révocables, stockés hachés                                     |
+|                                 | « SMS pumping » (bots qui font envoyer des SMS surtaxés) | ✅ 1 code / 60 s et 5 / h par numéro, 30 / h par IP ; ⏳ CAPTCHA invisible au-delà de seuils                       |
+| Données des autres utilisateurs | IDOR (lire la commande d'un autre en changeant l'id)     | ✅ Contrôle de propriété sur chaque route (404 sinon) ; tests dédiés                                               |
+| Pièces d'identité (KYC)         | Fuite                                                    | ✅ Compartiment privé, URL signées de 5 min, consultation journalisée ; ⏳ chiffrement serveur                     |
+| Le back-office                  | Prise de contrôle d'un compte support                    | ✅ Sessions de 12 h, TOTP obligatoire vérifié par l'API, jeton en cookie httpOnly ; ⏳ domaine séparé, IP filtrées |
+| Intégrité des statuts           | Bug ou requête SQL manuelle                              | ✅ Trigger de transitions, tables en écriture seule, audit                                                         |
+| Disponibilité                   | Déni de service, bots                                    | ⏳ CDN + pare-feu applicatif + limitation de débit en bordure                                                      |
 
 ## 5.2 Exigences du cahier §7 — réponse
 
 | Domaine          | Exigence                                                         | Réponse                                                                                             |
 | ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Authentification | Code SMS ; double authentification vendeurs, support, admin      | ✅ OTP SMS. Vendeurs : OTP de confirmation pour les actions sensibles (⏳). Staff : TOTP (⏳).      |
+| Authentification | Code SMS ; double authentification vendeurs, support, admin      | ✅ OTP SMS. Staff : TOTP obligatoire ✅ (ADR-0012). Vendeurs : OTP pour les actions sensibles (⏳). |
 | Données          | TLS ; chiffrement au repos ; KYC dans un stockage séparé         | TLS 1.2+ partout ; disques et sauvegardes chiffrés (hébergeur) ; KYC compartiment privé.            |
 | Application      | Injections, limitation de débit, validation des entrées          | ✅ Requêtes paramétrées uniquement ; validation zod de toutes les entrées ; ⏳ débit en bordure.    |
 | Paiement         | Aucune donnée de portefeuille au-delà du numéro ; clés en coffre | ✅ Seuls numéro et opérateur sont stockés ; secrets par variables d'environnement issues du coffre. |
 | Conformité       | Audit, KYC, conservation des pièces, données personnelles        | ✅ Journal d'audit en écriture seule ; ⏳ politique de conservation (voir 5.4).                     |
-| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 102 tests ; ⏳ audit de sécurité externe semaines 13-14.                                         |
+| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 150 tests + 3 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
 
 ## 5.3 Règles anti-fraude du MVP
 
@@ -50,7 +50,8 @@
 ## 5.5 Avant le lancement (checklist sécurité)
 
 - [ ] Audit de sécurité externe (test d'intrusion API + applications) : aucune faille critique ou élevée.
-- [ ] TOTP obligatoire pour support et admin ; back-office sur domaine séparé.
+- [x] TOTP obligatoire pour support et admin (vérifié par l'API, anti-rejeu, révocation après 5 erreurs).
+- [ ] Back-office sur domaine séparé, filtré par IP ou VPN.
 - [ ] Rôle PostgreSQL applicatif **non superutilisateur**, sans droit `UPDATE/DELETE` sur `ledger_*` et `audit_logs`.
 - [ ] Secrets dans le coffre de l'hébergeur ; rotation documentée de `APP_SECRET` et des clés agrégateur.
 - [ ] Restauration de sauvegarde testée (point-in-time) et chronométrée.
