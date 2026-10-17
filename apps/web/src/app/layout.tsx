@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { SITE_URL } from '@/lib/api';
+import { RECETTE, SITE_URL } from '@/lib/api';
 import { sessionToken } from '@/lib/session';
 import { CartCount } from '@/components/CartCount';
 import './globals.css';
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     "La place de marché du Congo : payez avec MTN MoMo ou Airtel Money, votre argent reste bloqué jusqu'à la livraison.",
   applicationName: 'Zandu',
   openGraph: { siteName: 'Zandu', locale: 'fr_CG', type: 'website' },
+  ...(RECETTE && { robots: { index: false, follow: false } }),
 };
 
 export const viewport: Viewport = { themeColor: '#C2410C', width: 'device-width', initialScale: 1 };
@@ -25,6 +26,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="fr">
       <body>
+        {RECETTE && (
+          <div className="recette-banner" role="note">
+            Site de test · paiements simulés
+          </div>
+        )}
         <header className="header">
           <div className="header-row">
             <Link href="/" className="logo" aria-label="Zandu, accueil">

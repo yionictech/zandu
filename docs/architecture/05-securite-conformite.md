@@ -25,7 +25,7 @@
 | Application      | Injections, limitation de débit, validation des entrées          | ✅ Requêtes paramétrées uniquement ; validation zod de toutes les entrées ; ⏳ débit en bordure.    |
 | Paiement         | Aucune donnée de portefeuille au-delà du numéro ; clés en coffre | ✅ Seuls numéro et opérateur sont stockés ; secrets par variables d'environnement issues du coffre. |
 | Conformité       | Audit, KYC, conservation des pièces, données personnelles        | ✅ Journal d'audit en écriture seule ; ⏳ politique de conservation (voir 5.4).                     |
-| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 151 tests + 4 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
+| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 157 tests + 4 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
 
 ## 5.3 Règles anti-fraude du MVP
 
@@ -51,7 +51,11 @@
 
 - [ ] Audit de sécurité externe (test d'intrusion API + applications) : aucune faille critique ou élevée.
 - [x] TOTP obligatoire pour support et admin (vérifié par l'API, anti-rejeu, révocation après 5 erreurs).
-- [ ] Back-office sur domaine séparé, filtré par IP ou VPN.
+- [ ] Back-office sur domaine séparé, filtré par IP ou VPN (prêt : `BACKOFFICE_ALLOWED_IPS`, ADR-0013 ;
+      reste à fournir les adresses du bureau).
+- [x] Aucune route de test en production : simulateur refusé au démarrage ; en recette, SMS de test
+      lisibles seulement avec `RECETTE_KEY` (ADR-0013).
+- [x] Stockage vérifié avant chaque démarrage : pièces d'identité illisibles sans URL signée.
 - [ ] Rôle PostgreSQL applicatif **non superutilisateur**, sans droit `UPDATE/DELETE` sur `ledger_*` et `audit_logs`.
 - [ ] Secrets dans le coffre de l'hébergeur ; rotation documentée de `APP_SECRET` et des clés agrégateur.
 - [ ] Restauration de sauvegarde testée (point-in-time) et chronométrée.

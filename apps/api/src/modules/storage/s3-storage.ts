@@ -1,6 +1,7 @@
 import {
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
@@ -10,6 +11,8 @@ import type { Bucket, ObjectStorage, StoredObject, UploadInstructions } from './
 
 export interface S3StorageConfig {
   endpoint?: string | undefined;
+  /** Adresse que les téléphones utilisent, si elle diffère de `endpoint` (réseau interne). */
+  publicEndpoint?: string | undefined;
   region: string;
   accessKeyId: string;
   secretAccessKey: string;
@@ -22,17 +25,26 @@ export interface S3StorageConfig {
 /**
  * Adaptateur S3. L'envoi se fait par « presigned POST » : la politique signée impose le
  * type de contenu et une taille maximale, que le stockage vérifie lui-même.
+ * Les URL signées visent l'adresse publique (la signature couvre l'hôte) ; les appels de
+ * l'API elle-même passent par l'adresse interne.
  */
 export class S3Storage implements ObjectStorage {
   private readonly client: S3Client;
+  private readonly signer: S3Client;
 
   constructor(private readonly config: S3StorageConfig) {
-    this.client = new S3Client({
-      region: config.region,
-      ...(config.endpoint ? { endpoint: config.endpoint } : {}),
-      forcePathStyle: config.forcePathStyle,
-      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    });
+    const client = (endpoint: string | undefined) =>
+      new S3Client({
+        region: config.region,
+        ...(endpoint ? { endpoint } : {}),
+        forcePathStyle: config.forcePathStyle,
+        credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+      });
+    this.client = client(config.endpoint);
+    this.signer =
+      config.publicEndpoint && config.publicEndpoint !== config.endpoint
+        ? client(config.publicEndpoint)
+        : this.client;
   }
 
   async presignUpload(input: {
@@ -42,7 +54,7 @@ export class S3Storage implements ObjectStorage {
     maxBytes: number;
     expiresInSeconds: number;
   }): Promise<UploadInstructions> {
-    const { url, fields } = await createPresignedPost(this.client, {
+    const { url, fields } = await createPresignedPost(this.signer, {
       Bucket: this.config.buckets[input.bucket],
       Key: input.key,
       Conditions: [
@@ -67,7 +79,7 @@ export class S3Storage implements ObjectStorage {
     expiresInSeconds: number;
   }): Promise<string> {
     return getSignedUrl(
-      this.client,
+      this.signer,
       new GetObjectCommand({ Bucket: this.config.buckets[input.bucket], Key: input.key }),
       { expiresIn: input.expiresInSeconds },
     );
@@ -84,6 +96,17 @@ export class S3Storage implements ObjectStorage {
         return null;
       throw error;
     }
+  }
+
+  async put(bucket: Bucket, key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.buckets[bucket],
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
   }
 
   publicUrl(key: string): string {

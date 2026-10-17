@@ -476,3 +476,12 @@ textarea:focus {
     padding: 16px;
   }
 }
+
+.recette-banner {
+  background: #1e293b;
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 12px;
+}

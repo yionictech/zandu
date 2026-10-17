@@ -1,6 +1,8 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../../db/pool.js';
+import { HttpError } from '../../lib/errors.js';
 import type { DevNotificationSender } from './sender.js';
 
 interface DevMessage {
@@ -11,15 +13,31 @@ interface DevMessage {
   sentAt: string;
 }
 
+const digest = (value: string) => createHash('sha256').update(value).digest();
+
 /**
- * Développement uniquement : derniers SMS/WhatsApp « envoyés ». Réunit les messages directs de
+ * Développement et recette : derniers SMS/WhatsApp « envoyés ». Réunit les messages directs de
  * l'API (codes de connexion, jamais enregistrés en base) et les notifications distribuées par le
  * worker (table `notifications`), qui tourne dans un autre processus.
+ *
+ * `recetteKey` : en recette, l'API est joignable par tous ; l'en-tête `x-recette-key` est exigé
+ * et la lecture se fait numéro par numéro.
  */
-export function devMessagesRoutes(sender: DevNotificationSender, db: Db): FastifyPluginAsync {
+export function devMessagesRoutes(
+  sender: DevNotificationSender,
+  db: Db,
+  recetteKey: string | null = null,
+): FastifyPluginAsync {
   return async (app) => {
     app.get('/dev/messages', async (request) => {
-      const { recipient } = z.object({ recipient: z.string().optional() }).parse(request.query);
+      if (recetteKey !== null) {
+        const given = request.headers['x-recette-key'];
+        if (typeof given !== 'string' || !timingSafeEqual(digest(given), digest(recetteKey)))
+          throw new HttpError(401, 'recette_key_required', 'Clé de recette absente ou invalide');
+      }
+      const { recipient } = z
+        .object({ recipient: recetteKey === null ? z.string().optional() : z.string().min(1) })
+        .parse(request.query);
       const direct: DevMessage[] = sender.recent
         .filter((m) => !recipient || m.recipient === recipient)
         .map(({ recipient: r, channel, template, variables, sentAt }) => ({

@@ -6,7 +6,7 @@ Prérequis : Node.js 22 (`.nvmrc`), pnpm 10, Docker.
 
 ```bash
 pnpm install
-docker compose up -d                      # PostgreSQL 16 (+ base de test) et stockage S3 local
+docker compose up -d postgres             # PostgreSQL 16 (+ base de test) ; « stockage » : S3 local facultatif
 cp .env.example .env                      # puis ajuster APP_SECRET
 export $(grep -v '^#' .env | xargs)       # ou un outil comme direnv
 pnpm db:migrate && pnpm db:seed           # schéma + zones, tarifs, catégories, commissions
@@ -99,15 +99,36 @@ pour le livreur 06 800 00 00. Les livraisons sont assignées par le support :
 
 ## Commandes utiles
 
-| Commande                | Effet                                                          |
-| ----------------------- | -------------------------------------------------------------- |
-| `pnpm test`             | Tous les tests (domaine + intégration ; PostgreSQL requis)     |
-| `pnpm test:unit`        | Règles métier seules (sans base, < 1 s)                        |
-| `pnpm test:integration` | API contre PostgreSQL (`TEST_DATABASE_URL`, base `zandu_test`) |
-| `pnpm typecheck`        | Vérification des types (TypeScript 7)                          |
-| `pnpm format`           | Formatage Prettier                                             |
-| `pnpm lint:openapi`     | Validation du contrat `docs/api/openapi.yaml`                  |
-| `pnpm build`            | Compilation de production (`dist/`)                            |
+| Commande                                 | Effet                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `pnpm test`                              | Tous les tests (domaine + intégration ; PostgreSQL requis)         |
+| `pnpm test:unit`                         | Règles métier seules (sans base, < 1 s)                            |
+| `pnpm test:integration`                  | API contre PostgreSQL (`TEST_DATABASE_URL`, base `zandu_test`)     |
+| `pnpm typecheck`                         | Vérification des types (TypeScript 7)                              |
+| `pnpm format`                            | Formatage Prettier                                                 |
+| `pnpm lint:openapi`                      | Validation du contrat `docs/api/openapi.yaml`                      |
+| `pnpm build`                             | Compilation de production (`dist/`)                                |
+| `pnpm --filter @zandu/api storage:check` | Crée les compartiments S3 et vérifie leurs droits (public / privé) |
+
+## Conteneurs et recette
+
+Les images de production se construisent depuis la racine (ADR-0013) :
+
+```bash
+docker build --target api -t zandu-api .          # API ; aussi worker, migrations, outils
+docker build --target web -t zandu-web .
+docker build --target backoffice -t zandu-backoffice .
+```
+
+Toute la recette (HTTPS, stockage S3, données de démonstration, contrôles) tourne sur un poste avec
+`./deploy/recette/essai-local.sh` (prérequis en tête du script). Mise en ligne réelle :
+[guide](exploitation/mise-en-ligne-recette.md).
+
+Les parcours de bout en bout (site web, support) passent aussi contre la recette en conteneurs :
+`API_URL`, `SITE_URL`, `BO_URL` vers ses adresses, `RECETTE_KEY` pour lire les SMS de test,
+`DATABASE_URL` vers sa base (port de PostgreSQL publié en local par un fichier Compose
+complémentaire), et pour les certificats locaux `NODE_EXTRA_CA_CERTS=deploy/recette/.essai-local/caddy-racine.crt`
+avec `E2E_ACCEPT_LOCAL_CERTS=1`.
 
 ## Règles de l'équipe
 

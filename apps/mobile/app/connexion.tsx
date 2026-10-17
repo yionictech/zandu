@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Linking, StyleSheet, Text } from 'react-native';
 import { api, errorMessage, unwrap } from '../src/api';
+import { RECETTE_SMS_URL } from '../src/config';
 import { displayPhone, isValidCongoPhone } from '../src/format';
 import { t } from '../src/i18n/fr';
 import { useSession } from '../src/session';
@@ -96,6 +97,15 @@ export default function LoginScreen() {
             disabled={code.length !== 6}
             testID="login-verify"
           />
+          {RECETTE_SMS_URL && (
+            <Button
+              label={t.auth.readTestCode}
+              variant="ghost"
+              onPress={() =>
+                void Linking.openURL(`${RECETTE_SMS_URL}?numero=${encodeURIComponent(phone)}`)
+              }
+            />
+          )}
           <Button
             label={t.auth.changeNumber}
             variant="ghost"

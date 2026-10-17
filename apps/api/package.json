@@ -4,6 +4,9 @@
   "private": true,
   "description": "API backend de Zandu : monolithe modulaire (Fastify + PostgreSQL).",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx watch --conditions=zandu-source src/main.ts",
     "dev:worker": "tsx watch --conditions=zandu-source src/worker.ts",
@@ -15,6 +18,7 @@
     "db:migrate": "tsx --conditions=zandu-source src/db/migrate.ts",
     "db:seed": "tsx --conditions=zandu-source src/db/seed.ts",
     "user:grant-role": "tsx --conditions=zandu-source src/cli/grant-role.ts",
+    "storage:check": "tsx --conditions=zandu-source src/cli/check-storage.ts",
     "db:seed:demo": "tsx --conditions=zandu-source src/db/seed-demo.ts"
   },
   "dependencies": {

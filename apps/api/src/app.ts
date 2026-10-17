@@ -1,5 +1,6 @@
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { isDeployed } from './config.js';
 import type { AppContext } from './context.js';
 import { errorHandler } from './lib/errors.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -25,7 +26,7 @@ export async function buildApp(
       options.logger === false
         ? false
         : {
-            level: ctx.config.env === 'production' ? 'info' : 'debug',
+            level: isDeployed(ctx.config.env) ? 'info' : 'debug',
             // Jamais de jeton de session ni de code dans les journaux.
             redact: ['req.headers.authorization', 'req.headers["x-simulator-signature"]'],
           },
@@ -72,7 +73,8 @@ export async function buildApp(
   await app.register(webhookRoutes(ctx));
 
   if (ctx.config.env !== 'production' && ctx.notifier instanceof DevNotificationSender) {
-    await app.register(devMessagesRoutes(ctx.notifier, ctx.pool));
+    // En recette, l'API est en ligne : les codes ne se lisent qu'avec la clé de recette.
+    await app.register(devMessagesRoutes(ctx.notifier, ctx.pool, ctx.config.recetteKey));
   }
   if (ctx.config.env !== 'production' && ctx.storage instanceof MemoryStorage) {
     await app.register(devStorageRoutes(ctx.storage));

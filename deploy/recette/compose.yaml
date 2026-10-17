@@ -1,0 +1,149 @@
+# Recette de Zandu sur un seul serveur (ADR-0013, docs/exploitation/mise-en-ligne-recette.md).
+#
+#   cp .env.example .env   # puis remplir
+#   docker compose up -d --build
+#
+# Seul Caddy est exposé (ports 80 et 443) ; la base, le stockage et les services restent sur le
+# réseau interne. Les secrets viennent de .env, jamais du dépôt.
+name: zandu-recette
+
+x-api-env: &api-env
+  NODE_ENV: production
+  ZANDU_ENV: recette
+  DATABASE_URL: postgres://zandu:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@postgres:5432/zandu
+  APP_SECRET: ${APP_SECRET:?APP_SECRET manquant dans .env}
+  RECETTE_KEY: ${RECETTE_KEY:?RECETTE_KEY manquant dans .env}
+  PAYMENT_PROVIDER: simulator
+  SIMULATOR_WEBHOOK_SECRET: ${SIMULATOR_WEBHOOK_SECRET:?SIMULATOR_WEBHOOK_SECRET manquant dans .env}
+  SUPPORT_ALERT_PHONE: ${SUPPORT_ALERT_PHONE:-}
+  PUBLIC_API_URL: https://${API_HOST}
+  CORS_ORIGINS: https://${SITE_HOST},https://${BACKOFFICE_HOST}
+  STORAGE_DRIVER: s3
+  S3_ENDPOINT: http://stockage:8333
+  S3_PUBLIC_ENDPOINT: https://${MEDIA_HOST:?MEDIA_HOST manquant dans .env}
+  S3_REGION: us-east-1
+  S3_FORCE_PATH_STYLE: 'true'
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID manquant dans .env}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY manquant dans .env}
+  MEDIA_PUBLIC_BASE_URL: https://${MEDIA_HOST}/zandu-public
+
+x-api-image: &api-image
+  image: zandu-api:${ZANDU_VERSION:-recette}
+  build: { context: ../.., target: api }
+
+x-restart: &restart
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: '5' }
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:16
+    environment:
+      POSTGRES_USER: zandu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: zandu
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U zandu -d zandu']
+      interval: 5s
+      retries: 20
+
+  # Compatible S3. En production : stockage objet de l'hébergeur (mêmes variables S3_*).
+  stockage:
+    <<: *restart
+    image: chrislusf/seaweedfs:4.48
+    entrypoint: ['/bin/sh', '/opt/zandu/demarrer.sh']
+    environment:
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - ./stockage/demarrer.sh:/opt/zandu/demarrer.sh:ro
+      - stockage:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 8333']
+      interval: 5s
+      retries: 30
+
+  # Tâche unique avant chaque démarrage : schéma, données de référence, règles du stockage.
+  migrate:
+    <<: *api-image
+    environment: *api-env
+    command:
+      - sh
+      - -c
+      - node dist/db/migrate.js && node dist/db/seed.js && node dist/cli/check-storage.js
+    depends_on:
+      postgres: { condition: service_healthy }
+      stockage: { condition: service_healthy }
+
+  api:
+    <<: [*restart, *api-image]
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      retries: 6
+      start_period: 10s
+
+  # Expirations, interrogation de l'agrégateur, reversements, remboursements, notifications.
+  worker:
+    <<: [*restart, *api-image]
+    environment: *api-env
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    <<: *restart
+    image: zandu-web:${ZANDU_VERSION:-recette}
+    build: { context: ../.., target: web }
+    environment:
+      ZANDU_ENV: recette
+      ZANDU_API_URL: http://api:3000
+      SITE_URL: https://${SITE_HOST:?SITE_HOST manquant dans .env}
+      ZANDU_SIMULATOR: '1'
+      ZANDU_RECETTE_KEY: ${RECETTE_KEY}
+    depends_on:
+      api: { condition: service_healthy }
+
+  backoffice:
+    <<: *restart
+    image: zandu-backoffice:${ZANDU_VERSION:-recette}
+    build: { context: ../.., target: backoffice }
+    environment:
+      ZANDU_ENV: recette
+      ZANDU_API_URL: http://api:3000
+    depends_on:
+      api: { condition: service_healthy }
+
+  caddy:
+    <<: *restart
+    image: caddy:2
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans .env}
+      SITE_HOST: ${SITE_HOST}
+      API_HOST: ${API_HOST:?API_HOST manquant dans .env}
+      BACKOFFICE_HOST: ${BACKOFFICE_HOST:?BACKOFFICE_HOST manquant dans .env}
+      MEDIA_HOST: ${MEDIA_HOST}
+      BACKOFFICE_ALLOWED_IPS: ${BACKOFFICE_ALLOWED_IPS:-0.0.0.0/0 ::/0}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api, backoffice]
+
+volumes:
+  pgdata:
+  stockage:
+  caddy_data:
+  caddy_config:

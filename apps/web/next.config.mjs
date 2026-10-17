@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 
 /**
  * Site web acheteurs (ADR-0006) : rendu serveur pour que le premier octet contienne déjà le
@@ -8,6 +9,12 @@
  */
 const config = {
   poweredByHeader: false,
+  // Image Docker (ADR-0013) : serveur autonome avec ses seules dépendances, tracées depuis la
+  // racine du monorepo. `next start` reste utilisé en développement et pour les parcours.
+  ...(process.env.NEXT_OUTPUT === 'standalone' && {
+    output: 'standalone',
+    outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
+  }),
   // TypeScript 7 (compilateur natif) : vérification des types par `pnpm typecheck` (ADR-0012).
   typescript: { ignoreBuildErrors: true },
   async headers() {

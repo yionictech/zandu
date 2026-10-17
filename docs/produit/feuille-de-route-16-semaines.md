@@ -90,15 +90,29 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - API : vitrine publique d'une boutique (`GET /v1/shops/{slug}`), sans coordonnées du vendeur.
 - Budget 3G mesuré à chaque exécution du parcours de bout en bout (fiche produit : 167 Ko).
 
-### Prochaine étape — Mise en ligne de recette, téléphones réels, agrégateur
+### Sprint 1 quinquies — Paquet de mise en ligne (✅ fait, ce dépôt)
 
-- Mise en ligne d'un environnement de recette (dès le choix de l'hébergeur, D12) : condition pour
-  tester sur de vrais téléphones et partager de vrais liens WhatsApp.
-- Testeur : parcours sur 2-3 téléphones Android d'entrée de gamme (photo, envoi en 3G).
+- `Dockerfile` : une image par service (API et worker, site web, back-office), la même pour la recette
+  et la production (ADR-0013).
+- `deploy/recette/` : recette complète sur un seul serveur (PostgreSQL, stockage S3 SeaweedFS, API,
+  worker, site, back-office) derrière Caddy, HTTPS automatique ; vérification du stockage avant chaque
+  démarrage ; script de vérification après mise en ligne ; sauvegarde quotidienne de la base.
+- API : environnement `recette` (règles de la production, paiements simulés, SMS de test protégés par
+  clé) ; site : page « SMS de test », bandeau « site de test », non indexé ; application : bouton
+  « Lire le code de test ».
+- APK de recette construit par GitHub Actions (`apk-recette.yml`), sans compte Expo.
+- CI : construction des images et démarrage de toute la recette à chaque pull request.
+- Guide pas à pas : [mettre la recette en ligne](../exploitation/mise-en-ligne-recette.md).
+
+### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
+
+- Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis
+  **choix de l'agrégateur** (D1), rendez-vous juriste (D2), mode d'attribution des livraisons (D15).
+- Développeur : mise en ligne (une heure avec le guide), APK aux testeurs.
+- Testeur : parcours sur 2-3 téléphones Android d'entrée de gamme (photo, envoi en 3G), liens
+  WhatsApp réels.
 - Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
 - Backend : adaptateur de l'agrégateur dès l'accès au bac à sable ; SMS/WhatsApp réels.
-- Fondateur : **choix de l'agrégateur** (voir décisions D1), rendez-vous juriste (D2), mode
-  d'attribution des livraisons (D15).
 
 ### Sprint 2 (S3-S4) — Comptes, KYC, boutique
 

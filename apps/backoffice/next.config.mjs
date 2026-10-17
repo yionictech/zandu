@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 
 /**
  * Back-office : application distincte, sur un domaine distinct (ADR-0006, ADR-0012).
@@ -8,6 +9,12 @@
  */
 const config = {
   poweredByHeader: false,
+  // Image Docker (ADR-0013) : serveur autonome avec ses seules dépendances, tracées depuis la
+  // racine du monorepo. `next start` reste utilisé en développement et pour les parcours.
+  ...(process.env.NEXT_OUTPUT === 'standalone' && {
+    output: 'standalone',
+    outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
+  }),
   // TypeScript 7 (compilateur natif) n'expose pas l'API JavaScript qu'utilise `next build` :
   // la vérification des types passe par `pnpm typecheck`, exécutée en CI.
   typescript: { ignoreBuildErrors: true },

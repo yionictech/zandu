@@ -6,15 +6,24 @@ import {
   type PayoutPolicy,
 } from '@zandu/domain';
 
+const DEV_WEBHOOK_SECRET = 'dev-simulator-webhook-secret';
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /**
+   * Environnement de déploiement (par défaut : NODE_ENV). « recette » applique les règles de la
+   * production, mais avec l'agrégateur simulé et la boîte de réception protégée (ADR-0013).
+   */
+  ZANDU_ENV: z.enum(['development', 'test', 'recette', 'production']).optional(),
+  /** Recette : clé exigée pour lire les SMS de test (en-tête x-recette-key), ≥ 24 caractères. */
+  RECETTE_KEY: z.string().min(24).optional(),
   PORT: z.coerce.number().int().default(3000),
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string().min(1),
   /** Secret HMAC pour les codes OTP et les codes de remise (≥ 32 caractères, coffre de secrets). */
   APP_SECRET: z.string().min(32),
   PAYMENT_PROVIDER: z.string().default('simulator'),
-  SIMULATOR_WEBHOOK_SECRET: z.string().min(16).default('dev-simulator-webhook-secret'),
+  SIMULATOR_WEBHOOK_SECRET: z.string().min(16).default(DEV_WEBHOOK_SECRET),
   SUPPORT_ALERT_PHONE: z.string().optional(),
   PAYMENT_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   CHECKOUT_MAX_MINUTES: z.coerce.number().int().positive().default(30),
@@ -42,6 +51,8 @@ const EnvSchema = z.object({
   /** Stockage de développement : dossier où conserver les fichiers (sinon en mémoire seulement). */
   LOCAL_STORAGE_DIR: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
+  /** Adresse du stockage vue des téléphones, quand elle diffère de S3_ENDPOINT (réseau interne). */
+  S3_PUBLIC_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().default('eu-west-3'),
   S3_ACCESS_KEY_ID: z.string().default(''),
   S3_SECRET_ACCESS_KEY: z.string().default(''),
@@ -56,8 +67,14 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
+export type DeploymentEnv = NonNullable<Env['ZANDU_ENV']>;
+
+/** Recette et production : vraies adresses, vrais téléphones, mêmes garde-fous. */
+export const isDeployed = (env: DeploymentEnv): boolean =>
+  env === 'recette' || env === 'production';
+
 export interface Config {
-  env: Env['NODE_ENV'];
+  env: DeploymentEnv;
   port: number;
   host: string;
   databaseUrl: string;
@@ -65,6 +82,8 @@ export interface Config {
   paymentProvider: string;
   simulatorWebhookSecret: string;
   supportAlertPhone: string | null;
+  /** Recette : clé de la boîte de réception des SMS de test ; null ailleurs. */
+  recetteKey: string | null;
   workerTickMs: number;
   payments: {
     ttlMinutes: number;
@@ -104,6 +123,7 @@ export interface Config {
     | {
         driver: 's3';
         endpoint: string | undefined;
+        publicEndpoint: string | undefined;
         region: string;
         accessKeyId: string;
         secretAccessKey: string;
@@ -115,22 +135,34 @@ export interface Config {
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
   const env = EnvSchema.parse(source);
-  if (env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'simulator') {
+  const deployment: DeploymentEnv = env.ZANDU_ENV ?? env.NODE_ENV;
+  if (env.NODE_ENV === 'production' && !isDeployed(deployment)) {
+    throw new Error(`ZANDU_ENV=${deployment} est incompatible avec NODE_ENV=production.`);
+  }
+  if (deployment === 'production' && env.PAYMENT_PROVIDER === 'simulator') {
     throw new Error('Le simulateur de paiement est interdit en production (PAYMENT_PROVIDER).');
   }
-  if (env.NODE_ENV === 'production' && env.STAFF_MFA_REQUIRED === false) {
-    throw new Error('Le second facteur du personnel ne peut pas être désactivé en production.');
-  }
-  if (env.NODE_ENV === 'production' && (env.STORAGE_DRIVER !== 's3' || !env.CORS_ORIGINS)) {
+  if (isDeployed(deployment) && env.STAFF_MFA_REQUIRED === false) {
     throw new Error(
-      'En production : STORAGE_DRIVER=s3 et CORS_ORIGINS explicites sont obligatoires.',
+      'Le second facteur du personnel ne peut pas être désactivé hors développement.',
     );
+  }
+  if (isDeployed(deployment) && (env.STORAGE_DRIVER !== 's3' || !env.CORS_ORIGINS)) {
+    throw new Error(
+      `En ${deployment} : STORAGE_DRIVER=s3 et CORS_ORIGINS explicites sont obligatoires.`,
+    );
+  }
+  if (deployment === 'recette' && !env.RECETTE_KEY) {
+    throw new Error('En recette : RECETTE_KEY (clé de la boîte de réception) est obligatoire.');
+  }
+  if (deployment === 'recette' && env.SIMULATOR_WEBHOOK_SECRET === DEV_WEBHOOK_SECRET) {
+    throw new Error('En recette : SIMULATOR_WEBHOOK_SECRET doit être un secret propre.');
   }
   const corsOrigins = env.CORS_ORIGINS.split(',')
     .map((o) => o.trim())
     .filter(Boolean);
   return {
-    env: env.NODE_ENV,
+    env: deployment,
     port: env.PORT,
     host: env.HOST,
     databaseUrl: env.DATABASE_URL,
@@ -138,6 +170,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     paymentProvider: env.PAYMENT_PROVIDER,
     simulatorWebhookSecret: env.SIMULATOR_WEBHOOK_SECRET,
     supportAlertPhone: env.SUPPORT_ALERT_PHONE ?? null,
+    recetteKey: deployment === 'recette' ? env.RECETTE_KEY! : null,
     workerTickMs: env.WORKER_TICK_SECONDS * 1000,
     payments: {
       ttlMinutes: env.PAYMENT_TTL_MINUTES,
@@ -154,7 +187,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
       otpMaxPerIpPerHour: 30,
       sessionDays: 30,
       staffSessionHours: 12,
-      staffMfaRequired: env.STAFF_MFA_REQUIRED ?? env.NODE_ENV !== 'test',
+      staffMfaRequired: env.STAFF_MFA_REQUIRED ?? deployment !== 'test',
       mfaMaxAttempts: 5,
     },
     orderPolicy: {
@@ -172,6 +205,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
         : {
             driver: 's3',
             endpoint: env.S3_ENDPOINT,
+            publicEndpoint: env.S3_PUBLIC_ENDPOINT,
             region: env.S3_REGION,
             accessKeyId: env.S3_ACCESS_KEY_ID,
             secretAccessKey: env.S3_SECRET_ACCESS_KEY,

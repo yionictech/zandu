@@ -1,16 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { createStorage } from '../bootstrap.js';
 import { loadConfig } from '../config.js';
-import { MemoryStorage } from '../modules/storage/storage.js';
 import { createPool, withTx } from './pool.js';
 import { seedReference } from './seed.js';
 
 /**
  * Données de démonstration (développement et recette uniquement) : trois boutiques vérifiées
  * de Pointe-Noire, douze produits avec photos, un administrateur et un livreur.
- * Idempotent. Les photos sont copiées dans le stockage de développement (LOCAL_STORAGE_DIR).
+ * Idempotent. Les photos sont copiées dans le stockage configuré : S3 (recette) ou dossier de
+ * développement (LOCAL_STORAGE_DIR).
  *
- * Comptes (connexion par code SMS, visible via GET /dev/messages en développement) :
+ * Comptes (connexion par code SMS, visible via GET /dev/messages, protégé par clé en recette) :
  *   administrateur 06 900 00 00 · livreur 06 800 00 00
  *   vendeurs 06 100 00 01 (électronique), 06 100 00 02 (mode), 05 100 00 03 (alimentation)
  */
@@ -47,10 +48,8 @@ const config = loadConfig();
 if (config.env === 'production')
   throw new Error('Données de démonstration interdites en production');
 const pool = createPool(config.databaseUrl);
-const storage =
-  config.storage.driver === 'memory' && config.storage.dir
-    ? new MemoryStorage(config.publicApiUrl, config.storage.dir)
-    : null;
+// Stockage en mémoire sans dossier : les photos disparaîtraient avec ce processus.
+const storage = config.storage.driver === 's3' || config.storage.dir ? createStorage(config) : null;
 
 try {
   const { rowCount } = await pool.query('SELECT 1 FROM commission_rules LIMIT 1');
@@ -124,7 +123,7 @@ try {
   console.log(
     storage
       ? 'Données de démonstration chargées.'
-      : 'Données de démonstration chargées SANS photos (définir LOCAL_STORAGE_DIR pour les photos).',
+      : 'Données de démonstration chargées SANS photos (définir LOCAL_STORAGE_DIR ou STORAGE_DRIVER=s3).',
   );
 } finally {
   await pool.end();

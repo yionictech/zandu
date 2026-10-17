@@ -1,0 +1,20 @@
+# Contexte de construction des images (Dockerfile) : le code et les manifestes, rien d'autre.
+**/node_modules
+**/dist
+**/.next
+**/.expo
+**/captures
+**/coverage
+**/*.log
+**/.env
+**/.env.*
+.git
+.github
+.zandu-storage
+docs
+deploy
+# Application mobile : seul son manifeste sert (cohérence du lockfile).
+apps/mobile/*
+!apps/mobile/package.json
+apps/*/e2e
+apps/api/test

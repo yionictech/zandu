@@ -2,13 +2,36 @@
 
 ## 7.1 Environnements
 
-| Environnement | Rôle                                         | Agrégateur           | Données                       |
-| ------------- | -------------------------------------------- | -------------------- | ----------------------------- |
-| Local         | Développement (`docker compose up`)          | Simulateur           | Données de référence + essais |
-| Recette       | Démo fondateur, bêta fermée, tests de charge | **Bac à sable** réel | Copie anonymisée              |
-| Production    | Public                                       | Production           | Réelles                       |
+| Environnement | `ZANDU_ENV`   | Rôle                                                  | Agrégateur                                 | Données                         |
+| ------------- | ------------- | ----------------------------------------------------- | ------------------------------------------ | ------------------------------- |
+| Local         | `development` | Développement (`docker compose up`)                   | Simulateur                                 | Données de référence + essais   |
+| Recette       | `recette`     | Téléphones réels, démo fondateur, bêta fermée, charge | Simulateur, puis **bac à sable** réel (D1) | Démonstration + essais testeurs |
+| Production    | `production`  | Public                                                | Production                                 | Réelles                         |
 
-Le simulateur est **refusé au démarrage** en production (`config.ts`).
+Le simulateur est **refusé au démarrage** en production (`config.ts`). La recette applique les règles
+de la production (S3, CORS explicites, second facteur, journaux `info`) ; ses SMS restent dans une
+boîte de réception protégée par `RECETTE_KEY` tant qu'aucun fournisseur n'est branché (ADR-0013).
+
+## 7.1 bis Recette : un seul serveur (ADR-0013, `deploy/recette/`)
+
+```mermaid
+flowchart LR
+  T[Testeurs<br/>téléphones, navigateurs] -->|HTTPS 443| C[Caddy<br/>certificats Let's Encrypt]
+  C -->|recette.…| W[Site web]
+  C -->|api.recette.…| A[API]
+  C -->|bo.recette.…<br/>IP filtrées en option| B[Back-office]
+  C -->|media.recette.…| S[(SeaweedFS<br/>compatible S3)]
+  W & B --> A
+  A & K[Worker] --- P[(PostgreSQL 16)]
+  A -. réseau interne .-> S
+  M[migrate<br/>avant chaque démarrage] --> P & S
+```
+
+- Mêmes images qu'en production (`Dockerfile`, cibles `api`, `web`, `backoffice`) ; seuls 80 et 443
+  sont ouverts. Serveur conseillé : 2 vCPU, 4 Go, 40 Go.
+- La tâche `migrate` applique les migrations, charge les données de référence et vérifie le stockage
+  (compartiment privé illisible sans signature) ; l'API ne démarre qu'après elle.
+- Mise en ligne pas à pas, sauvegardes, mises à jour : [guide](../exploitation/mise-en-ligne-recette.md).
 
 ## 7.2 Topologie de production (MVP)
 
@@ -29,13 +52,14 @@ flowchart LR
 
 - **2 instances API** (1 vCPU / 1 Go chacune suffisent largement à 100 commandes/h) ;
 - **1 worker** (peut passer à 2 : les balayeurs utilisent `FOR UPDATE SKIP LOCKED`) ;
-- **1 instance du site web** (Next.js, `pnpm --filter @zandu/web start`) derrière le CDN, variables
-  `ZANDU_API_URL` et `SITE_URL` (adresse publique, utilisée dans les aperçus WhatsApp) ;
-- **1 instance back-office** (Next.js, `pnpm --filter @zandu/backoffice start`) sur un domaine
-  distinct, filtré par IP ou VPN, variable `ZANDU_API_URL` vers l'API ;
+- **1 instance du site web** (image `web`) derrière le CDN, variables `ZANDU_API_URL` et `SITE_URL`
+  (adresse publique, utilisée dans les aperçus WhatsApp, lue au démarrage) ;
+- **1 instance back-office** (image `backoffice`) sur un domaine distinct, filtré par IP ou VPN,
+  variable `ZANDU_API_URL` vers l'API ;
 - **PostgreSQL managé** avec bascule automatique et restauration à la minute près (PITR) ;
 - **Stockage objet** compatible S3 : compartiment public derrière le CDN (photos), compartiment privé (KYC) ;
-- Migrations appliquées par une étape de déploiement (`pnpm db:migrate`), verrou consultatif anti-concurrence.
+- Migrations appliquées par une étape de déploiement (`node dist/db/migrate.js` dans l'image `api`),
+  verrou consultatif anti-concurrence ; puis `node dist/cli/check-storage.js`.
 
 ## 7.3 Choix de l'hébergeur et de la région (ADR-0010)
 
@@ -68,12 +92,16 @@ tout ce qui n'est pas un code.
 
 ## 7.5 Intégration et déploiement continus
 
-- **À chaque push** (GitHub Actions, `.github/workflows/ci.yml`) : formatage, typage, 71 tests unitaires,
-  31 tests d'intégration contre un vrai PostgreSQL 16, compilation, validation du contrat OpenAPI.
+- **À chaque pull request et sur `main`** (GitHub Actions, `.github/workflows/ci.yml`) : formatage,
+  typage, 71 tests unitaires, 86 tests d'intégration contre un vrai PostgreSQL 16, compilation,
+  validation du contrat OpenAPI, compilation Android ; en parallèle, construction des trois images et
+  **démarrage de toute la recette en conteneurs** (`deploy/recette/essai-local.sh`) avec ses contrôles.
 - **Déploiement** : fusion sur `main` → déploiement automatique en recette ; étiquette `vX.Y.Z` →
   production après validation. Migrations avant le basculement du code (toujours rétrocompatibles).
-- **Application Android** : builds EAS ; mises à jour JavaScript à distance (EAS Update) pour corriger
-  sans republier ; nouvelle version Play Store seulement quand le code natif change.
+- **Application Android** : en recette, APK construit à la demande par GitHub Actions
+  (`apk-recette.yml`, sans compte Expo) ; en production, builds EAS signés avec une clé dédiée, mises à
+  jour JavaScript à distance (EAS Update) pour corriger sans republier ; nouvelle version Play Store
+  seulement quand le code natif change.
 
 ## 7.6 Montée en charge : quand faire quoi
 

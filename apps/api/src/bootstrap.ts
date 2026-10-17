@@ -12,13 +12,14 @@ import { MemoryStorage, type ObjectStorage } from './modules/storage/storage.js'
  * Assemble les dépendances réelles. Les adaptateurs de production (agrégateur choisi,
  * fournisseur WhatsApp/SMS) se branchent ici, derrière les mêmes interfaces.
  */
-function createNotifier(env: string): NotificationSender {
+function createNotifier(env: Config['env']): NotificationSender {
+  // Recette : pas encore de fournisseur, les SMS restent dans la boîte de réception protégée.
   if (env !== 'production') return new DevNotificationSender();
   // TODO(messagerie) : brancher l'adaptateur WhatsApp Business / passerelle SMS retenu.
   throw new Error('Aucun fournisseur SMS/WhatsApp configuré pour la production');
 }
 
-function createStorage(config: Config): ObjectStorage {
+export function createStorage(config: Config): ObjectStorage {
   if (config.storage.driver === 's3') return new S3Storage(config.storage);
   return new MemoryStorage(config.publicApiUrl, config.storage.dir);
 }

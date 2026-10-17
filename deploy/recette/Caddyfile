@@ -1,0 +1,49 @@
+# Frontal HTTPS de la recette (ADR-0013). Caddy obtient et renouvelle seul les certificats
+# Let's Encrypt des quatre adresses ; il transmet l'hôte d'origine (signatures S3).
+{
+	email {$ACME_EMAIL}
+}
+
+(commun) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Site web acheteurs
+{$SITE_HOST} {
+	import commun
+	reverse_proxy web:3000
+}
+
+# API : applications mobiles, site, back-office, webhooks de l'agrégateur
+{$API_HOST} {
+	import commun
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy api:3000
+}
+
+# Back-office : réservé, si BACKOFFICE_ALLOWED_IPS est défini, aux adresses du support.
+{$BACKOFFICE_HOST} {
+	import commun
+	@hors_reseau not remote_ip {$BACKOFFICE_ALLOWED_IPS:0.0.0.0/0 ::/0}
+	respond @hors_reseau "Accès réservé à l'équipe Zandu" 403
+	reverse_proxy backoffice:3000
+}
+
+# Stockage : envoi des photos depuis les téléphones (URL signées), lecture des photos publiques
+{$MEDIA_HOST} {
+	import commun
+	request_body {
+		max_size 12MB
+	}
+	reverse_proxy stockage:8333
+}

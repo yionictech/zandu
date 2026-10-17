@@ -145,6 +145,14 @@ main {
   padding: 0 6px;
   line-height: 18px;
 }
+.recette-banner {
+  background: #1e293b;
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 12px;
+}
 .trust-banner {
   background: var(--trust-soft);
   color: var(--trust);

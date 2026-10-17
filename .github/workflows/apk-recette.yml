@@ -1,0 +1,48 @@
+name: APK de recette
+
+# Lancement manuel : onglet Actions → « APK de recette » → Run workflow. Construit l'application
+# Android reliée à une recette en ligne, à installer sur les téléphones des testeurs
+# (docs/exploitation/mise-en-ligne-recette.md, étape 7). Sans compte Expo.
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Adresse de l'API de recette (ex. https://api.recette.zandu.cg)"
+        required: true
+      site_url:
+        description: 'Adresse du site de recette (ex. https://recette.zandu.cg)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - name: Projet Android natif (Expo prebuild)
+        run: pnpm --filter @zandu/mobile exec expo prebuild --platform android --no-install
+      - name: Compilation de l'APK (téléphones ARM 64 et 32 bits)
+        working-directory: apps/mobile/android
+        env:
+          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+          EXPO_PUBLIC_SIMULATOR: '1'
+          EXPO_PUBLIC_RECETTE_SMS_URL: ${{ inputs.site_url }}/recette/sms
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zandu-recette-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

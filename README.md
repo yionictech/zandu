@@ -26,8 +26,13 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **Back-office du support** (`apps/backoffice`, Next.js) : vérification des boutiques, modération,
   assignation des livreurs, litiges, recherche de commandes, alertes, contrôle comptable ; connexion
   avec **second facteur obligatoire** (application d'authentification).
-- **151 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI) et quatre parcours de bout en bout pilotés dans un navigateur.
+- **Prêt à mettre en ligne** (`Dockerfile`, `deploy/recette/`) : une image par service, une recette
+  complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
+  mot de passe, APK Android de recette construit par GitHub Actions. Guide :
+  [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
+- **157 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), quatre parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+  la recette en conteneurs à chaque pull request.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
 
@@ -37,7 +42,9 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 
 ![Back-office du support](docs/ux/captures/back-office.jpg)
 
-À construire : mise en ligne, branchement de l'agrégateur réel et du fournisseur SMS/WhatsApp,
+![Recette en ligne](docs/ux/captures/recette.jpg)
+
+À construire : branchement de l'agrégateur réel et du fournisseur SMS/WhatsApp,
 commissions et rapports dans le back-office, miniatures d'images, rapprochement quotidien. Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
@@ -53,7 +60,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 151 tests
+pnpm test            # 157 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 
@@ -70,5 +77,7 @@ packages/domain/   Règles métier pures (argent, statuts, grand livre)
 packages/api-client/  Client typé généré depuis le contrat OpenAPI
 db/migrations/     Schéma SQL versionné
 db/seeds/          Données de référence (zones, tarifs, catégories, commissions)
+deploy/recette/    Recette sur un serveur : Docker Compose, Caddy, vérifications, sauvegardes
+Dockerfile         Images de l'API, du site web et du back-office
 docs/              Dossier d'architecture
 ```

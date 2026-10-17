@@ -17,6 +17,7 @@ import {
   apiLogin,
   e164,
   freshPhone,
+  inbox,
   json,
   lastMessage,
   launchBrowser,
@@ -32,7 +33,10 @@ const psql = (sql) =>
   execFileSync('psql', [process.env.DATABASE_URL, '-tAc', sql]).toString().trim();
 const once = () => ({ 'idempotency-key': randomUUID() });
 
-/** Dépôt d'un fichier comme le fait l'application : réservation, PUT sur l'URL signée. */
+/**
+ * Dépôt d'un fichier comme le fait l'application : réservation, puis PUT (stockage de
+ * développement) ou POST signé (S3, en recette) sur l'URL renvoyée.
+ */
 async function upload(token, purpose, image) {
   const body = await readFile(`${IMAGES}${image}`);
   const reserved = await json('POST', '/v1/uploads', token, {
@@ -40,7 +44,15 @@ async function upload(token, purpose, image) {
     contentType: 'image/jpeg',
     sizeBytes: body.length,
   });
-  const res = await fetch(reserved.url, { method: 'PUT', headers: reserved.headers, body });
+  let res;
+  if (reserved.method === 'PUT') {
+    res = await fetch(reserved.url, { method: 'PUT', headers: reserved.headers, body });
+  } else {
+    const form = new FormData();
+    for (const [name, value] of Object.entries(reserved.fields)) form.append(name, value);
+    form.append('file', new Blob([body], { type: 'image/jpeg' }), image);
+    res = await fetch(reserved.url, { method: 'POST', body: form });
+  }
   if (!res.ok) throw new Error(`Dépôt refusé : ${res.status}`);
   return reserved.uploadId;
 }
@@ -131,11 +143,7 @@ await json('POST', `/v1/rider/deliveries/${toDispute.id}/pickup`, rider);
 // Le code de remise part par SMS (via le worker) : on attend celui de cette commande.
 let handoverCode = null;
 for (let i = 0; i < 40 && !handoverCode; i++) {
-  const { items } = await json(
-    'GET',
-    `/dev/messages?recipient=${encodeURIComponent(e164(buyerPhone))}`,
-  );
-  handoverCode = items.find(
+  handoverCode = (await inbox(e164(buyerPhone))).find(
     (m) => m.template === 'buyer_handover_code' && m.variables.ref === toDispute.publicRef,
   )?.variables.code;
   if (!handoverCode) await sleep(500);

@@ -45,3 +45,22 @@ jobs:
         run: pnpm --filter @zandu/mobile exec expo export --platform android --output-dir ${{ runner.temp }}/android-bundle
         env:
           CI: '1'
+
+  # Mise en ligne (ADR-0013) : les trois images se construisent et la recette complète démarre en
+  # HTTPS (Caddy, SeaweedFS, PostgreSQL), données de démonstration comprises, puis passe les contrôles
+  # de deploy/recette/verifier.mjs.
+  recette:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Adresses locales de la recette
+        run: echo "127.0.0.1 zandu.localhost api.zandu.localhost bo.zandu.localhost media.zandu.localhost" | sudo tee -a /etc/hosts
+      - name: Recette complète en conteneurs
+        run: ./deploy/recette/essai-local.sh
+      - name: Journaux des services
+        if: failure()
+        run: ./deploy/recette/essai-local.sh journaux

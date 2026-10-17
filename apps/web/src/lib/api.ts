@@ -6,6 +6,8 @@ import { sessionToken } from './session';
 export const API_URL = process.env.ZANDU_API_URL ?? 'http://localhost:3000';
 /** Adresse publique du site (liens partagés, Open Graph). */
 export const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:3200').replace(/\/$/, '');
+/** Site de recette (ADR-0013) : paiements simulés, jamais indexé par les moteurs de recherche. */
+export const RECETTE = process.env.ZANDU_ENV === 'recette';
 
 type Result<T> = { data?: T; error?: unknown; response: Response };
 

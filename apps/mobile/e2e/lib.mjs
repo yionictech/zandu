@@ -9,6 +9,10 @@ export const API = process.env.API_URL ?? 'http://localhost:3998';
 export const WEB = process.env.WEB_URL ?? 'http://localhost:8081';
 export const SHOTS = process.env.SHOTS ?? './captures';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Recette en ligne : la boîte de réception des SMS de test exige la clé de recette. */
+const INBOX_HEADERS = process.env.RECETTE_KEY ? { 'x-recette-key': process.env.RECETTE_KEY } : {};
+/** Caches propres à chaque API visée (développement, recette sur ce poste…). */
+const CACHE_PREFIX = `${tmpdir()}/zandu-e2e-${new URL(API).host.replace(/[^a-z0-9]+/gi, '-')}`;
 
 /**
  * Un numéro neuf à chaque exécution (la limite anti-fraude autorise un code par minute).
@@ -35,10 +39,16 @@ export async function json(method, path, token, body, headers = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-/** Dernier message reçu par un numéro (boîte de réception de développement). */
+/** Messages reçus par un numéro (boîte de réception de développement ou de recette). */
+export async function inbox(recipient) {
+  const path = `/dev/messages?recipient=${encodeURIComponent(recipient)}`;
+  return (await json('GET', path, null, undefined, INBOX_HEADERS)).items;
+}
+
+/** Dernier message reçu par un numéro. */
 export async function lastMessage(recipient, template, after = 0) {
   for (let i = 0; i < 40; i++) {
-    const { items } = await json('GET', `/dev/messages?recipient=${encodeURIComponent(recipient)}`);
+    const items = await inbox(recipient);
     const found = items.find((m) => m.template === template && Date.parse(m.sentAt) >= after);
     if (found) return found;
     await sleep(500);
@@ -48,7 +58,7 @@ export async function lastMessage(recipient, template, after = 0) {
 
 // Sessions réutilisées d'une exécution à l'autre : la limite anti-fraude n'autorise que
 // 5 codes par heure et par numéro.
-const SESSIONS_FILE = `${tmpdir()}/zandu-e2e-sessions.json`;
+const SESSIONS_FILE = `${CACHE_PREFIX}-sessions.json`;
 
 export async function apiLogin(phone) {
   const cache = JSON.parse(await readFile(SESSIONS_FILE, 'utf8').catch(() => '{}'));
@@ -86,7 +96,7 @@ export function totp(secretBase32, at = Date.now()) {
 /** Attend le prochain pas de 30 s : un code TOTP ne sert qu'une fois. */
 export const nextTotpStep = () => sleep(30_000 - (Date.now() % 30_000) + 500);
 
-const SECRETS_FILE = `${tmpdir()}/zandu-e2e-totp.json`;
+const SECRETS_FILE = `${CACHE_PREFIX}-totp.json`;
 
 /**
  * Session du personnel (support, administration) avec second facteur : configuré au premier
@@ -125,6 +135,8 @@ export async function launchBrowser() {
   await mkdir(SHOTS, { recursive: true });
   return chromium.launch({
     executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
+    // Essai local de la recette : certificats émis par l'autorité interne de Caddy.
+    args: process.env.E2E_ACCEPT_LOCAL_CERTS === '1' ? ['--ignore-certificate-errors'] : [],
   });
 }
 

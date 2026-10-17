@@ -10,3 +10,10 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 .zandu-storage/
+# Projets natifs générés par `expo prebuild` (APK de recette) : jamais versionnés
+apps/mobile/android/
+apps/mobile/ios/
+
+# Recette : sauvegardes de la base sur le serveur
+deploy/recette/sauvegardes/
+deploy/recette/.essai-local/

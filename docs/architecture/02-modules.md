@@ -32,11 +32,13 @@ zandu/
 │   ├── src/app/            Accueil, recherche, fiche produit (Open Graph + JSON-LD), boutique,
 │   │                       panier, connexion, livraison, paiement, suivi ; manifeste PWA, plan du site
 │   └── e2e/                Parcours d'achat de bout en bout + budget de performance en 3G
-└── apps/backoffice/        Back-office du support (Next.js, rendu serveur, ADR-0012)
-    ├── src/app/connexion/  SMS puis second facteur TOTP (QR code à la première connexion)
-    ├── src/app/(console)/  Tableau de bord, vérifications, modération, livraisons, litiges,
-    │                       commandes, alertes, comptabilité
-    └── e2e/                Parcours du support de bout en bout
+├── apps/backoffice/        Back-office du support (Next.js, rendu serveur, ADR-0012)
+│   ├── src/app/connexion/  SMS puis second facteur TOTP (QR code à la première connexion)
+│   ├── src/app/(console)/  Tableau de bord, vérifications, modération, livraisons, litiges,
+│   │                       commandes, alertes, comptabilité
+│   └── e2e/                Parcours du support de bout en bout
+├── Dockerfile              Images api (API, worker, migrations), web, backoffice (ADR-0013)
+└── deploy/recette/         Recette sur un serveur : Compose, Caddy, stockage, vérifications, sauvegardes
 ```
 
 À venir : espace vendeur sur le web (aujourd'hui dans l'application Android).

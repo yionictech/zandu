@@ -77,6 +77,7 @@ export const fr = {
     verify: 'Valider',
     changeNumber: 'Changer de numéro',
     resend: 'Renvoyer le code',
+    readTestCode: 'Lire le code de test (recette)',
   },
   checkout: {
     title: 'Livraison',

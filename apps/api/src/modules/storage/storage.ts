@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 
 /**
- * Port vers le stockage objet (compatible S3 : AWS S3, MinIO, Scaleway, Cloudflare R2…).
+ * Port vers le stockage objet (compatible S3 : AWS S3, SeaweedFS, Scaleway, Cloudflare R2…).
  * Deux compartiments : « public » (photos produits, servies par le CDN) et « private »
  * (pièces d'identité, preuves de litige : accessibles seulement par URL signée de courte durée).
  */
@@ -37,6 +37,8 @@ export interface ObjectStorage {
     expiresInSeconds: number;
   }): Promise<string>;
   head(input: { bucket: Bucket; key: string }): Promise<StoredObject | null>;
+  /** Dépôt direct par le serveur (données de démonstration, vérification du stockage). */
+  put(bucket: Bucket, key: string, body: Buffer, contentType: string): Promise<void>;
   /** URL publique (CDN) d'un objet du compartiment public. */
   publicUrl(key: string): string;
 }
