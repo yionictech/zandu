@@ -27,6 +27,7 @@ gantt
   Sprint 1 : fichiers, KYC, app acheteur (FAIT) :done, s2, 2026-10-12, 1w
   Écrans vendeur et livreur (FAIT)  :done,    s2b, 2026-10-16, 2d
   Back-office + second facteur (FAIT) :done,  s2c, 2026-10-17, 1d
+  Site web acheteurs (FAIT)         :done,    s2d, 2026-10-17, 1d
   Jalon maquettes validées          :milestone, m1, 2026-11-02, 0d
   section Catalogue
   Photos produits + fiches + recherche :      s3, 2026-11-02, 2w
@@ -80,8 +81,19 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
   erreurs, réinitialisation par un administrateur), files et recherche du support, alertes.
 - Parcours du support de bout en bout automatisé (captures dans `docs/ux/captures`).
 
-### Prochaine étape — Test sur téléphones réels, agrégateur, maquettes
+### Sprint 1 quater — Site web acheteurs (✅ fait, ce dépôt)
 
+- `apps/web` (Next.js, rendu serveur, ADR-0006) : accueil, recherche tolérante aux fautes, fiche
+  produit avec **aperçu WhatsApp** (photo, titre, prix) et données structurées, vitrine de boutique à
+  partager, panier, connexion SMS, livraison par repères, paiement Mobile Money avec attente du PIN,
+  suivi, confirmation de réception, signalement d'un problème ; manifeste PWA, plan du site.
+- API : vitrine publique d'une boutique (`GET /v1/shops/{slug}`), sans coordonnées du vendeur.
+- Budget 3G mesuré à chaque exécution du parcours de bout en bout (fiche produit : 167 Ko).
+
+### Prochaine étape — Mise en ligne de recette, téléphones réels, agrégateur
+
+- Mise en ligne d'un environnement de recette (dès le choix de l'hébergeur, D12) : condition pour
+  tester sur de vrais téléphones et partager de vrais liens WhatsApp.
 - Testeur : parcours sur 2-3 téléphones Android d'entrée de gamme (photo, envoi en 3G).
 - Designer : reprendre les écrans existants de `apps/mobile` avec la charte définitive.
 - Backend : adaptateur de l'agrégateur dès l'accès au bac à sable ; SMS/WhatsApp réels.

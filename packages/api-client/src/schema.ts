@@ -150,6 +150,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/shops/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Vitrine publique d'une boutique (lien partagé sur WhatsApp)
+     * @description Sans coordonnées du vendeur. Une boutique suspendue est introuvable.
+     */
+    get: operations['getShop'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/delivery/zones': {
     parameters: {
       query?: never;
@@ -1891,6 +1911,42 @@ export interface operations {
               average: number | null;
               count: number;
             };
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  getShop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            id: string;
+            shopName: string;
+            slug: string;
+            city: string;
+            verified: boolean;
+            ratingAvg: number | null;
+            ratingCount: number;
+            /** @description Commandes terminées */
+            salesCount: number;
+            /** Format: date-time */
+            memberSince: string;
           };
         };
       };

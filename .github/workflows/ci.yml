@@ -35,7 +35,7 @@ jobs:
         run: pnpm test:unit
       - name: Tests d'intégration (API + PostgreSQL)
         run: pnpm test:integration
-      - name: Compilation (paquets, API, back-office Next.js)
+      - name: Compilation (paquets, API, site web et back-office Next.js)
         run: pnpm build
       - name: Contrat d'API (OpenAPI)
         run: pnpm lint:openapi

@@ -1,0 +1,25 @@
+{
+  "name": "@zandu/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Site web Zandu (acheteurs) — Next.js, rendu serveur, aperçus WhatsApp, PWA.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3200",
+    "build": "next build",
+    "start": "next start --port 3200",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@zandu/api-client": "workspace:*",
+    "@zandu/domain": "workspace:*",
+    "next": "~16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "~19.2.18",
+    "@types/react-dom": "~19.2.7"
+  }
+}

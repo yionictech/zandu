@@ -28,6 +28,10 @@ zandu/
     ├── src/                Session, panier, client d'API, envoi de photos (compression), thème,
     │                       composants, textes (i18n/fr.ts)
     └── e2e/                Parcours acheteur, vendeur et livreur de bout en bout (Chromium, web)
+├── apps/web/               Site acheteurs (Next.js, rendu serveur, ADR-0006)
+│   ├── src/app/            Accueil, recherche, fiche produit (Open Graph + JSON-LD), boutique,
+│   │                       panier, connexion, livraison, paiement, suivi ; manifeste PWA, plan du site
+│   └── e2e/                Parcours d'achat de bout en bout + budget de performance en 3G
 └── apps/backoffice/        Back-office du support (Next.js, rendu serveur, ADR-0012)
     ├── src/app/connexion/  SMS puis second facteur TOTP (QR code à la première connexion)
     ├── src/app/(console)/  Tableau de bord, vérifications, modération, livraisons, litiges,
@@ -35,7 +39,7 @@ zandu/
     └── e2e/                Parcours du support de bout en bout
 ```
 
-À venir : `apps/web` (Next.js acheteur + vendeur).
+À venir : espace vendeur sur le web (aujourd'hui dans l'application Android).
 
 ## 2.2 Modules du monolithe
 

@@ -310,3 +310,35 @@ describe('Missions du livreur', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('Vitrine publique d’une boutique', () => {
+  it('nom, ville, confiance et ventes ; jamais le téléphone ; boutique suspendue introuvable', async () => {
+    const shop = await call(env, m.seller, { method: 'GET', url: '/v1/seller/shop' });
+    const orderId = await buyAndDeliver(env, m);
+    await call(env, m.buyer, { method: 'POST', url: `/v1/orders/${orderId}/confirm-receipt` });
+
+    const page = await call(env, null, { method: 'GET', url: `/v1/shops/${shop.body.slug}` });
+    expect(page.status).toBe(200);
+    expect(page.body).toMatchObject({
+      id: m.seller.sellerId,
+      shopName: 'Boutique 1 11',
+      slug: shop.body.slug,
+      city: 'Pointe-Noire',
+      verified: true,
+      salesCount: 1,
+    });
+    expect(JSON.stringify(page.body)).not.toContain('111');
+
+    await call(env, m.admin, {
+      method: 'POST',
+      url: `/v1/admin/sellers/${m.seller.sellerId}/verification`,
+      payload: { decision: 'suspended', reason: 'Fraude signalée' },
+    });
+    expect(
+      (await call(env, null, { method: 'GET', url: `/v1/shops/${shop.body.slug}` })).status,
+    ).toBe(404);
+    expect(
+      (await call(env, null, { method: 'GET', url: '/v1/shops/Pas%20un%20slug' })).status,
+    ).toBe(400);
+  });
+});

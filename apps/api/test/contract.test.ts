@@ -108,6 +108,16 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       unwrap(await api.GET('/v1/products/{id}/reviews', { params: { path: { id: m.productId } } })),
     );
     expectConforms('/v1/delivery/zones', 'get', 200, unwrap(await api.GET('/v1/delivery/zones')));
+    expectConforms(
+      '/v1/shops/{slug}',
+      'get',
+      200,
+      unwrap(
+        await api.GET('/v1/shops/{slug}', {
+          params: { path: { slug: products.items[0]!.seller.slug } },
+        }),
+      ),
+    );
   });
 
   it('parcours acheteur : connexion, panier, paiement, commande', async () => {

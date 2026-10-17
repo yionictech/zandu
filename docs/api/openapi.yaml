@@ -274,6 +274,49 @@ paths:
                           count: { type: integer }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/shops/{slug}:
+    get:
+      tags: [Catalogue]
+      summary: Vitrine publique d'une boutique (lien partagé sur WhatsApp)
+      description: Sans coordonnées du vendeur. Une boutique suspendue est introuvable.
+      operationId: getShop
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-z0-9]+(-[a-z0-9]+)*$', maxLength: 60 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    id,
+                    shopName,
+                    slug,
+                    city,
+                    verified,
+                    ratingAvg,
+                    ratingCount,
+                    salesCount,
+                    memberSince,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  shopName: { type: string }
+                  slug: { type: string }
+                  city: { type: string }
+                  verified: { type: boolean }
+                  ratingAvg: { type: [number, 'null'] }
+                  ratingCount: { type: integer }
+                  salesCount: { type: integer, description: Commandes terminées }
+                  memberSince: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+
   /v1/delivery/zones:
     get:
       tags: [Catalogue]

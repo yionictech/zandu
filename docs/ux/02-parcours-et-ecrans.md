@@ -5,6 +5,10 @@ chaque écran doit faire**, les états à prévoir et les textes clés, pour que
 
 ## 1. Parcours acheteur : commander en moins de 2 minutes
 
+Réalisé dans l'application (`apps/mobile`) et sur le site (`apps/web`,
+[captures](captures/site-web.jpg)) : un lien produit partagé sur WhatsApp s'affiche avec photo, titre et
+prix, et s'achète sans installer l'application.
+
 ```
 Fil / recherche ─► Fiche produit ─► « Acheter maintenant » ─► Récapitulatif ─► Validation PIN ─► Confirmé
    (découvrir)       (décider)          (1 appui)               (vérifier)      (sur le téléphone)   (rassurer)

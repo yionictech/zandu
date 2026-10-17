@@ -29,6 +29,8 @@ flowchart LR
 
 - **2 instances API** (1 vCPU / 1 Go chacune suffisent largement à 100 commandes/h) ;
 - **1 worker** (peut passer à 2 : les balayeurs utilisent `FOR UPDATE SKIP LOCKED`) ;
+- **1 instance du site web** (Next.js, `pnpm --filter @zandu/web start`) derrière le CDN, variables
+  `ZANDU_API_URL` et `SITE_URL` (adresse publique, utilisée dans les aperçus WhatsApp) ;
 - **1 instance back-office** (Next.js, `pnpm --filter @zandu/backoffice start`) sur un domaine
   distinct, filtré par IP ou VPN, variable `ZANDU_API_URL` vers l'API ;
 - **PostgreSQL managé** avec bascule automatique et restauration à la minute près (PITR) ;

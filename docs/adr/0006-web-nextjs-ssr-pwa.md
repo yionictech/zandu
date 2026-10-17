@@ -1,6 +1,6 @@
 # ADR-0006 — Web en Next.js avec rendu serveur et PWA
 
-**Statut** : proposée · **Date** : octobre 2026
+**Statut** : acceptée (site en place dans `apps/web` ; cache hors ligne par service worker à venir) · **Date** : octobre 2026
 
 ## Décision
 

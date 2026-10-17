@@ -22,6 +22,12 @@
 | Démarrage de l'application  | —                    | < 2,5 s       | Sur un téléphone 1-2 Go de RAM (Android Go) |
 | Écran d'attente du paiement | < 5 Ko par requête   | immédiat      | Interrogation légère toutes les 3 s         |
 
+**Mesuré** (parcours `apps/web/e2e/parcours-web.mjs`, cache vide, 3G simulée à 750 kbit/s et 300 ms
+d'aller-retour) : fiche produit **167 Ko** au total dont 142 Ko de JavaScript ; premier affichage
+(titre, prix) **0,8 s**, photo **1,2 s**, page interactive **2,4 s**. Le script échoue si le poids
+dépasse le budget. Le gros du poids est le socle Next.js/React : chaque composant client ajouté doit
+rester petit.
+
 **Mode économie de données** (activé par défaut sous 3G) : vignettes 200 px, pas de lecture
 automatique de vidéo, préchargement désactivé.
 

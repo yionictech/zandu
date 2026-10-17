@@ -25,7 +25,7 @@
 | Application      | Injections, limitation de débit, validation des entrées          | ✅ Requêtes paramétrées uniquement ; validation zod de toutes les entrées ; ⏳ débit en bordure.    |
 | Paiement         | Aucune donnée de portefeuille au-delà du numéro ; clés en coffre | ✅ Seuls numéro et opérateur sont stockés ; secrets par variables d'environnement issues du coffre. |
 | Conformité       | Audit, KYC, conservation des pièces, données personnelles        | ✅ Journal d'audit en écriture seule ; ⏳ politique de conservation (voir 5.4).                     |
-| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 150 tests + 3 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
+| Tests            | Tests automatiques paiement/séquestre ; audit externe            | ✅ 151 tests + 4 parcours de bout en bout ; ⏳ audit de sécurité externe semaines 13-14.            |
 
 ## 5.3 Règles anti-fraude du MVP
 

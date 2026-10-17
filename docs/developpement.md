@@ -30,6 +30,17 @@ curl -X POST http://localhost:3000/dev/simulator/collections/<paymentId>/approve
 
 Donner un rôle support/admin/livreur : `pnpm --filter @zandu/api user:grant-role "06 612 34 56" admin`.
 
+## Site web (acheteurs)
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # ZANDU_API_URL, SITE_URL, ZANDU_SIMULATOR=1
+pnpm dev:web                                   # http://localhost:3200
+```
+
+`SITE_URL` est l'adresse publique : elle apparaît dans les aperçus WhatsApp (balises Open Graph) et le
+plan du site. Pour voir un aperçu réel, le site doit être joignable depuis Internet (recette). Le
+jeton de session de l'acheteur reste côté serveur (cookie `httpOnly`), le panier dans le navigateur.
+
 ## Back-office (support et administration)
 
 ```bash
@@ -70,6 +81,8 @@ DATABASE_URL=… SHOTS=./captures node e2e/parcours-acheteur.mjs
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-vendeur-livreur.mjs
 # back-office démarré sur http://localhost:3100 (pnpm --filter @zandu/backoffice build && … start)
 cd ../backoffice && DATABASE_URL=… SHOTS=./captures node e2e/parcours-support.mjs
+# site web démarré sur http://localhost:3200 avec ZANDU_SIMULATOR=1
+cd ../web && DATABASE_URL=… SHOTS=./captures node e2e/parcours-web.mjs
 ```
 
 Les scripts configurent eux-mêmes le second facteur du compte administrateur (secret gardé dans un

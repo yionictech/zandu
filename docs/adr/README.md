@@ -10,7 +10,7 @@ jamais effacée ; si on change d'avis, on écrit un nouvel ADR qui « remplace �
 | 0003 | [PostgreSQL unique : données, grand livre, file, recherche](0003-postgresql-unique.md)             | Acceptée |
 | 0004 | [Agrégateur derrière un port ; séquestre = règle de statuts](0004-agregateur-et-sequestre.md)      | Acceptée |
 | 0005 | [Grand livre en partie double, en écriture seule](0005-grand-livre-partie-double.md)               | Acceptée |
-| 0006 | [Web en Next.js avec rendu serveur et PWA](0006-web-nextjs-ssr-pwa.md)                             | Proposée |
+| 0006 | [Web en Next.js avec rendu serveur et PWA](0006-web-nextjs-ssr-pwa.md)                             | Acceptée |
 | 0007 | [Android en React Native + Expo](0007-android-react-native-expo.md)                                | Acceptée |
 | 0008 | [Connexion par OTP et sessions opaques révocables](0008-otp-et-sessions.md)                        | Acceptée |
 | 0009 | [Tâches de fond : échéances en base, balayeurs, outbox](0009-taches-de-fond.md)                    | Acceptée |

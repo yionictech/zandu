@@ -140,6 +140,29 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
       return { items: rows };
     });
 
+    /** Vitrine publique d'une boutique (lien partagé par le vendeur sur WhatsApp). */
+    app.get('/v1/shops/:slug', async (request) => {
+      const { slug } = z
+        .object({
+          slug: z
+            .string()
+            .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+            .max(60),
+        })
+        .parse(request.params);
+      const { rows } = await ctx.pool.query(
+        `SELECT s.id, s.shop_name AS "shopName", s.slug, s.city, s.verification_status = 'verified' AS verified,
+                s.rating_avg::float AS "ratingAvg", s.rating_count AS "ratingCount",
+                (SELECT count(*)::int FROM orders o WHERE o.seller_id = s.id AND o.status = 'completed') AS "salesCount",
+                s.created_at AS "memberSince"
+         FROM seller_profiles s
+         WHERE s.slug = $1 AND s.verification_status <> 'suspended'`,
+        [slug],
+      );
+      if (!rows[0]) throw notFound('Boutique');
+      return rows[0];
+    });
+
     app.get('/v1/delivery/zones', async () => {
       const { rows } = await ctx.pool.query(
         `SELECT z.id, z.city, z.name,

@@ -5,4 +5,6 @@ coverage
 apps/mobile/dist
 .expo
 apps/backoffice/.next
+apps/web/.next
+apps/web/next-env.d.ts
 apps/backoffice/next-env.d.ts
