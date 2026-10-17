@@ -1,8 +1,9 @@
 name: CI
 
+# Chaque envoi, sur toute branche : le dépôt n'a pas encore de branche `main` (la branche de
+# travail est la branche par défaut), et une branche cassée doit se voir avant toute fusion.
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:

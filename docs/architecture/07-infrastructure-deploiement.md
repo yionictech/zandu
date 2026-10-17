@@ -92,7 +92,7 @@ tout ce qui n'est pas un code.
 
 ## 7.5 Intégration et déploiement continus
 
-- **À chaque pull request et sur `main`** (GitHub Actions, `.github/workflows/ci.yml`) : formatage,
+- **À chaque envoi, sur toute branche, et à chaque pull request** (GitHub Actions, `.github/workflows/ci.yml`) : formatage,
   typage, 71 tests unitaires, 86 tests d'intégration contre un vrai PostgreSQL 16, compilation,
   validation du contrat OpenAPI, compilation Android ; en parallèle, construction des trois images et
   **démarrage de toute la recette en conteneurs** (`deploy/recette/essai-local.sh`) avec ses contrôles.
