@@ -91,6 +91,16 @@ export interface Config {
     pollIntervalSeconds: number;
     pollHorizonMinutes: number;
   };
+  reconciliation: {
+    /** Heure du Congo à partir de laquelle la journée de la veille est contrôlée. */
+    runAtHour: number;
+    /** Mouvement comptabilisé moins de N minutes avant la fin de la période : attendu au relevé suivant. */
+    cutoffMinutes: number;
+    /** Journées passées rattrapées si le worker a été arrêté. */
+    catchUpDays: number;
+    /** Délai avant de redemander un relevé indisponible. */
+    retryMinutes: number;
+  };
   disbursements: {
     maxAttempts: number;
     /** Délais avant nouvelle tentative (reversements et remboursements). */
@@ -178,6 +188,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
       pollIntervalSeconds: env.PAYMENT_POLL_INTERVAL_SECONDS,
       pollHorizonMinutes: env.PAYMENT_POLL_HORIZON_MINUTES,
     },
+    reconciliation: { runAtHour: 2, cutoffMinutes: 30, catchUpDays: 7, retryMinutes: 30 },
     disbursements: { maxAttempts: 3, backoffMinutes: [5, 30, 120], leaseMinutes: 5 },
     auth: {
       otpTtlSeconds: 300,

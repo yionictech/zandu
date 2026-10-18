@@ -13,7 +13,8 @@ import { assertAmount, assertPositiveAmount, prorate, sum } from './money.js';
  *   liability:courier_payable:<id>     dû au partenaire de livraison
  *   liability:refunds_in_transit       remboursements décidés, pas encore confirmés
  *   liability:payouts_in_transit       reversements envoyés, pas encore confirmés
- *   liability:suspense                 paiements tardifs à rembourser
+ *   liability:suspense                 paiements tardifs à rembourser, écarts à expliquer
+ *   liability:platform_funding         apports de Zandu sur son compte agrégateur
  *   revenue:commission                 commissions de la plateforme
  *   revenue:delivery_margin            marge sur la livraison
  *   expense:payment_fees               frais Mobile Money / agrégateur
@@ -23,6 +24,7 @@ export const PlatformAccounts = {
   refundsInTransit: 'liability:refunds_in_transit',
   payoutsInTransit: 'liability:payouts_in_transit',
   suspense: 'liability:suspense',
+  platformFunding: 'liability:platform_funding',
   commissionRevenue: 'revenue:commission',
   deliveryRevenue: 'revenue:delivery_margin',
   paymentFees: 'expense:payment_fees',
@@ -64,7 +66,8 @@ export type JournalKind =
   | 'payout_reserved'
   | 'payout_settled'
   | 'payout_reversed'
-  | 'provider_fee';
+  | 'provider_fee'
+  | 'reconciliation_adjustment';
 
 export interface JournalLine {
   account: string;
@@ -332,5 +335,44 @@ export function recordProviderFee(input: {
   return journal('provider_fee', `fee:${input.provider}:${input.reference}`, {}, [
     { account: PlatformAccounts.paymentFees, amount: input.amount },
     { account: providerCashAccount(input.provider), amount: -input.amount },
+  ]);
+}
+
+/**
+ * Contrepartie d'une régularisation de rapprochement, choisie par un administrateur :
+ *   payment_fees      frais de l'agrégateur non annoncés (ou leur remboursement) ;
+ *   platform_funding  argent versé par Zandu sur son compte agrégateur (entrée seulement) ;
+ *   suspense          écart encore inexpliqué, mis en attente le temps de l'enquête.
+ */
+export const ADJUSTMENT_COUNTERPARTS = {
+  payment_fees: PlatformAccounts.paymentFees,
+  platform_funding: PlatformAccounts.platformFunding,
+  suspense: PlatformAccounts.suspense,
+} as const;
+
+export type AdjustmentCounterpart = keyof typeof ADJUSTMENT_COUNTERPARTS;
+
+/**
+ * Régularisation après un écart de rapprochement : aligne le compte agrégateur du grand livre
+ * sur le relevé. `amount` > 0 : l'agrégateur détient plus que nos comptes ; < 0 : moins.
+ */
+export function adjustProviderCash(input: {
+  discrepancyId: string;
+  provider: string;
+  amount: number;
+  counterpart: AdjustmentCounterpart;
+}): Journal {
+  if (!Number.isSafeInteger(input.amount) || input.amount === 0) {
+    throw new DomainError('invalid_adjustment', 'Une régularisation porte sur un montant non nul');
+  }
+  if (input.counterpart === 'platform_funding' && input.amount < 0) {
+    throw new DomainError(
+      'invalid_adjustment',
+      "Un apport de Zandu ne peut qu'ajouter de l'argent chez l'agrégateur",
+    );
+  }
+  return journal('reconciliation_adjustment', `reconciliation:${input.discrepancyId}`, {}, [
+    { account: providerCashAccount(input.provider), amount: input.amount },
+    { account: ADJUSTMENT_COUNTERPARTS[input.counterpart], amount: -input.amount },
   ]);
 }

@@ -58,7 +58,7 @@ describe("Parcours d'achat de bout en bout (jalon « commande de bout en bout »
 
     // 3. L'acheteur valide ; webhook signé. Rejouer le même webhook ne fait rien.
     const hook = env.simulator.signWebhook(
-      env.simulator.customerResponds(payment.body.id, 'approve'),
+      await env.simulator.customerResponds(payment.body.id, 'approve'),
       env.clock.now(),
     );
     const first = await call(env, null, {

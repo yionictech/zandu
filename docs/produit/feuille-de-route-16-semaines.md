@@ -128,6 +128,19 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - Écritures comptables datées par l'horloge de l'application : chaque commission tombe dans le bon
   mois, et les rapports se testent sur plusieurs jours simulés.
 
+### Sprint 1 octies — Rapprochement quotidien (✅ fait, ce dépôt)
+
+- Chaque nuit, le **relevé de l'agrégateur est comparé au grand livre**, opération par opération ;
+  les journées manquées sont rattrapées, un relevé indisponible est redemandé (ADR-0015).
+- Le contrôle conclut les paiements dont le webhook s'est perdu (succès tardif remboursé) et
+  comptabilise les frais que l'agrégateur ne déclare qu'au relevé.
+- Tout autre écart (mouvement inconnu, reversement non exécuté, montant, frais, solde) part en
+  alerte au support ; un administrateur le clôt avec une explication et, si besoin, une écriture
+  (frais, apport de Zandu, compte d'attente). Back-office : **jours de suite sans écart**, état de
+  rapprochement, écarts à traiter.
+- L'agrégateur simulé tient désormais ses comptes en base : l'API et le worker les partagent, et la
+  recette peut déclencher un « essai d'alarme ».
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis
@@ -166,7 +179,7 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 ### Sprint 6 (S11-S12) — Livraison, back-office, rapprochement
 
 - Back-office (kit d'admin) : litiges, KYC, modération, assignation des livreurs, alertes, commissions.
-- Backend : rapprochement quotidien, tableau de bord des indicateurs, alertes de supervision.
+- Backend : rapprochement quotidien (✅ fait, à brancher sur le relevé de l'agrégateur retenu), tableau de bord des indicateurs, alertes de supervision.
 - **Jalon : paiement test réussi** sur les deux opérateurs.
 
 ### Sprint 7 (S13-S14) — Recette technique
@@ -184,7 +197,7 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 | Critère                                                           | Preuve                                                                              |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 100 commandes de test payées par opérateur, dont les cas d'erreur | Script de recette sur le bac à sable + tests automatisés `payment-failures.test.ts` |
-| Aucun écart grand livre / relevé après 7 jours                    | Rapport de rapprochement quotidien (à construire S11-S12)                           |
+| Aucun écart grand livre / relevé après 7 jours                    | Back-office › Rapprochement : « jours de suite sans écart » ≥ 7 sur le bac à sable  |
 | Aucune faille critique ou élevée                                  | Rapport d'audit externe                                                             |
 | Parcours sur Android d'entrée de gamme en 3G                      | Test sur téléphone réel (≤ 1 Go RAM) avec limitation réseau                         |
 | Les 17 exigences P1 démontrées                                    | Matrice de traçabilité (architecture §2.3) jouée devant le fondateur                |

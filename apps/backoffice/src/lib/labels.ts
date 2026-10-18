@@ -1,4 +1,5 @@
 import type {
+  Discrepancy,
   DisputeReason,
   KycDocumentType,
   OrderStatus,
@@ -69,6 +70,7 @@ export function accountLabel(code: string): string {
     'liability:refunds_in_transit': 'Remboursements en cours',
     'liability:payouts_in_transit': 'Reversements en cours',
     'liability:suspense': "Compte d'attente (à régulariser)",
+    'liability:platform_funding': "Apports de Zandu chez l'agrégateur",
     'revenue:commission': 'Commissions Zandu',
     'revenue:delivery_margin': 'Marge sur la livraison',
     'expense:payment_fees': "Frais de l'agrégateur",
@@ -97,3 +99,44 @@ export function refundReason(reason: string): string {
   const text = detail.join(':').trim();
   return text && labels[code.trim()] ? `${label} — ${text}` : label;
 }
+
+/** Rapprochement : nature de l'écart, et ce que l'administrateur doit faire. */
+export const DISCREPANCY_KIND: Record<Discrepancy['kind'], { label: string; help: string }> = {
+  missing_internal: {
+    label: 'Inconnu de Zandu',
+    help: "L'agrégateur a bougé de l'argent sans opération Zandu correspondante. Demandez-lui le détail ; s'il s'agit de frais, enregistrez-les.",
+  },
+  missing_provider: {
+    label: 'Absent du relevé',
+    help: "Zandu a enregistré ce mouvement, l'agrégateur ne l'a pas exécuté. Vérifiez avec lui avant toute nouvelle tentative ; si l'argent n'est jamais parti, passez la différence en compte d'attente.",
+  },
+  status_mismatch: {
+    label: 'Statut différent',
+    help: "L'agrégateur a exécuté l'opération, Zandu ne l'a pas enregistrée comme réussie. Pour un reversement échoué chez Zandu, bloquez tout nouveau reversement au vendeur avant de régulariser.",
+  },
+  amount_mismatch: {
+    label: 'Montant différent',
+    help: "Demandez la correction à l'agrégateur, ou enregistrez la différence.",
+  },
+  fee_mismatch: {
+    label: 'Frais différents',
+    help: 'Les frais du relevé ne sont pas ceux annoncés. Vérifiez la grille tarifaire du contrat, puis enregistrez la différence en frais.',
+  },
+  balance_mismatch: {
+    label: 'Solde inexpliqué',
+    help: "Le solde de l'agrégateur contient un mouvement absent de son relevé détaillé. Mettez la différence en compte d'attente le temps de l'enquête.",
+  },
+};
+
+export const RUN_STATUS: Record<string, [string, Tone]> = {
+  balanced: ['Équilibré', 'trust'],
+  discrepancies: ['Écarts à traiter', 'danger'],
+  error: ['Relevé indisponible', 'danger'],
+  running: ['En cours', 'waiting'],
+};
+
+export const ADJUSTMENTS = {
+  payment_fees: "Frais de l'agrégateur",
+  platform_funding: "Apport de Zandu (fonds versés chez l'agrégateur)",
+  suspense: "Compte d'attente (à investiguer)",
+} as const;

@@ -106,7 +106,7 @@ describe('Cahier des charges §5 — cas d’erreur de paiement', () => {
   it("webhook perdu : l'interrogation de l'agrégateur confirme le paiement", async () => {
     const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
     const payment = await pay(env, m.buyer, co.id);
-    env.simulator.customerResponds(payment.body.id, 'approve'); // validé, mais aucun webhook n'arrive
+    await env.simulator.customerResponds(payment.body.id, 'approve'); // validé, mais aucun webhook n'arrive
 
     await pollPayments(env.ctx);
     expect(await orderStatus(env, co.orders[0].id)).toBe('pending_payment'); // pas encore l'heure
@@ -120,7 +120,7 @@ describe('Cahier des charges §5 — cas d’erreur de paiement', () => {
   it("succès juste avant l'expiration : la dernière vérification évite d'annuler à tort", async () => {
     const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
     const payment = await pay(env, m.buyer, co.id);
-    env.simulator.customerResponds(payment.body.id, 'approve');
+    await env.simulator.customerResponds(payment.body.id, 'approve');
     env.clock.advanceMinutes(10);
     await expirePayments(env.ctx);
     expect(await orderStatus(env, co.orders[0].id)).toBe('paid');
@@ -180,7 +180,7 @@ describe('Cahier des charges §5 — cas d’erreur de paiement', () => {
   it('rejette un webhook à la signature invalide ou trop ancien', async () => {
     const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
     const payment = await pay(env, m.buyer, co.id);
-    const event = env.simulator.customerResponds(payment.body.id, 'approve');
+    const event = await env.simulator.customerResponds(payment.body.id, 'approve');
     const forged = env.simulator.signWebhook(event, env.clock.now());
     const tampered = forged.body.replace('"succeeded"', '"succeeded" ');
     const bad = await call(env, null, {
@@ -250,7 +250,10 @@ describe('Cahier des charges §5 — cas d’erreur de paiement', () => {
       );
       expect(rows[0]!.status).toBe('processing');
 
-      const signed = env.simulator.signWebhook(env.simulator.settle(rows[0]!.id), env.clock.now());
+      const signed = env.simulator.signWebhook(
+        await env.simulator.settle(rows[0]!.id),
+        env.clock.now(),
+      );
       await call(env, null, {
         method: 'POST',
         url: '/v1/webhooks/payments/simulator',

@@ -1298,10 +1298,197 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/admin/reconciliation/runs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Contrôles quotidiens, du plus récent au plus ancien (administrateur) */
+    get: operations['listReconciliationRuns'];
+    put?: never;
+    /**
+     * Contrôler (ou recontrôler) une journée maintenant (administrateur, journalisé)
+     * @description Idempotent : ni écriture ni écart en double. Pour la journée en cours, la période s'arrête à l'heure du contrôle ; le contrôle de nuit la reprend en entier. Un relevé indisponible donne un contrôle « error », pas une erreur HTTP.
+     */
+    post: operations['runReconciliation'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/reconciliation/runs/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Un contrôle et ses écarts (administrateur) */
+    get: operations['getReconciliationRun'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/reconciliation/discrepancies': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Écarts ouverts (ou tous), les plus récents d'abord (administrateur) */
+    get: operations['listDiscrepancies'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/reconciliation/discrepancies/{id}/resolve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clore un écart, avec au besoin une écriture de régularisation (administrateur, journalisé)
+     * @description La régularisation aligne le compte agrégateur du grand livre sur le relevé, pour le montant de l'écart. payment_fees = frais de l'agrégateur ; platform_funding = argent versé par Zandu (entrée seulement) ; suspense = compte d'attente, le temps de l'enquête. Un écart de solde exige une régularisation.
+     */
+    post: operations['resolveDiscrepancy'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ReconciliationRun: {
+      /** Format: uuid */
+      id: string;
+      provider: string;
+      /** Format: date */
+      date: string;
+      /**
+       * @description balanced = rien à traiter ; discrepancies = écarts ouverts ; error = relevé indisponible (nouvelle demande 30 min plus tard) ; running = en cours
+       * @enum {string}
+       */
+      status: 'running' | 'balanced' | 'discrepancies' | 'error';
+      /** Format: date-time */
+      coveredUntil: string | null;
+      attempts: number;
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      finishedAt: string | null;
+      summary: components['schemas']['ReconciliationSummary'];
+    };
+    ReconciliationSummary: {
+      period: {
+        /** Format: date-time */
+        from: string;
+        /** Format: date-time */
+        until: string;
+      };
+      statement?: {
+        lines: number;
+        collections: components['schemas']['CountAmount'];
+        payouts: components['schemas']['CountAmount'];
+        refunds: components['schemas']['CountAmount'];
+        /** @description Mouvements propres à l'agrégateur (montant signé) */
+        other: components['schemas']['CountAmount'];
+        fees: number;
+      };
+      /** @description Lignes retrouvées à l'identique au grand livre */
+      matched?: number;
+      /** @description Opérations en attente chez Zandu (webhook perdu) conclues d'après le relevé */
+      statusesApplied?: components['schemas']['CountAmount'];
+      /** @description Frais connus par le seul relevé, comptabilisés par le contrôle */
+      feesBooked?: components['schemas']['CountAmount'];
+      /** @description Comptabilisés juste avant la fin de la période, attendus au relevé suivant */
+      inTransit?: components['schemas']['CountAmount'];
+      /** @description État de rapprochement ; null si l'agrégateur ne communique pas son solde */
+      balance?: {
+        /** @description Solde annoncé par l'agrégateur */
+        provider: number;
+        /** @description Solde du compte agrégateur au grand livre */
+        ledger: number;
+        laterAdjustments: number;
+        /** @description Comptabilisé chez Zandu, absent du relevé */
+        notOnStatement: number;
+        /** @description Au relevé, pas comptabilisé chez Zandu */
+        notInLedger: number;
+        amountDifferences: number;
+        /** @description Doit valoir 0 */
+        unexplained: number;
+      } | null;
+      discrepancies?: {
+        found: number;
+        open: number;
+        new: number;
+      };
+      error?: string;
+    };
+    Discrepancy: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      runId: string;
+      /** Format: date */
+      date: string;
+      provider: string;
+      /** @enum {string} */
+      kind:
+        | 'missing_internal'
+        | 'missing_provider'
+        | 'amount_mismatch'
+        | 'status_mismatch'
+        | 'fee_mismatch'
+        | 'balance_mismatch';
+      /** @enum {string} */
+      operationKind: 'collection' | 'payout' | 'refund' | 'other' | 'fee' | 'balance';
+      reference: string;
+      providerRef: string | null;
+      /** @description Effet sur le solde selon Zandu */
+      internalAmount: number;
+      /** @description Effet sur le solde selon l'agrégateur */
+      providerAmount: number;
+      /** @description À régulariser : + l'agrégateur détient plus */
+      difference: number;
+      message: string;
+      /** Format: uuid */
+      orderId: string | null;
+      publicRef: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      resolution: {
+        /** Format: date-time */
+        at: string;
+        /** @description Téléphone de l'administrateur */
+        by: string | null;
+        note: string;
+        automatic: boolean;
+        adjustment: {
+          /** @enum {string} */
+          counterpart: 'payment_fees' | 'platform_funding' | 'suspense';
+          amount: number;
+        } | null;
+      } | null;
+    };
     CountAmount: {
       count: number;
       amount: number;
@@ -4046,6 +4233,159 @@ export interface operations {
       403: components['responses']['Error'];
       404: components['responses']['Error'];
       409: components['responses']['Error'];
+    };
+  };
+  listReconciliationRuns: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['ReconciliationRun'][];
+            /** @description Contrôles de suite sans aucun écart, en partant du plus récent */
+            streak: number;
+            /** @description Écarts encore ouverts (montant = somme des écarts en valeur absolue) */
+            open: components['schemas']['CountAmount'];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  runReconciliation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /**
+           * Format: date
+           * @description Journée (heure du Congo)
+           */
+          date: string;
+          /** @description Par défaut l'agrégateur principal */
+          provider?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Contrôle terminé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReconciliationRun'];
+        };
+      };
+      400: components['responses']['Error'];
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  getReconciliationRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            run: components['schemas']['ReconciliationRun'];
+            discrepancies: components['schemas']['Discrepancy'][];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+    };
+  };
+  listDiscrepancies: {
+    parameters: {
+      query?: {
+        status?: 'open' | 'all';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['Discrepancy'][];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  resolveDiscrepancy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Explication (journal d'audit) */
+          note: string;
+          /** @enum {string} */
+          adjustment?: 'payment_fees' | 'platform_funding' | 'suspense';
+        };
+      };
+    };
+    responses: {
+      /** @description Écart clos */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Discrepancy'];
+        };
+      };
+      400: components['responses']['Error'];
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
     };
   };
 }

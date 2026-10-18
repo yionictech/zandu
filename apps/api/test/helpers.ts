@@ -36,6 +36,9 @@ export class FakeClock implements Clock {
   advanceHours(hours: number): void {
     this.advanceMinutes(hours * 60);
   }
+  set(date: Date): void {
+    this.current = new Date(date);
+  }
 }
 
 export interface TestEnv {
@@ -60,7 +63,7 @@ export async function createTestEnv(overrides: Record<string, string> = {}): Pro
   });
   const pool = createPool(TEST_DATABASE_URL);
   const clock = new FakeClock();
-  const simulator = new SimulatorProvider(config.simulatorWebhookSecret);
+  const simulator = new SimulatorProvider(config.simulatorWebhookSecret, pool, clock);
   const notifier = new MemoryNotificationSender();
   const storage = new MemoryStorage('http://api.test');
   const ctx: AppContext = {
@@ -91,13 +94,13 @@ export async function createTestEnv(overrides: Record<string, string> = {}): Pro
 export async function resetDatabase(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
-    const { rows } = await client.query<{ tablename: string }>(
-      `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+    const { rows } = await client.query<{ schemaname: string; tablename: string }>(
+      `SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', 'simulator')
        AND tablename NOT IN ('schema_migrations', 'order_status_transitions')`,
     );
     await client.query('SET session_replication_role = replica');
     await client.query(
-      `TRUNCATE ${rows.map((r) => `"${r.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`,
+      `TRUNCATE ${rows.map((r) => `"${r.schemaname}"."${r.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`,
     );
     await client.query('SET session_replication_role = DEFAULT');
     await seedReference(client);
@@ -275,7 +278,7 @@ export async function approveAndNotify(
   paymentId: string,
   outcome: 'approve' | 'insufficient_funds' | 'declined' = 'approve',
 ) {
-  const event = env.simulator.customerResponds(paymentId, outcome);
+  const event = await env.simulator.customerResponds(paymentId, outcome);
   const signed = env.simulator.signWebhook(event, env.clock.now());
   return call(env, null, {
     method: 'POST',

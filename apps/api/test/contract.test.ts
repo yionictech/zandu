@@ -6,6 +6,7 @@ import addFormats from 'ajv-formats';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { base32Decode, totpCode, totpStep } from '../src/lib/totp.js';
+import { congoDate } from '../src/modules/reconciliation/reconciliation.service.js';
 import {
   ZONES,
   approveAndNotify,
@@ -393,6 +394,40 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       200,
       unwrap(await admin.GET('/v1/admin/commission-rules')),
     );
+
+    // Rapprochement : contrôle de la journée en cours, avec un mouvement inconnu à régulariser.
+    await env.simulator.addAccountMovement({ amount: -500, description: 'Frais de contrat' });
+    env.clock.advanceMinutes(1); // la période contrôlée s'arrête à l'heure du contrôle, exclue
+    const run = unwrap(
+      await admin.POST('/v1/admin/reconciliation/runs', {
+        body: { date: congoDate(env.clock.now()) },
+      }),
+    );
+    expectConforms('/v1/admin/reconciliation/runs', 'post', 200, run);
+    expect(run.status).toBe('discrepancies');
+    expectConforms(
+      '/v1/admin/reconciliation/runs',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/reconciliation/runs')),
+    );
+    const detail = unwrap(
+      await admin.GET('/v1/admin/reconciliation/runs/{id}', { params: { path: { id: run.id } } }),
+    );
+    expectConforms('/v1/admin/reconciliation/runs/{id}', 'get', 200, detail);
+    expectConforms(
+      '/v1/admin/reconciliation/discrepancies',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/reconciliation/discrepancies')),
+    );
+    const resolved = unwrap(
+      await admin.POST('/v1/admin/reconciliation/discrepancies/{id}/resolve', {
+        params: { path: { id: detail.discrepancies[0]!.id } },
+        body: { note: 'Frais confirmés', adjustment: 'payment_fees' },
+      }),
+    );
+    expectConforms('/v1/admin/reconciliation/discrepancies/{id}/resolve', 'post', 200, resolved);
   });
 
   it('les erreurs suivent le format documenté', async () => {

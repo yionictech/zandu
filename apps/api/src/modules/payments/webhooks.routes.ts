@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../../context.js';
 import { HttpError } from '../../lib/errors.js';
+import { assertRecetteKey } from '../notifications/dev.routes.js';
 import { handleProviderEvent } from './payments.service.js';
 import { SimulatorProvider } from './simulator.js';
 
@@ -49,8 +50,28 @@ export function simulatorDevRoutes(
           outcome: z.enum(['approve', 'insufficient_funds', 'declined']),
         })
         .parse(request.params);
-      const event = simulator.customerResponds(reference, outcome);
+      const event = await simulator.customerResponds(reference, outcome);
       return { outcome: await handleProviderEvent(ctx, simulator.code, event) };
+    });
+
+    /**
+     * Essai d'alarme du rapprochement : l'agrégateur prélève (ou crédite) un montant sans
+     * référence Zandu, comme des frais de tenue de compte. Clé de recette exigée en recette.
+     */
+    app.post('/dev/simulator/account-movements', async (request, reply) => {
+      assertRecetteKey(request, ctx.config.recetteKey);
+      const input = z
+        .object({
+          amount: z
+            .number()
+            .int()
+            .refine((n) => n !== 0, 'Montant non nul'),
+          description: z.string().min(3).max(120),
+          listed: z.boolean().default(true),
+        })
+        .parse(request.body);
+      const providerRef = await simulator.addAccountMovement(input);
+      return reply.status(201).send({ providerRef });
     });
   };
 }

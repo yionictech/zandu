@@ -179,7 +179,11 @@ générale (doit afficher 0) et soldes des comptes.
 Réservés aux administrateurs ([captures](captures/rapports.jpg)) : **Rapports** — volume d'affaires,
 panier moyen, commissions acquises et à venir, ventes par jour, par catégorie et par boutique, argent
 des vendeurs, export CSV du mois pour le comptable ; **Commissions** — taux par défaut, par catégorie
-et par boutique (offres temporaires comprises), avec date d'effet et motif journalisé.
+et par boutique (offres temporaires comprises), avec date d'effet et motif journalisé ;
+**Rapprochement** ([captures](captures/rapprochement.jpg)) — jours de suite sans écart (objectif 7),
+écarts à traiter avec la commande concernée, contrôle de la journée en cours ; pour chaque journée,
+l'état de rapprochement (du grand livre au solde de l'agrégateur, écart inexpliqué en vert ou en
+rouge) et chaque écart avec ce qu'il faut faire, l'écriture proposée et l'explication obligatoire.
 
 ## 5. Textes de référence
 

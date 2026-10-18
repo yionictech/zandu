@@ -20,6 +20,12 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   ]);
   const q = overview.queues;
   const admin = me.roles.includes('admin');
+  // Écarts de caisse ouverts : signalés dans le menu des administrateurs.
+  const reconciliation = admin
+    ? await load((api) =>
+        api.GET('/v1/admin/reconciliation/runs', { params: { query: { limit: 1 } } }),
+      )
+    : null;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -42,11 +48,17 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
             { href: '/commandes', label: 'Commandes' },
             { href: '/alertes', label: 'Alertes', count: q.alerts, hot: q.alerts > 0 },
             { href: '/comptabilite', label: 'Comptabilité' },
-            // Chiffre d'affaires et taux : administrateurs seulement (l'API le vérifie aussi).
+            // Chiffre d'affaires, taux et caisse : administrateurs seulement (l'API le vérifie aussi).
             ...(admin
               ? [
                   { href: '/rapports', label: 'Rapports' },
                   { href: '/commissions', label: 'Commissions' },
+                  {
+                    href: '/rapprochement',
+                    label: 'Rapprochement',
+                    count: reconciliation!.open.count,
+                    hot: reconciliation!.open.count > 0,
+                  },
                 ]
               : []),
           ]}

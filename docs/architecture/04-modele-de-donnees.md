@@ -46,7 +46,8 @@ erDiagram
 | `commission_rules`                                                                | Commission par défaut / catégorie / vendeur, datée (offre de lancement à 0 %).                                                                        |
 | `delivery_zones`, `delivery_rates`, `pickup_points`, `courier_partners`, `riders` | F10 : tarifs par zone, points relais, livreurs.                                                                                                       |
 | `otp_challenges`, `sessions`, `user_mfa`                                          | F1 et second facteur du personnel : secret TOTP chiffré, dernier pas utilisé (anti-rejeu) ; `sessions.mfa_verified_at` ouvre les routes du personnel. |
-| `reconciliation_runs`, `reconciliation_discrepancies`                             | Rapprochement quotidien avec l'agrégateur.                                                                                                            |
+| `reconciliation_runs`, `reconciliation_discrepancies`, `provider_statement_lines` | Rapprochement quotidien (ADR-0015) : un contrôle par agrégateur et par jour, écarts identifiés une seule fois, relevés conservés tels que reçus.      |
+| schéma `simulator`                                                                | Comptes propres de l'agrégateur simulé (développement, tests, recette) ; vide et inutilisé en production.                                             |
 
 ## 4.3 Conventions
 

@@ -12,6 +12,7 @@ import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
 import { DevNotificationSender } from './modules/notifications/sender.js';
 import { orderRoutes } from './modules/orders/orders.routes.js';
+import { reconciliationRoutes } from './modules/reconciliation/reconciliation.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { SimulatorProvider } from './modules/payments/simulator.js';
 import { simulatorDevRoutes, webhookRoutes } from './modules/payments/webhooks.routes.js';
@@ -73,6 +74,7 @@ export async function buildApp(
   await app.register(adminRoutes(ctx));
   await app.register(commissionRuleRoutes(ctx));
   await app.register(reportRoutes(ctx));
+  await app.register(reconciliationRoutes(ctx));
   await app.register(supportRoutes(ctx));
   await app.register(webhookRoutes(ctx));
 

@@ -12,6 +12,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   [PlatformAccounts.refundsInTransit]: 'Remboursements en cours',
   [PlatformAccounts.payoutsInTransit]: 'Reversements vendeurs en cours',
   [PlatformAccounts.suspense]: 'Attente — paiements tardifs ou non rapprochés',
+  [PlatformAccounts.platformFunding]: "Apports de Zandu sur le compte de l'agrégateur",
   [PlatformAccounts.commissionRevenue]: 'Commissions sur ventes',
   [PlatformAccounts.deliveryRevenue]: 'Marge sur frais de livraison',
   [PlatformAccounts.paymentFees]: 'Frais Mobile Money / agrégateur',

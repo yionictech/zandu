@@ -26,13 +26,14 @@ export function createStorage(config: Config): ObjectStorage {
 
 export function createContext(): AppContext {
   const config = loadConfig();
+  const pool = createPool(config.databaseUrl);
   const providers: PaymentProvider[] = [];
   if (config.env !== 'production')
-    providers.push(new SimulatorProvider(config.simulatorWebhookSecret));
+    providers.push(new SimulatorProvider(config.simulatorWebhookSecret, pool, systemClock));
   // TODO(agrégateur) : ajouter l'adaptateur retenu (ex. PawapayProvider) une fois le contrat signé.
   return {
     config,
-    pool: createPool(config.databaseUrl),
+    pool,
     clock: systemClock,
     providers: new ProviderRegistry(providers, config.paymentProvider),
     notifier: createNotifier(config.env),

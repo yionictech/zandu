@@ -35,7 +35,7 @@
 4. **Gel de 48 h** après changement du numéro de reversement.
 5. **Messagerie filtrée** : numéros, liens et e-mails masqués (évite la vente hors plateforme, donc sans protection).
 6. **Code de remise** : 6 chiffres, envoyé par SMS à l'acheteur seulement, 5 essais côté livreur puis verrouillage.
-7. **Alertes** (⏳ tableau de bord) : nouveau compte avec gros montant, vendeur au taux de litige > 5 %, pics de remboursements, écarts de rapprochement.
+7. **Alertes** : écarts de rapprochement ✅ (WhatsApp au support chaque nuit, compteur rouge pour les administrateurs ; résolution motivée et journalisée, réservée aux administrateurs) ; ⏳ nouveau compte avec gros montant, vendeur au taux de litige > 5 %, pics de remboursements.
 
 ## 5.4 Conformité réglementaire (à valider par un juriste local)
 

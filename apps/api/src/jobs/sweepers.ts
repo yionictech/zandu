@@ -11,6 +11,7 @@ import {
 } from '../modules/payments/payments.service.js';
 import { processRefunds } from '../modules/payments/refunds.service.js';
 import { processPayouts, sweepSellerBalances } from '../modules/payouts/payouts.service.js';
+import { reconcileStatements } from '../modules/reconciliation/reconciliation.service.js';
 
 /** Échéances de commande : vendeur silencieux (annulation + remboursement), fin de la fenêtre de litige. */
 async function orderDeadlines(ctx: AppContext): Promise<number> {
@@ -52,6 +53,8 @@ export const SWEEPERS: ReadonlyArray<[string, (ctx: AppContext) => Promise<numbe
   ['processRefunds', processRefunds],
   ['sweepSellerBalances', sweepSellerBalances],
   ['processPayouts', processPayouts],
+  // Après les reversements et avant l'envoi des messages : une alerte d'écart part dans la passe.
+  ['reconcileStatements', reconcileStatements],
   ['dispatchOutbox', dispatchOutbox],
   ['sendNotifications', sendNotifications],
   // En dernier : le traitement d'image est le plus lent, l'argent et les messages passent avant.

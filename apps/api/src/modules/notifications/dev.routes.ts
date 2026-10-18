@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../../db/pool.js';
 import { HttpError } from '../../lib/errors.js';
@@ -14,6 +14,14 @@ interface DevMessage {
 }
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
+
+/** Recette : l'API est joignable par tous, les routes /dev exigent l'en-tête x-recette-key. */
+export function assertRecetteKey(request: FastifyRequest, recetteKey: string | null): void {
+  if (recetteKey === null) return;
+  const given = request.headers['x-recette-key'];
+  if (typeof given !== 'string' || !timingSafeEqual(digest(given), digest(recetteKey)))
+    throw new HttpError(401, 'recette_key_required', 'Clé de recette absente ou invalide');
+}
 
 /**
  * Développement et recette : derniers SMS/WhatsApp « envoyés ». Réunit les messages directs de
@@ -30,11 +38,7 @@ export function devMessagesRoutes(
 ): FastifyPluginAsync {
   return async (app) => {
     app.get('/dev/messages', async (request) => {
-      if (recetteKey !== null) {
-        const given = request.headers['x-recette-key'];
-        if (typeof given !== 'string' || !timingSafeEqual(digest(given), digest(recetteKey)))
-          throw new HttpError(401, 'recette_key_required', 'Clé de recette absente ou invalide');
-      }
+      assertRecetteKey(request, recetteKey);
       const { recipient } = z
         .object({ recipient: recetteKey === null ? z.string().optional() : z.string().min(1) })
         .parse(request.query);

@@ -29,12 +29,16 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   et **taux de commission** modifiables ; connexion avec **second facteur obligatoire**.
 - **Photos légères** : le worker décline chaque photo (vignette, fiche, partage WhatsApp) et en retire
   les métadonnées ; avec de vraies photos de téléphone, l'accueil passe de 5,2 Mo à 358 Ko en 3G.
+- **Contrôle de caisse chaque nuit** : le relevé de l'agrégateur est comparé au grand livre,
+  opération par opération ; les paiements dont le webhook s'est perdu sont conclus, les frais du
+  relevé comptabilisés, et tout autre écart part en alerte, à clore par un administrateur avec une
+  explication et, si besoin, une écriture.
 - **Prêt à mettre en ligne** (`Dockerfile`, `deploy/recette/`) : une image par service, une recette
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **168 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), cinq parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **178 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), six parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
@@ -47,12 +51,14 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 
 ![Rapports et commissions](docs/ux/captures/rapports.jpg)
 
+![Rapprochement](docs/ux/captures/rapprochement.jpg)
+
 ![Recette en ligne](docs/ux/captures/recette.jpg)
 
 ![Photos légères](docs/ux/captures/photos-legeres.jpg)
 
-À construire : branchement de l'agrégateur réel et du fournisseur SMS/WhatsApp,
-rapprochement quotidien. Voir la
+À construire : branchement de l'agrégateur réel (relevé compris) et du fournisseur SMS/WhatsApp.
+Voir la
 [feuille de route](docs/produit/feuille-de-route-16-semaines.md).
 
 ## Documentation
@@ -67,7 +73,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 168 tests
+pnpm test            # 178 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

@@ -53,6 +53,10 @@ tags:
     description: Back-office — vérification, modération, litiges, contrôle comptable
   - name: Rapports
     description: Back-office (administrateurs) — activité, export comptable, règles de commission
+  - name: Rapprochement
+    description: >-
+      Back-office (administrateurs) — contrôle quotidien du grand livre contre le relevé de
+      l'agrégateur, écarts et régularisations
   - name: Webhooks
     description: Notifications signées des agrégateurs
   - name: Système
@@ -2080,6 +2084,147 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
+  /v1/admin/reconciliation/runs:
+    get:
+      tags: [Rapprochement]
+      summary: Contrôles quotidiens, du plus récent au plus ancien (administrateur)
+      operationId: listReconciliationRuns
+      parameters:
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 366, default: 60 },
+          }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, streak, open]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReconciliationRun' }
+                  streak:
+                    type: integer
+                    description: Contrôles de suite sans aucun écart, en partant du plus récent
+                  open:
+                    description: Écarts encore ouverts (montant = somme des écarts en valeur absolue)
+                    $ref: '#/components/schemas/CountAmount'
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Rapprochement]
+      summary: Contrôler (ou recontrôler) une journée maintenant (administrateur, journalisé)
+      description: >-
+        Idempotent : ni écriture ni écart en double. Pour la journée en cours, la période s'arrête
+        à l'heure du contrôle ; le contrôle de nuit la reprend en entier. Un relevé indisponible
+        donne un contrôle « error », pas une erreur HTTP.
+      operationId: runReconciliation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date]
+              properties:
+                date: { type: string, format: date, description: 'Journée (heure du Congo)' }
+                provider: { type: string, description: Par défaut l'agrégateur principal }
+      responses:
+        '200':
+          description: Contrôle terminé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconciliationRun' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/reconciliation/runs/{id}:
+    get:
+      tags: [Rapprochement]
+      summary: Un contrôle et ses écarts (administrateur)
+      operationId: getReconciliationRun
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run, discrepancies]
+                properties:
+                  run: { $ref: '#/components/schemas/ReconciliationRun' }
+                  discrepancies:
+                    type: array
+                    items: { $ref: '#/components/schemas/Discrepancy' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/reconciliation/discrepancies:
+    get:
+      tags: [Rapprochement]
+      summary: Écarts ouverts (ou tous), les plus récents d'abord (administrateur)
+      operationId: listDiscrepancies
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, all], default: open } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Discrepancy' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/reconciliation/discrepancies/{id}/resolve:
+    post:
+      tags: [Rapprochement]
+      summary: Clore un écart, avec au besoin une écriture de régularisation (administrateur, journalisé)
+      description: >-
+        La régularisation aligne le compte agrégateur du grand livre sur le relevé, pour le montant
+        de l'écart. payment_fees = frais de l'agrégateur ; platform_funding = argent versé par
+        Zandu (entrée seulement) ; suspense = compte d'attente, le temps de l'enquête. Un écart de
+        solde exige une régularisation.
+      operationId: resolveDiscrepancy
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  {
+                    type: string,
+                    minLength: 3,
+                    maxLength: 500,
+                    description: Explication (journal d'audit),
+                  }
+                adjustment: { type: string, enum: [payment_fees, platform_funding, suspense] }
+      responses:
+        '200':
+          description: Écart clos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Discrepancy' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     session:
@@ -2197,6 +2342,147 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    ReconciliationRun:
+      type: object
+      required: [id, provider, date, status, coveredUntil, attempts, startedAt, finishedAt, summary]
+      properties:
+        id: { type: string, format: uuid }
+        provider: { type: string }
+        date: { type: string, format: date }
+        status:
+          description: >-
+            balanced = rien à traiter ; discrepancies = écarts ouverts ; error = relevé
+            indisponible (nouvelle demande 30 min plus tard) ; running = en cours
+          type: string
+          enum: [running, balanced, discrepancies, error]
+        coveredUntil: { type: [string, 'null'], format: date-time }
+        attempts: { type: integer }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        summary: { $ref: '#/components/schemas/ReconciliationSummary' }
+    ReconciliationSummary:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: object
+          required: [from, until]
+          properties:
+            from: { type: string, format: date-time }
+            until: { type: string, format: date-time }
+        statement:
+          type: object
+          required: [lines, collections, payouts, refunds, other, fees]
+          properties:
+            lines: { type: integer }
+            collections: { $ref: '#/components/schemas/CountAmount' }
+            payouts: { $ref: '#/components/schemas/CountAmount' }
+            refunds: { $ref: '#/components/schemas/CountAmount' }
+            other:
+              description: Mouvements propres à l'agrégateur (montant signé)
+              $ref: '#/components/schemas/CountAmount'
+            fees: { type: integer }
+        matched: { type: integer, description: Lignes retrouvées à l'identique au grand livre }
+        statusesApplied:
+          description: Opérations en attente chez Zandu (webhook perdu) conclues d'après le relevé
+          $ref: '#/components/schemas/CountAmount'
+        feesBooked:
+          description: Frais connus par le seul relevé, comptabilisés par le contrôle
+          $ref: '#/components/schemas/CountAmount'
+        inTransit:
+          description: Comptabilisés juste avant la fin de la période, attendus au relevé suivant
+          $ref: '#/components/schemas/CountAmount'
+        balance:
+          description: État de rapprochement ; null si l'agrégateur ne communique pas son solde
+          type: [object, 'null']
+          required:
+            [
+              provider,
+              ledger,
+              laterAdjustments,
+              notOnStatement,
+              notInLedger,
+              amountDifferences,
+              unexplained,
+            ]
+          properties:
+            provider: { type: integer, description: Solde annoncé par l'agrégateur }
+            ledger: { type: integer, description: Solde du compte agrégateur au grand livre }
+            laterAdjustments: { type: integer }
+            notOnStatement:
+              { type: integer, description: 'Comptabilisé chez Zandu, absent du relevé' }
+            notInLedger: { type: integer, description: 'Au relevé, pas comptabilisé chez Zandu' }
+            amountDifferences: { type: integer }
+            unexplained: { type: integer, description: Doit valoir 0 }
+        discrepancies:
+          type: object
+          required: [found, open, new]
+          properties:
+            found: { type: integer }
+            open: { type: integer }
+            new: { type: integer }
+        error: { type: string }
+    Discrepancy:
+      type: object
+      required:
+        [
+          id,
+          runId,
+          date,
+          provider,
+          kind,
+          operationKind,
+          reference,
+          providerRef,
+          internalAmount,
+          providerAmount,
+          difference,
+          message,
+          orderId,
+          publicRef,
+          createdAt,
+          resolution,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        runId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        provider: { type: string }
+        kind:
+          type: string
+          enum:
+            [
+              missing_internal,
+              missing_provider,
+              amount_mismatch,
+              status_mismatch,
+              fee_mismatch,
+              balance_mismatch,
+            ]
+        operationKind: { type: string, enum: [collection, payout, refund, other, fee, balance] }
+        reference: { type: string }
+        providerRef: { type: [string, 'null'] }
+        internalAmount: { type: integer, description: Effet sur le solde selon Zandu }
+        providerAmount: { type: integer, description: Effet sur le solde selon l'agrégateur }
+        difference: { type: integer, description: "À régulariser : + l'agrégateur détient plus" }
+        message: { type: string }
+        orderId: { type: [string, 'null'], format: uuid }
+        publicRef: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        resolution:
+          type: [object, 'null']
+          required: [at, by, note, automatic, adjustment]
+          properties:
+            at: { type: string, format: date-time }
+            by: { type: [string, 'null'], description: Téléphone de l'administrateur }
+            note: { type: string }
+            automatic: { type: boolean }
+            adjustment:
+              type: [object, 'null']
+              required: [counterpart, amount]
+              properties:
+                counterpart: { type: string, enum: [payment_fees, platform_funding, suspense] }
+                amount: { type: integer }
     CountAmount:
       type: object
       required: [count, amount]

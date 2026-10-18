@@ -8,7 +8,9 @@ export const TEST_DATABASE_URL =
 export default async function setup(): Promise<void> {
   const pool = createPool(TEST_DATABASE_URL);
   try {
-    await pool.query('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
+    await pool.query(
+      'DROP SCHEMA IF EXISTS simulator CASCADE; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;',
+    );
     await migrate(pool);
   } finally {
     await pool.end();

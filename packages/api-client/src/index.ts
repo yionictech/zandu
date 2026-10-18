@@ -18,6 +18,8 @@ export type VerificationStatus = Schemas['VerificationStatus'];
 export type SupportOrder = Schemas['SupportOrder'];
 export type DisputeReason = Schemas['DisputeReason'];
 export type CommissionRule = Schemas['CommissionRule'];
+export type ReconciliationRun = Schemas['ReconciliationRun'];
+export type Discrepancy = Schemas['Discrepancy'];
 
 export interface ClientOptions {
   baseUrl: string;

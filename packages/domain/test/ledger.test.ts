@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PlatformAccounts,
+  adjustProviderCash,
   assertBalanced,
   capturePayment,
   captureLatePayment,
@@ -169,6 +170,67 @@ describe('grand livre — parcours complet d’une vente', () => {
     });
     const b = captureLatePayment({ paymentId: 'p6', provider: PROVIDER, amount: 1 });
     expect(a.idempotencyKey).toBe(b.idempotencyKey);
+  });
+});
+
+describe('grand livre — régularisation de rapprochement', () => {
+  it('aligne le compte agrégateur sur le relevé, dans les deux sens', () => {
+    const book = new Book();
+    book.post(
+      capturePayment({
+        paymentId: 'p1',
+        provider: PROVIDER,
+        orders: [{ orderId: 'o1', total: 10_000 }],
+      }),
+    );
+    // Frais de tenue de compte prélevés sans référence : 2 500 de moins chez l'agrégateur.
+    book.post(
+      adjustProviderCash({
+        discrepancyId: 'd1',
+        provider: PROVIDER,
+        amount: -2_500,
+        counterpart: 'payment_fees',
+      }),
+    );
+    // Fonds de roulement versé par Zandu pour les reversements.
+    book.post(
+      adjustProviderCash({
+        discrepancyId: 'd2',
+        provider: PROVIDER,
+        amount: 100_000,
+        counterpart: 'platform_funding',
+      }),
+    );
+    expect(book.balance(cash)).toBe(107_500);
+    expect(book.balance(PlatformAccounts.paymentFees)).toBe(2_500);
+    expect(book.balance(PlatformAccounts.platformFunding)).toBe(100_000);
+    expect(book.trialBalance()).toBe(0);
+  });
+
+  it('une régularisation par écart ; refuse un montant nul ou un apport négatif', () => {
+    const j = adjustProviderCash({
+      discrepancyId: 'd1',
+      provider: PROVIDER,
+      amount: 700,
+      counterpart: 'suspense',
+    });
+    expect(j.idempotencyKey).toBe('reconciliation:d1');
+    expect(() =>
+      adjustProviderCash({
+        discrepancyId: 'd2',
+        provider: PROVIDER,
+        amount: 0,
+        counterpart: 'suspense',
+      }),
+    ).toThrow(/non nul/);
+    expect(() =>
+      adjustProviderCash({
+        discrepancyId: 'd3',
+        provider: PROVIDER,
+        amount: -1,
+        counterpart: 'platform_funding',
+      }),
+    ).toThrow(/apport/);
   });
 });
 

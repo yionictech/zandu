@@ -151,7 +151,7 @@ peut pas créer une seconde écriture.
 | Colis non livré → remboursement intégral                 | `delivery_failed` → litige → `refund_full`                                             | `disputes-and-trust` « colis non livré »                |
 | Montants en entiers FCFA                                 | `bigint` partout ; parseur `pg` qui refuse les entiers non exacts ; `money.ts`         | `money.test.ts`, 2 000 commandes aléatoires             |
 | Plafond des nouveaux vendeurs (30 jours)                 | `payout-policy.ts` : 150 000 FCFA / 24 h (paramétrable)                                | `payout-policy.test.ts`                                 |
-| Rapprochement quotidien                                  | Tables `reconciliation_*` prêtes ; tâche à écrire avec l'API de relevé de l'agrégateur | ⏳                                                      |
+| Rapprochement quotidien                                  | Contrôle de nuit du relevé contre le grand livre, écarts et régularisations (ADR-0015) | `reconciliation.test.ts` (8 cas)                        |
 
 Cas supplémentaires traités (non listés au cahier mais réels sur le terrain) :
 
@@ -183,9 +183,27 @@ l'implémentation de référence.
 > Si l'agrégateur interdit de réutiliser une référence après un échec, l'adaptateur dérive une référence
 > par tentative (`<id>-<n°>`) et interroge la précédente avant d'en créer une nouvelle.
 
-## 3.7 Rapprochement quotidien (à construire, semaines 11-12)
+## 3.7 Rapprochement quotidien ([ADR-0015](../adr/0015-rapprochement-quotidien.md))
 
-Chaque nuit, pour chaque agrégateur : télécharger le relevé J-1, apparier chaque ligne avec
-`payments` / `payouts` / `refunds` par référence, comparer montants et statuts, et comparer le solde de
-`asset:provider_cash:<agrégateur>` au solde annoncé. Tout écart crée une ligne
-`reconciliation_discrepancies` et une alerte. Critère de recette : **aucun écart après 7 jours**.
+Chaque nuit après 2 h, pour chaque agrégateur, le worker lit le relevé de la veille
+(`fetchStatement`) et l'apparie au compte `asset:provider_cash:<agrégateur>` par une clé
+« type:référence » (`collection:<paiement>`, `payout:<reversement>`, `refund:<remboursement>`,
+`fee:<opération>`). Trois choses peuvent arriver :
+
+| Constat                                                              | Ce que fait le contrôle                                                          |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Ligne du relevé retrouvée à l'identique                              | Rien : rapprochée                                                                |
+| Paiement / reversement en attente chez Zandu, exécuté au relevé      | Le conclut comme une consultation (succès tardif → remboursement)                |
+| Frais visibles au relevé seulement                                   | Les comptabilise, à la date de l'opération                                       |
+| Mouvement inconnu, absent du relevé, montant/statut/frais divergents | **Écart** + alerte WhatsApp ; un administrateur le clôt, avec écriture si besoin |
+
+Une opération à cheval sur minuit n'est pas un écart (l'appariement ignore les dates ; un mouvement
+des 30 dernières minutes absent du relevé est attendu au relevé suivant). L'**état de
+rapprochement** part du solde du grand livre, ajoute ce que chacun n'a pas encore vu et doit
+retrouver le solde annoncé par l'agrégateur : le reste est l'écart inexpliqué, qui doit valoir 0.
+
+Régularisations possibles (domaine : `adjustProviderCash`) : frais de l'agrégateur, **apport de
+Zandu** (`liability:platform_funding`), ou **compte d'attente** le temps de l'enquête.
+
+Critère de recette : **aucun écart après 7 jours** — le back-office affiche le nombre de jours de
+suite sans écart.

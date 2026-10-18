@@ -47,6 +47,29 @@ export interface ProviderEvent extends ProviderResult {
   occurredAt: Date;
 }
 
+/**
+ * Ligne de relevé : un mouvement d'argent réellement exécuté chez l'agrégateur (les tentatives
+ * échouées n'y figurent pas). Base du rapprochement quotidien (ADR-0015).
+ */
+export interface StatementLine {
+  kind: OperationKind | 'other';
+  /** Notre référence ; null pour un mouvement propre à l'agrégateur (frais de compte, apport). */
+  reference: string | null;
+  providerRef: string;
+  /** Effet sur le solde, hors frais : + collecte, − reversement ou remboursement. */
+  amount: number;
+  /** Frais prélevés sur ce mouvement (≥ 0), déduits du solde. */
+  fee: number;
+  occurredAt: Date;
+  description?: string;
+}
+
+export interface ProviderStatement {
+  lines: StatementLine[];
+  /** Solde du compte Zandu chez l'agrégateur à la fin de la période, s'il le communique. */
+  closingBalance: number | null;
+}
+
 export interface PaymentProvider {
   readonly code: string;
   /** Envoie la demande de paiement sur le téléphone de l'acheteur (validation par code PIN). */
@@ -54,6 +77,8 @@ export interface PaymentProvider {
   initiatePayout(request: TransferRequest): Promise<ProviderResult>;
   initiateRefund(request: RefundRequest): Promise<ProviderResult>;
   lookup(kind: OperationKind, reference: string): Promise<LookupResult>;
+  /** Relevé des mouvements exécutés entre `from` (inclus) et `to` (exclu). */
+  fetchStatement(from: Date, to: Date): Promise<ProviderStatement>;
   /**
    * Vérifie la signature (et la fraîcheur) d'un webhook puis le traduit.
    * Renvoie null si la signature est invalide : la requête est rejetée.
@@ -89,6 +114,10 @@ export class ProviderRegistry {
 
   has(code: string): boolean {
     return this.providers.has(code);
+  }
+
+  get codes(): string[] {
+    return [...this.providers.keys()];
   }
 }
 

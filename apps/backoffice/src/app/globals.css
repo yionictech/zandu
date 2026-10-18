@@ -571,3 +571,39 @@ textarea:focus {
   font-size: 13px;
   margin: 8px 0 0;
 }
+
+/* ---------- Rapprochement ---------- */
+.discrepancies {
+  display: grid;
+  gap: 12px;
+}
+.discrepancy {
+  display: grid;
+  gap: 12px;
+  border-left: 4px solid var(--danger);
+}
+.discrepancy.resolved {
+  border-left-color: var(--border);
+}
+.discrepancy-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+}
+.resolution {
+  margin: 0;
+  color: var(--trust);
+  font-weight: 600;
+}
+.row-ok th {
+  background: var(--trust-soft);
+  color: var(--trust);
+}
+.row-danger th {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.nowrap {
+  white-space: nowrap;
+}

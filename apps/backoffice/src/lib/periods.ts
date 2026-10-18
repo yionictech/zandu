@@ -1,7 +1,9 @@
 /** Mois comptables, à l'heure du Congo (UTC+1, sans heure d'été). */
 const TIME_ZONE = 'Africa/Brazzaville';
 
-const today = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format();
+/** Aujourd'hui au Congo, AAAA-MM-JJ. */
+export const today = (): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format();
 
 export interface Month {
   /** AAAA-MM */
@@ -70,9 +72,23 @@ const dayLabel = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'UTC',
 });
 
+const shortDayLabel = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+});
+
+/** 2026-10-14 → « 14 octobre ». */
+export const formatShortDay = (date: string): string =>
+  shortDayLabel.format(new Date(`${date}T00:00:00Z`));
+
 /** 2026-10-14 → « mardi 14 octobre ». */
 export const formatDay = (date: string): string => dayLabel.format(new Date(`${date}T00:00:00Z`));
 
 /** 1 000 points de base → « 10 % » ; 850 → « 8,5 % ». */
 export const formatRate = (bps: number): string =>
   `${(bps / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}\u00a0%`;
+
+/** Le contrôle couvre-t-il toute la journée (jusqu'à minuit), ou seulement jusqu'à une heure ? */
+export const fullDay = (date: string, coveredUntil: string): boolean =>
+  new Date(coveredUntil).getTime() >= new Date(`${date}T00:00:00+01:00`).getTime() + 86_400_000;

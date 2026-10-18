@@ -45,20 +45,21 @@ zandu/
 
 ## 2.2 Modules du monolithe
 
-| Module          | Responsabilité                                                             | Tables possédées (écriture)                                 |
-| --------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `auth`          | OTP, sessions, rôles, second facteur TOTP du personnel, gardes d'accès     | users, otp_challenges, sessions, user_mfa                   |
-| `catalog`       | Boutiques, produits, recherche, zones de livraison (lecture)               | seller_profiles, products, product_media, categories        |
-| `media`         | Déclinaisons des photos produits par le worker (vignette, fiche, partage)  | product_media (variants, processing_*)                      |
-| `checkout`      | Panier → checkout → une commande par vendeur, réservation du stock         | checkouts, orders (création), order_items                   |
-| `orders`        | **Seul point d'évolution d'une commande** + livraison + litiges            | orders (statut), order_status_history, deliveries, disputes |
-| `payments`      | Collecte Mobile Money, webhooks, interrogation, expiration, remboursements | payments, provider_events, refunds                          |
-| `payouts`       | Reversements vendeurs, moteur commun des sorties d'argent                  | payouts                                                     |
-| `ledger`        | Grand livre : écriture idempotente, soldes                                 | ledger_accounts, ledger_transactions, ledger_entries        |
-| `notifications` | Outbox → notifications → WhatsApp/SMS                                      | outbox_events, notifications                                |
-| `admin`         | Vérification vendeurs, modération, audit, contrôles comptables             | audit_logs, commission_rules, platform_settings             |
-| `support`       | Files du back-office, recherche de commandes, alertes (lecture seule)      | — (lit les autres modules ; agit via leurs routes)          |
-| `reports`       | Rapport d'activité par période, export CSV pour le comptable (lecture)     | — (lit commandes, grand livre, reversements)                |
+| Module           | Responsabilité                                                             | Tables possédées (écriture)                                                 |
+| ---------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `auth`           | OTP, sessions, rôles, second facteur TOTP du personnel, gardes d'accès     | users, otp_challenges, sessions, user_mfa                                   |
+| `catalog`        | Boutiques, produits, recherche, zones de livraison (lecture)               | seller_profiles, products, product_media, categories                        |
+| `media`          | Déclinaisons des photos produits par le worker (vignette, fiche, partage)  | product_media (variants, processing_*)                                      |
+| `checkout`       | Panier → checkout → une commande par vendeur, réservation du stock         | checkouts, orders (création), order_items                                   |
+| `orders`         | **Seul point d'évolution d'une commande** + livraison + litiges            | orders (statut), order_status_history, deliveries, disputes                 |
+| `payments`       | Collecte Mobile Money, webhooks, interrogation, expiration, remboursements | payments, provider_events, refunds                                          |
+| `payouts`        | Reversements vendeurs, moteur commun des sorties d'argent                  | payouts                                                                     |
+| `ledger`         | Grand livre : écriture idempotente, soldes                                 | ledger_accounts, ledger_transactions, ledger_entries                        |
+| `notifications`  | Outbox → notifications → WhatsApp/SMS                                      | outbox_events, notifications                                                |
+| `admin`          | Vérification vendeurs, modération, audit, contrôles comptables             | audit_logs, commission_rules, platform_settings                             |
+| `support`        | Files du back-office, recherche de commandes, alertes (lecture seule)      | — (lit les autres modules ; agit via leurs routes)                          |
+| `reports`        | Rapport d'activité par période, export CSV pour le comptable (lecture)     | — (lit commandes, grand livre, reversements)                                |
+| `reconciliation` | Contrôle de nuit du relevé de l'agrégateur contre le grand livre, écarts   | reconciliation_runs, reconciliation_discrepancies, provider_statement_lines |
 
 **Règles de dépendance**
 

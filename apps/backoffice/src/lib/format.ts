@@ -10,6 +10,21 @@ const dateTime = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+/** Montant signé : « +2 500 FCFA », « −2 500 FCFA » (vrai signe moins). */
+export const signedXaf = (amount: number): string =>
+  amount > 0 ? `+${formatXaf(amount)}` : amount < 0 ? `−${formatXaf(-amount)}` : formatXaf(0);
+
+const time = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Africa/Brazzaville',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+export const formatTime = (iso: string): string => time.format(new Date(iso));
+
+/** « 1 paiement », « 3 paiements » ; rien quand il n'y en a pas. */
+export const plural = (count: number, word: string, words = `${word}s`): string =>
+  count ? `${count} ${count > 1 ? words : word}` : '';
+
 export const formatDateTime = (iso: string | null | undefined): string =>
   iso ? dateTime.format(new Date(iso)) : '—';
 
