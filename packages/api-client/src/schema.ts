@@ -1373,10 +1373,132 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/admin/staff': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Membres du personnel (administrateurs d'abord) */
+    get: operations['listStaff'];
+    put?: never;
+    /**
+     * Ajouter un membre du personnel (compte créé au besoin, SMS envoyé, journalisé)
+     * @description Les sessions déjà ouvertes par ce numéro sont fermées : la prochaine connexion est une session courte du personnel, avec second facteur.
+     */
+    post: operations['addStaff'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/staff/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Un membre du personnel et ses dernières actions */
+    get: operations['getStaff'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/staff/{id}/role': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Changer le rôle (sessions fermées, SMS, journalisé)
+     * @description Jamais sur son propre compte ; Zandu garde toujours un administrateur.
+     */
+    post: operations['changeStaffRole'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/staff/{id}/revoke': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retirer l'accès au back-office (sessions fermées, second facteur effacé, SMS)
+     * @description Le compte acheteur ou vendeur de la personne est conservé.
+     */
+    post: operations['revokeStaff'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/staff/{id}/sign-out': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fermer toutes les sessions d'un membre (l'accès est conservé) */
+    post: operations['signOutStaff'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** @enum {string} */
+    StaffRole: 'support' | 'admin';
+    StaffMember: {
+      /** Format: uuid */
+      id: string;
+      phone: string;
+      fullName: string | null;
+      role: components['schemas']['StaffRole'];
+      /** @description Compte non suspendu */
+      active: boolean;
+      mfaEnrolled: boolean;
+      /** Format: date-time */
+      lastSeenAt: string | null;
+      activeSessions: number;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    StaffDetail: components['schemas']['StaffMember'] & {
+      /** @description 30 dernières actions de la personne (journal d'audit) */
+      recentActions: {
+        action: string;
+        entityType: string;
+        entityId: string;
+        /** Format: date-time */
+        at: string;
+      }[];
+    };
     ReconciliationRun: {
       /** Format: uuid */
       id: string;
@@ -4386,6 +4508,166 @@ export interface operations {
       404: components['responses']['Error'];
       409: components['responses']['Error'];
       422: components['responses']['Error'];
+    };
+  };
+  listStaff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['StaffMember'][];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  addStaff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Numéro congolais (06 123 45 67 ou +242…) */
+          phone: string;
+          fullName: string;
+          role: components['schemas']['StaffRole'];
+        };
+      };
+    };
+    responses: {
+      /** @description Ajouté */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StaffDetail'];
+        };
+      };
+      400: components['responses']['Error'];
+      403: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  getStaff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StaffDetail'];
+        };
+      };
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+    };
+  };
+  changeStaffRole: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          role: components['schemas']['StaffRole'];
+        };
+      };
+    };
+    responses: {
+      /** @description Rôle changé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StaffDetail'];
+        };
+      };
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  revokeStaff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: components['requestBodies']['Reason'];
+    responses: {
+      /** @description Accès retiré */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['Error'];
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  signOutStaff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sessions fermées */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            sessions: number;
+          };
+        };
+      };
+      403: components['responses']['Error'];
+      404: components['responses']['Error'];
     };
   };
 }

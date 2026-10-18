@@ -395,6 +395,30 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       unwrap(await admin.GET('/v1/admin/commission-rules')),
     );
 
+    // Personnel : ajout, détail, changement de rôle, déconnexion.
+    const member = unwrap(
+      await admin.POST('/v1/admin/staff', {
+        body: { phone: '06 444 55 66', fullName: 'Agent du contrat', role: 'support' },
+      }),
+    );
+    expectConforms('/v1/admin/staff', 'post', 201, member);
+    expectConforms('/v1/admin/staff', 'get', 200, unwrap(await admin.GET('/v1/admin/staff')));
+    const promoted = unwrap(
+      await admin.POST('/v1/admin/staff/{id}/role', {
+        params: { path: { id: member.id } },
+        body: { role: 'admin' },
+      }),
+    );
+    expectConforms('/v1/admin/staff/{id}/role', 'post', 200, promoted);
+    expectConforms(
+      '/v1/admin/staff/{id}/sign-out',
+      'post',
+      200,
+      unwrap(
+        await admin.POST('/v1/admin/staff/{id}/sign-out', { params: { path: { id: member.id } } }),
+      ),
+    );
+
     // Rapprochement : contrôle de la journée en cours, avec un mouvement inconnu à régulariser.
     await env.simulator.addAccountMovement({ amount: -500, description: 'Frais de contrat' });
     env.clock.advanceMinutes(1); // la période contrôlée s'arrête à l'heure du contrôle, exclue

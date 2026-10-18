@@ -53,6 +53,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
               ? [
                   { href: '/rapports', label: 'Rapports' },
                   { href: '/commissions', label: 'Commissions' },
+                  { href: '/personnel', label: 'Personnel' },
                   {
                     href: '/rapprochement',
                     label: 'Rapprochement',

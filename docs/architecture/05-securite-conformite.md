@@ -58,6 +58,10 @@
 - [x] Stockage vérifié avant chaque démarrage : pièces d'identité illisibles sans URL signée.
 - [x] Chiffre d'affaires, exports et taux de commission réservés aux administrateurs ; chaque export
       et chaque changement de taux est journalisé ; formules de tableur neutralisées dans le CSV.
+- [x] Comptes du personnel gérés dans le back-office par les administrateurs : ajout, rôle, retrait
+      d'accès, déconnexion partout, réinitialisation du second facteur. Chaque changement ferme les
+      sessions ouvertes, est journalisé et prévient la personne par SMS ; personne ne modifie son
+      propre accès et Zandu garde toujours un administrateur.
 - [x] Photos publiques réencodées par le worker : métadonnées (position GPS, appareil) supprimées,
       faux fichiers image jamais affichés, images de plus de 40 mégapixels refusées (ADR-0014).
 - [ ] Rôle PostgreSQL applicatif **non superutilisateur**, sans droit `UPDATE/DELETE` sur `ledger_*` et `audit_logs`.

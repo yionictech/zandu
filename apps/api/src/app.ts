@@ -5,6 +5,7 @@ import type { AppContext } from './context.js';
 import { errorHandler } from './lib/errors.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { commissionRuleRoutes } from './modules/admin/commission-rules.routes.js';
+import { staffRoutes } from './modules/admin/staff.routes.js';
 import { supportRoutes } from './modules/support/support.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
@@ -73,6 +74,7 @@ export async function buildApp(
   await app.register(orderRoutes(ctx));
   await app.register(adminRoutes(ctx));
   await app.register(commissionRuleRoutes(ctx));
+  await app.register(staffRoutes(ctx));
   await app.register(reportRoutes(ctx));
   await app.register(reconciliationRoutes(ctx));
   await app.register(supportRoutes(ctx));

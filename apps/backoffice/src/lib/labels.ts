@@ -140,3 +140,47 @@ export const ADJUSTMENTS = {
   platform_funding: "Apport de Zandu (fonds versés chez l'agrégateur)",
   suspense: "Compte d'attente (à investiguer)",
 } as const;
+
+export const STAFF_ROLE = {
+  support: 'Agent du support',
+  admin: 'Administrateur',
+} as const;
+
+/** Journal d'audit : action technique → libellé ; inconnue, elle s'affiche telle quelle. */
+const AUDIT_ACTIONS: Record<string, string> = {
+  'seller.verified': 'Boutique vérifiée',
+  'seller.rejected': 'Boutique refusée',
+  'seller.suspended': 'Boutique suspendue',
+  'seller.kyc_viewed': "Pièces d'identité consultées",
+  'product.approved': 'Produit accepté',
+  'product.rejected': 'Produit refusé',
+  'delivery.assigned': 'Livreur assigné',
+  'dispute.evidence_viewed': "Preuves d'un litige consultées",
+  'dispute.resolved': 'Litige tranché',
+  'report.orders_exported': 'Export CSV des commandes',
+  'commission_rule.created': 'Taux de commission créé',
+  'commission_rule.ended': 'Taux de commission terminé',
+  'commission_rule.cancelled': 'Taux de commission annulé',
+  'reconciliation.run_requested': 'Contrôle de caisse lancé',
+  'reconciliation.discrepancy_resolved': 'Écart de caisse clos',
+  'staff.added': 'Membre du personnel ajouté',
+  'staff.role_changed': 'Rôle changé',
+  'staff.revoked': 'Accès retiré',
+  'staff.signed_out': 'Déconnexion partout',
+  'mfa.enabled': 'Second facteur activé',
+  'mfa.reset': 'Second facteur réinitialisé',
+};
+export const auditAction = (action: string): string => AUDIT_ACTIONS[action] ?? action;
+
+const AUDIT_ENTITIES: Record<string, string> = {
+  user: 'compte',
+  seller: 'boutique',
+  product: 'produit',
+  order: 'commande',
+  dispute: 'litige',
+  report: 'rapport',
+  commission_rule: 'taux de commission',
+  reconciliation_run: 'contrôle de caisse',
+  reconciliation_discrepancy: 'écart de caisse',
+};
+export const auditEntity = (type: string): string => AUDIT_ENTITIES[type] ?? type;

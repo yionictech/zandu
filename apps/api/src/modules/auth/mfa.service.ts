@@ -10,6 +10,7 @@ import {
   otpauthUrl,
 } from '../../lib/totp.js';
 import { audit } from '../admin/audit.js';
+import { publish } from '../notifications/outbox.js';
 import { STAFF_ROLES, type AuthSession, type AuthUser } from './auth.service.js';
 
 type Staff = AuthUser & AuthSession;
@@ -165,6 +166,18 @@ export async function resetTotp(
   await withTx(ctx.pool, async (tx) => {
     const { rowCount } = await tx.query('DELETE FROM user_mfa WHERE user_id = $1', [userId]);
     if (!rowCount) throw new HttpError(404, 'not_found', 'Aucun second facteur pour ce compte');
+    // La personne est prévenue : une réinitialisation qu'elle n'a pas demandée doit se voir.
+    await publish(
+      tx,
+      'staff.access',
+      { type: 'user', id: userId },
+      {
+        userId,
+        message:
+          "votre second facteur a été réinitialisé par un administrateur. À la prochaine connexion, configurez de nouveau votre application d'authentification.",
+      },
+      ctx.clock.now(),
+    );
     // Les sessions ouvertes perdent leur validation : il faudra reconfigurer puis revalider.
     await tx.query(
       'UPDATE sessions SET mfa_verified_at = NULL WHERE user_id = $1 AND revoked_at IS NULL',

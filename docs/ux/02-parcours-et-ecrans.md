@@ -183,7 +183,11 @@ et par boutique (offres temporaires comprises), avec date d'effet et motif journ
 **Rapprochement** ([captures](captures/rapprochement.jpg)) — jours de suite sans écart (objectif 7),
 écarts à traiter avec la commande concernée, contrôle de la journée en cours ; pour chaque journée,
 l'état de rapprochement (du grand livre au solde de l'agrégateur, écart inexpliqué en vert ou en
-rouge) et chaque écart avec ce qu'il faut faire, l'écriture proposée et l'explication obligatoire.
+rouge) et chaque écart avec ce qu'il faut faire, l'écriture proposée et l'explication obligatoire ;
+**Personnel** ([captures](captures/personnel.jpg)) — qui a accès, avec quel rôle, second facteur
+configuré ou non, dernière activité ; ajout par numéro de téléphone (SMS à la personne) ; pour
+chaque membre : nommer administrateur ou repasser agent, déconnecter partout, réinitialiser le
+second facteur, retirer l'accès avec un motif, et ses 30 dernières actions.
 
 ## 5. Textes de référence
 

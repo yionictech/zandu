@@ -32,6 +32,8 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
   buyer_late_payment: (v) =>
     `Zandu : votre paiement de ${v.amount} est arrivé après l'expiration de la commande. Il vous est remboursé automatiquement.`,
   support_alert: (v) => `[Zandu support] ${v.message}`,
+  staff_access: (v) =>
+    `Zandu back-office : ${v.message} Si vous n'êtes pas au courant, prévenez immédiatement un administrateur.`,
 };
 
 export function render(template: string, variables: Vars): string {

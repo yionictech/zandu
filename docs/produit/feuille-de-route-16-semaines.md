@@ -141,6 +141,15 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - L'agrégateur simulé tient désormais ses comptes en base : l'API et le worker les partagent, et la
   recette peut déclencher un « essai d'alarme ».
 
+### Sprint 1 nonies — Comptes du personnel (✅ fait, ce dépôt)
+
+- Back-office, administrateurs : page **Personnel** — ajouter un agent ou un administrateur par son
+  numéro (SMS envoyé, second facteur à la première connexion), changer son rôle, le déconnecter
+  partout, réinitialiser son second facteur, retirer son accès avec un motif ; ses dernières actions.
+- Sécurité : chaque changement ferme les sessions ouvertes, est journalisé et prévient la personne
+  par SMS ; personne ne modifie son propre accès ; Zandu garde toujours un administrateur.
+- Plus besoin de commande sur le serveur, sauf pour nommer le tout premier administrateur.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

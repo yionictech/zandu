@@ -33,12 +33,15 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   opération par opération ; les paiements dont le webhook s'est perdu sont conclus, les frais du
   relevé comptabilisés, et tout autre écart part en alerte, à clore par un administrateur avec une
   explication et, si besoin, une écriture.
+- **Comptes du personnel** gérés par les administrateurs dans le back-office : ajout par numéro,
+  rôle, retrait d'accès, déconnexion partout, second facteur ; chaque changement est journalisé et
+  la personne est prévenue par SMS.
 - **Prêt à mettre en ligne** (`Dockerfile`, `deploy/recette/`) : une image par service, une recette
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **178 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), six parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **184 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), sept parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
@@ -52,6 +55,8 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 ![Rapports et commissions](docs/ux/captures/rapports.jpg)
 
 ![Rapprochement](docs/ux/captures/rapprochement.jpg)
+
+![Personnel](docs/ux/captures/personnel.jpg)
 
 ![Recette en ligne](docs/ux/captures/recette.jpg)
 
@@ -73,7 +78,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 178 tests
+pnpm test            # 184 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

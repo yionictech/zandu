@@ -20,6 +20,8 @@ export type DisputeReason = Schemas['DisputeReason'];
 export type CommissionRule = Schemas['CommissionRule'];
 export type ReconciliationRun = Schemas['ReconciliationRun'];
 export type Discrepancy = Schemas['Discrepancy'];
+export type StaffMember = Schemas['StaffMember'];
+export type StaffDetail = Schemas['StaffDetail'];
 
 export interface ClientOptions {
   baseUrl: string;

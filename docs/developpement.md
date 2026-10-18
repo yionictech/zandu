@@ -83,6 +83,7 @@ DATABASE_URL=… SHOTS=./captures node e2e/parcours-vendeur-livreur.mjs
 cd ../backoffice && DATABASE_URL=… SHOTS=./captures node e2e/parcours-support.mjs
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-rapports.mjs   # rapports, export CSV, taux
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-rapprochement.mjs   # caisse : écart, régularisation
+DATABASE_URL=… SHOTS=./captures node e2e/parcours-personnel.mjs   # ajout, promotion, retrait d'un agent
 # site web démarré sur http://localhost:3200 avec ZANDU_SIMULATOR=1
 cd ../web && DATABASE_URL=… SHOTS=./captures node e2e/parcours-web.mjs
 ```

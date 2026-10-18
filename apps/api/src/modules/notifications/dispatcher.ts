@@ -196,6 +196,23 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
     }
     case 'alert.support':
       return support(String(p.message));
+    case 'staff.access': {
+      // Par SMS : un changement d'accès doit arriver même sans WhatsApp ni données mobiles.
+      const { rows } = await db.query<{ phone: string }>('SELECT phone FROM users WHERE id = $1', [
+        p.userId,
+      ]);
+      return rows[0]
+        ? [
+            {
+              userId: String(p.userId),
+              recipient: rows[0].phone,
+              channel: 'sms' as const,
+              template: 'staff_access',
+              variables: { message: String(p.message) },
+            },
+          ]
+        : [];
+    }
     default:
       return [];
   }
