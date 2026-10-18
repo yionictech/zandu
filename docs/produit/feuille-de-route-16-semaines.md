@@ -150,6 +150,14 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
   par SMS ; personne ne modifie son propre accès ; Zandu garde toujours un administrateur.
 - Plus besoin de commande sur le serveur, sauf pour nommer le tout premier administrateur.
 
+### Sprint 1 decies — Site utilisable sans réseau (✅ fait, ce dépôt)
+
+- Service worker du site acheteurs (ADR-0016) : accueil, fiches, panier et suivi de commande déjà
+  consultés restent lisibles quand le réseau coupe ; une page jamais vue mène à une page « hors
+  connexion » avec les produits vus récemment et le panier ; un bandeau prévient l'acheteur.
+- Paiement, validation du panier et connexion ne sont jamais servis depuis le téléphone ; les
+  pages personnelles sont oubliées à la déconnexion.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

@@ -46,6 +46,9 @@ automatique de vidéo, préchargement désactivé.
 
 - **Lecture** : les commandes, le solde vendeur et les derniers produits consultés sont gardés en cache
   local (SQLite/MMKV côté application, service worker côté PWA) et affichés avec la date de mise à jour.
+  Site web : ✅ service worker (ADR-0016) — pages déjà vues, panier et suivi de commande lisibles sans
+  réseau, page « hors connexion » avec les produits vus récemment ; paiement et connexion jamais
+  servis depuis le téléphone. Application Android : ⏳.
 - **Écriture différée** : un brouillon de produit (photos + champs) se crée hors ligne et part
   automatiquement au retour du réseau.
 - **Jamais hors ligne** : le paiement et la remise du colis (ils exigent la confirmation du serveur).

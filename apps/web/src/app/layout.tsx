@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { RECETTE, SITE_URL } from '@/lib/api';
 import { sessionToken } from '@/lib/session';
 import { CartCount } from '@/components/CartCount';
+import { OfflineSupport } from '@/components/OfflineSupport';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -56,6 +57,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </Link>
           </div>
         </header>
+        <Suspense fallback={null}>
+          <OfflineSupport signedIn={signedIn} />
+        </Suspense>
         <div className="trust-banner">🛡 Mobile Money protégé jusqu’à la livraison</div>
         {children}
         <footer className="footer">

@@ -5,6 +5,7 @@ import { formatDateTime, formatXaf } from '@/lib/format';
 import { GUARANTEE } from '@/lib/labels';
 import { loadProduct } from '@/lib/product';
 import { AddToCart } from '@/components/AddToCart';
+import { RememberProduct } from '@/components/RememberProduct';
 import { ShareButtons } from '@/components/ShareButtons';
 
 export const dynamic = 'force-dynamic';
@@ -108,6 +109,15 @@ export default async function ProductPage({ params }: { params: Params }) {
           <section className="guarantee">
             <strong>🛡 Garantie Zandu.</strong> {GUARANTEE}
           </section>
+          <RememberProduct
+            product={{
+              id: p.id,
+              title: p.title,
+              price: p.price,
+              coverImage: p.coverImage,
+              shopName: p.seller.shopName,
+            }}
+          />
           <AddToCart
             line={{
               productId: p.id,

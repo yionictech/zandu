@@ -23,6 +23,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   - Livreur : ses missions et la remise contre le code de l'acheteur.
 - **Site web acheteurs** (`apps/web`, Next.js) : un produit partagé sur WhatsApp s'affiche avec sa
   photo et son prix, et s'achète sans installer l'application (Mobile Money, suivi, réception).
+  Quand le réseau coupe, les pages déjà vues, le panier et le suivi de commande restent lisibles.
 - **Back-office du support** (`apps/backoffice`, Next.js) : vérification des boutiques, modération,
   assignation des livreurs, litiges, recherche de commandes, alertes, contrôle comptable ; pour les
   administrateurs, **rapports du mois** (ventes, commissions, boutiques, export CSV pour le comptable)
@@ -41,7 +42,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
 - **184 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), sept parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+  contrat OpenAPI), huit parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
@@ -57,6 +58,8 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 ![Rapprochement](docs/ux/captures/rapprochement.jpg)
 
 ![Personnel](docs/ux/captures/personnel.jpg)
+
+![Site sans réseau](docs/ux/captures/hors-ligne.jpg)
 
 ![Recette en ligne](docs/ux/captures/recette.jpg)
 

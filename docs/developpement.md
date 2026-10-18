@@ -86,6 +86,7 @@ DATABASE_URL=… SHOTS=./captures node e2e/parcours-rapprochement.mjs   # caisse
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-personnel.mjs   # ajout, promotion, retrait d'un agent
 # site web démarré sur http://localhost:3200 avec ZANDU_SIMULATOR=1
 cd ../web && DATABASE_URL=… SHOTS=./captures node e2e/parcours-web.mjs
+DATABASE_URL=… SHOTS=./captures node e2e/parcours-hors-ligne.mjs   # site sans réseau (construit, next start)
 ```
 
 Les scripts configurent eux-mêmes le second facteur du compte administrateur (secret gardé dans un

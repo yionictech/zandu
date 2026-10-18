@@ -504,3 +504,34 @@ textarea {
   font-size: 13px;
   padding: 24px 14px 40px;
 }
+
+/* ---------- Hors connexion ---------- */
+.offline-banner {
+  background: #1f2937;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 12px;
+}
+.offline-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.offline-card h1 {
+  margin: 0;
+}
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.recent-item {
+  display: grid;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}

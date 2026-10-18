@@ -189,6 +189,11 @@ configuré ou non, dernière activité ; ajout par numéro de téléphone (SMS �
 chaque membre : nommer administrateur ou repasser agent, déconnecter partout, réinitialiser le
 second facteur, retirer l'accès avec un motif, et ses 30 dernières actions.
 
+Site web sans réseau ([captures](captures/hors-ligne.jpg), ADR-0016) : un bandeau sombre
+« Hors connexion : vous voyez la dernière version enregistrée » ; les pages déjà vues restent
+lisibles ; sinon une page « Pas de réseau pour le moment » propose le panier et les produits vus
+récemment.
+
 ## 5. Textes de référence
 
 ### Statuts de commande
