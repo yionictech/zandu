@@ -2,6 +2,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { api, unwrap } from './api';
+import { trackedFetch } from './network';
 
 export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence';
 
@@ -13,6 +14,8 @@ export interface LocalImage {
 
 export class CameraPermissionError extends Error {}
 export class UploadError extends Error {}
+/** Le fichier n'est plus sur le téléphone (cache vidé) : la photo est à reprendre. */
+export class LocalPhotoMissingError extends Error {}
 
 /** Bord le plus long après compression : assez pour zoomer sur la fiche, ≈ 200-400 Ko en JPEG. */
 const MAX_EDGE = 1600;
@@ -54,7 +57,12 @@ export async function uploadImage(
   purpose: UploadPurpose,
   image: Pick<LocalImage, 'uri'>,
 ): Promise<string> {
-  const blob = await (await fetch(image.uri)).blob();
+  let blob: Blob;
+  try {
+    blob = await (await fetch(image.uri)).blob();
+  } catch {
+    throw new LocalPhotoMissingError(image.uri);
+  }
   const reserved = unwrap(
     await api.POST('/v1/uploads', {
       body: { purpose, contentType: 'image/jpeg', sizeBytes: blob.size },
@@ -62,7 +70,7 @@ export async function uploadImage(
   );
   let response: Response;
   if (reserved.method === 'PUT') {
-    response = await fetch(reserved.url, {
+    response = await trackedFetch(reserved.url, {
       method: 'PUT',
       headers: reserved.headers,
       body: blob,
@@ -73,7 +81,7 @@ export async function uploadImage(
     if (Platform.OS === 'web') form.append('file', blob, 'photo.jpg');
     // React Native lit le fichier lui-même à partir de son URI.
     else form.append('file', { uri: image.uri, name: 'photo.jpg', type: 'image/jpeg' } as never);
-    response = await fetch(reserved.url, { method: 'POST', body: form });
+    response = await trackedFetch(reserved.url, { method: 'POST', body: form });
   }
   if (!response.ok) throw new UploadError(`Dépôt refusé (${response.status})`);
   return reserved.uploadId;

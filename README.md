@@ -16,7 +16,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **API** (`apps/api`) : connexion par SMS, catalogue et recherche, panier multi-vendeurs, paiement Mobile
   Money (simulateur d'agrégateur), séquestre, livraison avec code de remise, litiges, remboursements,
   reversements automatiques, espace vendeur, photos et pièces KYC par URL signées, avis, back-office.
-- **Application Android** (`apps/mobile`, Expo) : les trois métiers.
+- **Application Android** (`apps/mobile`, Expo) : les trois métiers, utilisable sans réseau.
   - Acheteur : de l'accueil à l'avis.
   - Vendeur : ouvrir sa boutique, vérifier son identité, publier un produit « photo d'abord »,
     traiter les commandes, suivre son argent.
@@ -41,8 +41,8 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **184 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), huit parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **185 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
@@ -60,6 +60,8 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 ![Personnel](docs/ux/captures/personnel.jpg)
 
 ![Site sans réseau](docs/ux/captures/hors-ligne.jpg)
+
+![Application sans réseau](docs/ux/captures/application-hors-ligne.jpg)
 
 ![Recette en ligne](docs/ux/captures/recette.jpg)
 

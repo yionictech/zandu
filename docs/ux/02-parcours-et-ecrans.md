@@ -194,6 +194,13 @@ Site web sans réseau ([captures](captures/hors-ligne.jpg), ADR-0016) : un bande
 lisibles ; sinon une page « Pas de réseau pour le moment » propose le panier et les produits vus
 récemment.
 
+Application sans réseau ([captures](captures/application-hors-ligne.jpg), ADR-0017) : le même
+bandeau sombre en haut de chaque écran ; un écran jamais ouvert dit « Pas de réseau pour le
+moment… elle s'affichera au retour du réseau ». Sur « Nouveau produit », le bouton devient
+« Envoyer au retour du réseau » ; dans « Mes produits », une section « En attente d'envoi »
+montre chaque fiche (« Sera envoyée au retour du réseau », « Envoi en cours… », ou « Non
+envoyée : raison » avec Corriger / Supprimer), puis « « titre » est envoyée. ».
+
 ## 5. Textes de référence
 
 ### Statuts de commande

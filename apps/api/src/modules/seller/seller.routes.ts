@@ -10,6 +10,7 @@ import type { Actor, AppContext } from '../../context.js';
 import { withTx, type Db, type Tx } from '../../db/pool.js';
 import { randomDigits } from '../../lib/crypto.js';
 import { HttpError, notFound } from '../../lib/errors.js';
+import { claimIdempotency, completeIdempotency } from '../../lib/idempotency.js';
 import { audit } from '../admin/audit.js';
 import { actor, currentUser, requireAuth } from '../auth/guards.js';
 import { loadCategoryPaths, loadCommissionRules } from '../checkout/checkout.service.js';
@@ -269,24 +270,47 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         throw new HttpError(403, 'seller_suspended', 'Boutique suspendue');
       }
       const status = body.publish ? publishedStatus(shop) : 'draft';
-      const { rows } = await ctx.pool.query<{ id: string; status: string }>(
-        `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::product_status,
-                 CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END)
-         RETURNING id, status`,
-        [
-          shop.id,
-          body.categoryId,
-          body.title,
-          body.description,
-          body.price,
-          body.stock,
-          shop.city,
-          status,
-          ctx.clock.now(),
-        ],
-      );
-      return reply.status(201).send(rows[0]);
+      // Fiche préparée sans réseau et envoyée plus tard : un renvoi ne crée pas de doublon.
+      const key = request.headers['idempotency-key'];
+      const userId = actor(request, 'seller').userId!;
+      const product = await withTx(ctx.pool, async (tx) => {
+        if (typeof key === 'string') {
+          const existing = await claimIdempotency(tx, {
+            userId,
+            key,
+            method: 'POST',
+            path: '/v1/seller/products',
+            body: request.body,
+          });
+          if (existing) {
+            const { rows } = await tx.query<{ id: string; status: string }>(
+              'SELECT id, status FROM products WHERE id = $1',
+              [existing],
+            );
+            return rows[0]!;
+          }
+        }
+        const { rows } = await tx.query<{ id: string; status: string }>(
+          `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::product_status,
+                   CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END)
+           RETURNING id, status`,
+          [
+            shop.id,
+            body.categoryId,
+            body.title,
+            body.description,
+            body.price,
+            body.stock,
+            shop.city,
+            status,
+            ctx.clock.now(),
+          ],
+        );
+        if (typeof key === 'string') await completeIdempotency(tx, userId, key, rows[0]!.id);
+        return rows[0]!;
+      });
+      return reply.status(201).send(product);
     });
 
     /** Modifier, archiver ou remettre en vente un produit. */
@@ -364,10 +388,12 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       await withTx(ctx.pool, async (tx) => {
         const shop = await shopOf(tx, a.userId);
         const product = await ownProduct(tx, id, shop);
-        const { rows } = await tx.query<{ position: number }>(
-          'SELECT position FROM product_media WHERE product_id = $1',
+        const { rows } = await tx.query<{ position: number; upload_id: string | null }>(
+          'SELECT position, upload_id FROM product_media WHERE product_id = $1',
           [id],
         );
+        // Renvoi après une réponse perdue (réseau coupé) : la photo est déjà là.
+        if (rows.some((r) => r.upload_id === uploadId)) return;
         const used = new Set(rows.map((r) => r.position));
         const position = [...Array(MAX_PHOTOS).keys()].find((p) => !used.has(p));
         if (position === undefined) {

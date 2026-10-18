@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage, newIdempotencyKey, unwrap } from '../../../src/api';
+import { api, errorMessage, isNetworkError, newIdempotencyKey, unwrap } from '../../../src/api';
 import { t } from '../../../src/i18n/fr';
+import { useOnline } from '../../../src/network';
+import { DRAFT_KEY, queueProduct } from '../../../src/seller/outbox';
 import {
   emptyProductForm,
   isProductFormValid,
@@ -17,8 +19,8 @@ import { ErrorText } from '../../../src/ui/Form';
 import { Loading, Screen, Section } from '../../../src/ui/Layout';
 import { PhotoStrip, type PhotoItem } from '../../../src/ui/PhotoStrip';
 import { RequireRole } from '../../../src/ui/RequireRole';
+import { useSession } from '../../../src/session';
 
-const DRAFT_KEY = 'zandu.productDraft';
 const MAX_PHOTOS = 6;
 /** Un envoi doit être rattaché sous 24 h (règle de l'API) : au-delà, la photo est à reprendre. */
 const DRAFT_PHOTO_TTL_MS = 23 * 3_600_000;
@@ -36,6 +38,8 @@ interface Draft {
 function NewProduct() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useSession();
+  const online = useOnline();
   const [form, setForm] = useState<ProductFormValues>(emptyProductForm);
   const [photos, setPhotos] = useState<DraftPhoto[]>([]);
   const [restored, setRestored] = useState<boolean | null>(null);
@@ -78,6 +82,12 @@ function NewProduct() {
     }
   }, []);
 
+  // Retour du réseau : les photos qui n'avaient pas pu partir sont renvoyées.
+  useEffect(() => {
+    if (!online) return;
+    for (const photo of photos) if (photo.state === 'failed') void send(photo);
+  }, [online]); // seulement au retour du réseau, pas à chaque photo
+
   const add = async (source: 'camera' | 'library') => {
     setError(null);
     setPicking(true);
@@ -91,7 +101,8 @@ function NewProduct() {
         state: 'uploading',
       };
       setPhotos((list) => [...list, photo]);
-      void send(photo);
+      if (online) void send(photo);
+      else update(photo.key, { state: 'failed' });
     } catch (e) {
       setError(e instanceof CameraPermissionError ? t.upload.permission : errorMessage(e));
     } finally {
@@ -101,7 +112,23 @@ function NewProduct() {
 
   const ready = photos.filter((p) => p.state === 'ready' && p.uploadId);
   const uploading = photos.some((p) => p.state === 'uploading');
-  const valid = isProductFormValid(form) && ready.length > 0 && !uploading;
+  // Sans réseau, la fiche est gardée avec ses photos et envoyée au retour du réseau.
+  const valid =
+    isProductFormValid(form) && !uploading && (online ? ready.length > 0 : photos.length > 0);
+
+  const queue = async () => {
+    await queueProduct(
+      user!.id,
+      form,
+      photos.map((p) => ({
+        key: p.key,
+        uri: p.uri,
+        uploadId: p.state === 'ready' ? p.uploadId : null,
+      })),
+    );
+    await saveJson(DRAFT_KEY, null);
+    router.replace({ pathname: '/vendeur/produits', params: { notice: 'queued' } });
+  };
 
   /**
    * Brouillon côté serveur, photos rattachées, puis publication : le produit n'apparaît jamais
@@ -110,6 +137,7 @@ function NewProduct() {
   const publish = async () => {
     setBusy(true);
     setError(null);
+    if (!online) return queue();
     let productId: string | null = null;
     try {
       const created = unwrap(
@@ -151,6 +179,7 @@ function NewProduct() {
         router.replace(`/vendeur/produit/${productId}`);
         return;
       }
+      if (isNetworkError(e)) return queue();
       setError(errorMessage(e));
       setBusy(false);
     }
@@ -164,7 +193,7 @@ function NewProduct() {
         <>
           <ErrorText message={error} />
           <Button
-            label={uploading ? t.upload.sending : t.seller.publish}
+            label={uploading ? t.upload.sending : online ? t.seller.publish : t.seller.queueAction}
             onPress={() => void publish()}
             disabled={!valid}
             loading={busy}

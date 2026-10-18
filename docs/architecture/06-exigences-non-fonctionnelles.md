@@ -48,9 +48,11 @@ automatique de vidéo, préchargement désactivé.
   local (SQLite/MMKV côté application, service worker côté PWA) et affichés avec la date de mise à jour.
   Site web : ✅ service worker (ADR-0016) — pages déjà vues, panier et suivi de commande lisibles sans
   réseau, page « hors connexion » avec les produits vus récemment ; paiement et connexion jamais
-  servis depuis le téléphone. Application Android : ⏳.
-- **Écriture différée** : un brouillon de produit (photos + champs) se crée hors ligne et part
-  automatiquement au retour du réseau.
+  servis depuis le téléphone. Application Android : ✅ (ADR-0017) — session gardée, catalogue, fiches,
+  achats, missions et espace vendeur déjà vus lisibles, même après fermeture ; copie effacée à la
+  déconnexion.
+- **Écriture différée** : ✅ une fiche produit (photos + champs) se prépare hors ligne et part
+  automatiquement au retour du réseau, une seule fois (`Idempotency-Key`), étape par étape.
 - **Jamais hors ligne** : le paiement et la remise du colis (ils exigent la confirmation du serveur).
 - **Requêtes rejouables** : grâce à `Idempotency-Key`, l'application peut renvoyer une requête restée
   sans réponse sans risque de doublon.

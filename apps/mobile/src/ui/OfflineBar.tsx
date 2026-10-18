@@ -1,0 +1,34 @@
+import type { ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { t } from '../i18n/fr';
+import { useOnline } from '../network';
+import { colors, font, space } from '../theme';
+
+/**
+ * Bandeau « hors connexion » en haut de chaque écran. Il prend la place de la barre d'état :
+ * les en-têtes en dessous ne la comptent plus (marge haute remise à zéro).
+ */
+export function OfflineBar({ children }: { children: ReactNode }) {
+  const online = useOnline();
+  const insets = useSafeAreaInsets();
+  // Même arbre en ligne et hors ligne : la navigation n'est pas remise à zéro au changement.
+  return (
+    <View style={styles.fill}>
+      {online ? null : (
+        <View style={[styles.bar, { paddingTop: insets.top + space.sm }]} testID="offline-banner">
+          <Text style={styles.text}>{t.offline.banner}</Text>
+        </View>
+      )}
+      <SafeAreaInsetsContext.Provider value={online ? insets : { ...insets, top: 0 }}>
+        {children}
+      </SafeAreaInsetsContext.Provider>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  bar: { backgroundColor: colors.text, paddingHorizontal: space.md, paddingBottom: space.sm },
+  text: { color: colors.surface, fontSize: font.small, fontWeight: '600', lineHeight: 18 },
+});

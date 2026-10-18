@@ -484,7 +484,14 @@ paths:
         Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération).
         Avec `publish: false`, crée un brouillon (`draft`) : l'application y rattache les photos,
         puis le publie avec `PATCH status=published` (au moins une photo exigée).
+        Fiche préparée sans réseau et envoyée plus tard : avec l'en-tête `Idempotency-Key`
+        (facultatif ici), un renvoi avec la même clé renvoie le produit déjà créé.
       operationId: createProduct
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, minLength: 8, maxLength: 128 }
       requestBody:
         required: true
         content:
@@ -509,9 +516,10 @@ paths:
                 required: [id, status]
                 properties:
                   id: { type: string, format: uuid }
-                  status: { type: string, enum: [published, pending_review, draft] }
+                  status: { $ref: '#/components/schemas/ProductStatus' }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
   /v1/seller/balance:
     get:
@@ -1257,6 +1265,8 @@ paths:
     post:
       tags: [Vendeur]
       summary: Ajouter une photo déjà envoyée (6 au maximum)
+      description: >-
+        Un renvoi du même `uploadId` sur le même produit (réponse perdue) est sans effet.
       operationId: addProductPhoto
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody:

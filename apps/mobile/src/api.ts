@@ -3,6 +3,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { randomUUID } from 'expo-crypto';
 import { API_URL } from './config';
 import { t } from './i18n/fr';
+import { NetworkError, trackedFetch } from './network';
 
 let currentToken: string | null = null;
 let onUnauthorized: () => void = () => undefined;
@@ -17,6 +18,7 @@ export const api = createZanduClient({
   baseUrl: API_URL,
   getToken: () => currentToken,
   onUnauthorized: () => onUnauthorized(),
+  fetch: trackedFetch,
 });
 
 export { unwrap };
@@ -30,6 +32,9 @@ export function errorMessage(error: unknown): string {
   return t.common.offline;
 }
 
+/** Échec faute de réseau : à refaire plus tard, rien n'a été refusé. */
+export const isNetworkError = (error: unknown): boolean => error instanceof NetworkError;
+
 export function errorCode(error: unknown): string | null {
   return error instanceof ApiError ? error.code : null;
 }
@@ -40,5 +45,8 @@ export const queryClient = new QueryClient({
       staleTime: 30_000,
       retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 2,
     },
+    // Une action (payer, confirmer, publier) échoue tout de suite sans réseau, avec un message :
+    // elle n'est jamais mise en attente puis rejouée toute seule.
+    mutations: { networkMode: 'always' },
   },
 });

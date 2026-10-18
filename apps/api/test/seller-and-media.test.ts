@@ -99,7 +99,44 @@ describe('Photos produits (F3)', () => {
     const rival = await openShop(env, m.admin, '06 444 44 44');
     expect((await attach(ok, rival)).status).toBe(404); // le produit et l'envoi ne sont pas à lui
     expect((await attach(ok)).status).toBe(201);
-    expect((await attach(ok)).body.error.code).toBe('upload_already_used');
+    // Renvoi sur le même produit (réponse perdue) : sans effet ; sur un autre produit : refusé.
+    const replay = await attach(ok);
+    expect(replay.status).toBe(201);
+    expect(replay.body.photos).toHaveLength(1);
+    const other = await addProduct(env, m.seller, { title: 'Autre produit' });
+    const elsewhere = await call(env, m.seller, {
+      method: 'POST',
+      url: `/v1/seller/products/${other}/photos`,
+      payload: { uploadId: ok },
+    });
+    expect(elsewhere.body.error.code).toBe('upload_already_used');
+  });
+
+  it('fiche envoyée après une coupure : la même clé ne crée pas de doublon', async () => {
+    const send = (title: string) =>
+      call(env, m.seller, {
+        method: 'POST',
+        url: '/v1/seller/products',
+        headers: { 'idempotency-key': 'brouillon-hors-ligne-1' },
+        payload: {
+          categoryId: CATEGORIES.maison,
+          title,
+          price: 30_000,
+          stock: 2,
+          publish: false,
+        },
+      });
+    const first = await send('Lampe solaire');
+    const again = await send('Lampe solaire');
+    expect(first.status).toBe(201);
+    expect(again.status).toBe(201);
+    expect(again.body.id).toBe(first.body.id);
+    const { rows } = await env.pool.query(
+      "SELECT count(*)::int AS n FROM products WHERE title = 'Lampe solaire'",
+    );
+    expect(rows[0].n).toBe(1);
+    // La même clé pour une autre fiche est refusée.
+    expect((await send('Autre lampe')).body.error.code).toBe('idempotency_key_reused');
   });
 
   it('6 photos au maximum ; suppression possible', async () => {

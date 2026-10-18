@@ -8,10 +8,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, bindSession, queryClient, unwrap } from './api';
-import { secureStorage } from './storage';
+import { onlineManager } from '@tanstack/react-query';
+import { api, bindSession, isNetworkError, queryClient, unwrap } from './api';
+import { forgetCache, persistCache, restoreCache } from './offlineCache';
+import { loadJson, saveJson, secureStorage } from './storage';
 
 const TOKEN_KEY = 'zandu.session';
+/** Profil gardé pour ouvrir l'application sans réseau (nom, rôles ; rien de secret). */
+const PROFILE_KEY = 'zandu.profile';
 
 interface SessionValue {
   ready: boolean;
@@ -35,7 +39,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     bindSession(null, () => undefined);
-    await secureStorage.remove(TOKEN_KEY);
+    await Promise.all([
+      secureStorage.remove(TOKEN_KEY),
+      saveJson(PROFILE_KEY, null),
+      forgetCache(),
+    ]);
     if (hadToken) queryClient.clear();
   }, [token]);
 
@@ -44,33 +52,61 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [token, signOut]);
 
   // Au démarrage : reprendre la session enregistrée et vérifier qu'elle est toujours valide.
+  // Sans réseau, elle est gardée telle quelle (seul un refus de l'API la ferme) et vérifiée au
+  // retour du réseau ; les données enregistrées sur le téléphone sont reprises.
   useEffect(() => {
     void (async () => {
       const saved = await secureStorage.get(TOKEN_KEY);
+      let account: User | null = null;
       if (saved) {
         bindSession(saved, () => undefined);
         try {
-          setUser(unwrap(await api.GET('/v1/me')));
+          account = unwrap(await api.GET('/v1/me'));
+          void saveJson(PROFILE_KEY, account);
           setToken(saved);
-        } catch {
-          await secureStorage.remove(TOKEN_KEY);
-          bindSession(null, () => undefined);
+        } catch (error) {
+          if (isNetworkError(error)) {
+            account = await loadJson<User | null>(PROFILE_KEY, null);
+            setToken(saved);
+          } else {
+            await secureStorage.remove(TOKEN_KEY);
+            bindSession(null, () => undefined);
+          }
         }
       }
+      await restoreCache(queryClient, account?.id ?? null);
+      setUser(account);
       setReady(true);
     })();
   }, []);
 
+  // La copie enregistrée suit le compte connecté.
+  useEffect(() => {
+    if (!ready) return;
+    return persistCache(queryClient, user?.id ?? null);
+  }, [ready, user?.id]);
+
   const signIn = useCallback(async (newToken: string, newUser: User) => {
     await secureStorage.set(TOKEN_KEY, newToken);
+    void saveJson(PROFILE_KEY, newUser);
     bindSession(newToken, () => undefined);
     setToken(newToken);
     setUser(newUser);
   }, []);
 
   const refresh = useCallback(async () => {
-    setUser(unwrap(await api.GET('/v1/me')));
+    const account = unwrap(await api.GET('/v1/me'));
+    void saveJson(PROFILE_KEY, account);
+    setUser(account);
   }, []);
+
+  // Session reprise sans réseau : vérifiée dès que l'API répond (une session révoquée se ferme).
+  useEffect(() => {
+    if (!token) return;
+    return onlineManager.subscribe((online) => {
+      if (online) refresh().catch(() => undefined);
+    });
+  }, [token, refresh]);
 
   const value = useMemo(
     () => ({ ready, user, signIn, signOut, refresh }),

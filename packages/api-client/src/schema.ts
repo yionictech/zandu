@@ -220,7 +220,7 @@ export interface paths {
     put?: never;
     /**
      * Publier un produit (F3)
-     * @description Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération). Avec `publish: false`, crée un brouillon (`draft`) : l'application y rattache les photos, puis le publie avec `PATCH status=published` (au moins une photo exigée).
+     * @description Vendeur vérifié → `published` ; non vérifié → `pending_review` (modération). Avec `publish: false`, crée un brouillon (`draft`) : l'application y rattache les photos, puis le publie avec `PATCH status=published` (au moins une photo exigée). Fiche préparée sans réseau et envoyée plus tard : avec l'en-tête `Idempotency-Key` (facultatif ici), un renvoi avec la même clé renvoie le produit déjà créé.
      */
     post: operations['createProduct'];
     delete?: never;
@@ -826,7 +826,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Ajouter une photo déjà envoyée (6 au maximum) */
+    /**
+     * Ajouter une photo déjà envoyée (6 au maximum)
+     * @description Un renvoi du même `uploadId` sur le même produit (réponse perdue) est sans effet.
+     */
     post: operations['addProductPhoto'];
     delete?: never;
     options?: never;
@@ -2517,7 +2520,9 @@ export interface operations {
   createProduct: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -2545,13 +2550,13 @@ export interface operations {
           'application/json': {
             /** Format: uuid */
             id: string;
-            /** @enum {string} */
-            status: 'published' | 'pending_review' | 'draft';
+            status: components['schemas']['ProductStatus'];
           };
         };
       };
       403: components['responses']['Error'];
       409: components['responses']['Error'];
+      422: components['responses']['Error'];
     };
   };
   sellerBalance: {

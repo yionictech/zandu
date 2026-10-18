@@ -158,6 +158,15 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
 - Paiement, validation du panier et connexion ne sont jamais servis depuis le téléphone ; les
   pages personnelles sont oubliées à la déconnexion.
 
+### Sprint 1 undecies — Application utilisable sans réseau (✅ fait, ce dépôt)
+
+- Application Android (ADR-0017) : ouverte sans réseau, elle garde la session et affiche le
+  catalogue, les fiches, les achats, les missions et l'espace vendeur déjà consultés ; un bandeau
+  prévient ; la copie du compte est effacée à la déconnexion.
+- Vendeur : fiche produit préparée sans réseau, envoyée toute seule au retour du réseau, sans
+  doublon (`Idempotency-Key` sur la création, rattachement de photo rejouable).
+- Corrigé : ouvrir l'application sans réseau déconnectait l'utilisateur.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

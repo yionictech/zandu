@@ -79,6 +79,7 @@ EXPO_PUBLIC_API_URL=http://localhost:3998 EXPO_PUBLIC_SIMULATOR=1 npx expo expor
 node e2e/serve.mjs &                         # sert dist/ sur http://localhost:8081
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-acheteur.mjs
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-vendeur-livreur.mjs
+SHOTS=./captures node e2e/parcours-hors-ligne.mjs   # application sans réseau, fiche envoyée au retour
 # back-office démarré sur http://localhost:3100 (pnpm --filter @zandu/backoffice build && … start)
 cd ../backoffice && DATABASE_URL=… SHOTS=./captures node e2e/parcours-support.mjs
 DATABASE_URL=… SHOTS=./captures node e2e/parcours-rapports.mjs   # rapports, export CSV, taux

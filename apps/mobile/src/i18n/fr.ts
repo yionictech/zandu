@@ -13,6 +13,12 @@ export const fr = {
     seeAll: 'Tout voir',
     items: (n: number) => `${n} article${n > 1 ? 's' : ''}`,
   },
+  offline: {
+    banner:
+      'Hors connexion : vous voyez la dernière version enregistrée. Le paiement attendra le retour du réseau.',
+    unsaved:
+      'Pas de réseau pour le moment. Cette page n’a pas encore été enregistrée sur ce téléphone : elle s’affichera au retour du réseau.',
+  },
   tabs: {
     home: 'Accueil',
     search: 'Chercher',
@@ -281,6 +287,17 @@ export const fr = {
     resubmit: 'Corriger et renvoyer en vérification',
     rejectedBecause: (reason: string) => `Refusé : ${reason}`,
     draftRestored: 'Brouillon repris là où vous l’aviez laissé.',
+    queueAction: 'Envoyer au retour du réseau',
+    queued:
+      'Pas de réseau : la fiche est gardée sur le téléphone et sera envoyée dès le retour du réseau.',
+    outboxTitle: 'En attente d’envoi',
+    outboxWaiting: 'Sera envoyée au retour du réseau',
+    outboxSending: 'Envoi en cours…',
+    outboxFailed: (reason: string) => `Non envoyée : ${reason}`,
+    outboxSent: (title: string) => `« ${title} » est envoyée.`,
+    outboxFix: 'Corriger',
+    outboxDelete: 'Supprimer',
+    photoMissing: 'une photo n’est plus sur le téléphone, reprenez-la.',
     verificationTitle: 'Vérifier mon identité',
     verificationIntro:
       'Une pièce d’identité et un selfie. Ces documents restent privés : seul le support Zandu peut les voir.',

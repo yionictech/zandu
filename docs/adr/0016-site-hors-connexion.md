@@ -37,4 +37,4 @@ gardé dans le navigateur.
 - ➖ Une page jamais consultée reste indisponible sans réseau (la page « hors connexion » le dit).
 - ➖ Le service worker est un code de plus à faire évoluer : changer `VERSION` dans `sw.js` vide les
   pages enregistrées lors d'un changement de mise en page important.
-- ➖ L'application Android n'est pas concernée : son fonctionnement sans réseau reste à traiter.
+- ➖ L'application Android n'est pas concernée : voir l'ADR-0017.

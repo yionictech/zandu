@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../i18n/fr';
+import { useOnline } from '../network';
 import { colors, font, space } from '../theme';
 import { Button } from './Button';
 
@@ -59,7 +60,19 @@ export function Section({ title, children }: { title?: string; children: ReactNo
   );
 }
 
+/**
+ * Chargement en cours ; sans réseau, un chargement qui attend n'aboutira pas avant son retour :
+ * l'écran le dit (la page n'a jamais été enregistrée sur le téléphone).
+ */
 export function Loading() {
+  const online = useOnline();
+  if (!online) {
+    return (
+      <View style={styles.center} testID="offline-unsaved">
+        <Text style={styles.emptyText}>{t.offline.unsaved}</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.center}>
       <ActivityIndicator size="large" color={colors.brand} />

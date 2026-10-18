@@ -5,6 +5,12 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
+import {
+  removeQueued,
+  takeBackQueued,
+  useOutbox,
+  type QueuedProduct,
+} from '../../src/seller/outbox';
 import { sellerKeys } from '../../src/seller/queries';
 import { productStatusColor } from '../../src/status';
 import { colors, font, radius, space } from '../../src/theme';
@@ -17,7 +23,8 @@ import { RequireRole } from '../../src/ui/RequireRole';
 
 function SellerProducts() {
   const router = useRouter();
-  const { notice } = useLocalSearchParams<{ notice?: 'published' | 'review' }>();
+  const { notice } = useLocalSearchParams<{ notice?: 'published' | 'review' | 'queued' }>();
+  const outbox = useOutbox();
   const [archived, setArchived] = useState(false);
   const products = useQuery({
     queryKey: sellerKeys.products(archived),
@@ -30,7 +37,8 @@ function SellerProducts() {
   });
   useRefetchOnFocus(products.refetch);
 
-  if (products.isPending) return <Loading />;
+  // Fiches en attente d'envoi : visibles même si la liste n'a jamais été chargée (sans réseau).
+  if (products.isPending && !outbox.items.length) return <Loading />;
   if (products.isError)
     return (
       <Failure message={errorMessage(products.error)} onRetry={() => void products.refetch()} />
@@ -38,18 +46,33 @@ function SellerProducts() {
 
   return (
     <FlatList
-      data={products.data}
+      data={products.data ?? []}
       keyExtractor={(p) => p.id}
       contentContainerStyle={styles.list}
       refreshing={products.isRefetching}
       onRefresh={() => void products.refetch()}
       ListHeaderComponent={
         <View style={styles.header}>
-          {notice ? (
+          {notice === 'queued' ? (
+            outbox.items.length ? (
+              <Banner tone="waiting" message={t.seller.queued} />
+            ) : null
+          ) : notice ? (
             <Banner
               tone="trust"
               message={notice === 'published' ? t.seller.published : t.seller.sentToReview}
             />
+          ) : null}
+          {outbox.sent.map((s, i) => (
+            <Banner key={i} tone="trust" message={t.seller.outboxSent(s.title)} />
+          ))}
+          {!archived && outbox.items.length ? (
+            <View style={styles.outbox} testID="outbox">
+              <Text style={styles.outboxTitle}>{t.seller.outboxTitle}</Text>
+              {outbox.items.map((item) => (
+                <QueuedCard key={item.id} item={item} />
+              ))}
+            </View>
           ) : null}
           {!archived ? (
             <Button
@@ -59,7 +82,13 @@ function SellerProducts() {
           ) : null}
         </View>
       }
-      ListEmptyComponent={<Empty message={archived ? t.seller.noArchived : t.seller.noProducts} />}
+      ListEmptyComponent={
+        products.isPending ? (
+          <Loading />
+        ) : outbox.items.length && !archived ? undefined : (
+          <Empty message={archived ? t.seller.noArchived : t.seller.noProducts} />
+        )
+      }
       ListFooterComponent={
         <Button
           label={archived ? t.seller.hideArchived : t.seller.showArchived}
@@ -97,6 +126,47 @@ function SellerProducts() {
   );
 }
 
+/** Fiche préparée sans réseau : en attente, en cours d'envoi, ou refusée (à corriger). */
+function QueuedCard({ item }: { item: QueuedProduct }) {
+  const router = useRouter();
+  const fix = async () => {
+    const productId = await takeBackQueued(item.id);
+    router.push(productId ? `/vendeur/produit/${productId}` : '/vendeur/produit/nouveau');
+  };
+  return (
+    <View style={styles.card} testID={`queued-${item.form.title.trim()}`}>
+      <ProductImage
+        uri={item.photos[0]?.uri ?? null}
+        title={item.form.title}
+        style={styles.image}
+      />
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.form.title.trim()}
+        </Text>
+        <Text style={styles.price}>{formatXaf(Number(item.form.price))}</Text>
+        {item.state === 'failed' ? (
+          <>
+            <Text style={styles.rejected}>{t.seller.outboxFailed(item.error ?? '')}</Text>
+            <View style={styles.row}>
+              <Button label={t.seller.outboxFix} variant="secondary" onPress={() => void fix()} />
+              <Button
+                label={t.seller.outboxDelete}
+                variant="ghost"
+                onPress={() => removeQueued(item.id)}
+              />
+            </View>
+          </>
+        ) : (
+          <Text style={styles.stock}>
+            {item.state === 'sending' ? t.seller.outboxSending : t.seller.outboxWaiting}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export default function SellerProductsScreen() {
   return (
     <RequireRole role="seller">
@@ -108,6 +178,8 @@ export default function SellerProductsScreen() {
 const styles = StyleSheet.create({
   list: { padding: space.md, gap: space.sm, paddingBottom: space.xl },
   header: { gap: space.sm, marginBottom: space.sm },
+  outbox: { gap: space.sm },
+  outboxTitle: { color: colors.text, fontSize: font.body, fontWeight: '800' },
   card: {
     flexDirection: 'row',
     gap: space.md,

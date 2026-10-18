@@ -21,3 +21,4 @@ jamais effacée ; si on change d'avis, on écrit un nouvel ADR qui « remplace �
 | 0014 | [Photos produits déclinées par le worker](0014-declinaisons-des-photos.md)                                 | Acceptée |
 | 0015 | [Rapprochement quotidien avec l'agrégateur](0015-rapprochement-quotidien.md)                               | Acceptée |
 | 0016 | [Site acheteurs utilisable quand le réseau coupe](0016-site-hors-connexion.md)                             | Acceptée |
+| 0017 | [Application Android utilisable quand le réseau coupe](0017-application-hors-connexion.md)                 | Acceptée |
