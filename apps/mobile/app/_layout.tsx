@@ -9,6 +9,7 @@ import { SessionProvider } from '../src/session';
 import { colors } from '../src/theme';
 import { OfflineBar } from '../src/ui/OfflineBar';
 import { OutboxRunner } from '../src/seller/outbox';
+import { PushNotifications } from '../src/notifications';
 
 // Un lien direct (notification, partage) garde l'accueil en dessous : le bouton retour y ramène.
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -21,6 +22,7 @@ export default function RootLayout() {
           <CartProvider>
             <StatusBar style="dark" />
             <OutboxRunner />
+            <PushNotifications />
             <OfflineBar>
               <Stack
                 screenOptions={{

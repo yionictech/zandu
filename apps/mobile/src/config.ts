@@ -12,3 +12,10 @@ export const SIMULATOR_ENABLED = process.env.EXPO_PUBLIC_SIMULATOR === '1';
  * la page des SMS de test du site, ex. https://recette.zandu.cg/recette/sms.
  */
 export const RECETTE_SMS_URL = process.env.EXPO_PUBLIC_RECETTE_SMS_URL || null;
+
+/**
+ * Notifications sur le téléphone (ADR-0018) : identifiant du projet Expo qui relaie les
+ * notifications vers Firebase. Sans lui, l'application ne s'enregistre pas et les messages
+ * passent par WhatsApp/SMS comme avant.
+ */
+export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || null;

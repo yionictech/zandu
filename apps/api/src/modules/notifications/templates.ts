@@ -36,6 +36,31 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu back-office : ${v.message} Si vous n'êtes pas au courant, prévenez immédiatement un administrateur.`,
 };
 
+/**
+ * Messages qui passent d'abord par une notification sur le téléphone (quand l'application est
+ * installée et connectée), avec leur titre. `fallback` : doublée par WhatsApp puis SMS si elle
+ * n'est ni ouverte ni suivie d'une visite dans l'application sous PUSH_FALLBACK_MINUTES — pour
+ * ce qui demande d'agir (accepter une commande, être là pour la livraison) ou touche à l'argent.
+ * Les autres restent de simples nouvelles. Codes (connexion, remise) et accès du personnel : SMS.
+ */
+export const PUSH: Record<string, { title: string; fallback: boolean }> = {
+  seller_new_order: { title: 'Nouvelle commande', fallback: true },
+  seller_dispute_opened: { title: 'Litige ouvert', fallback: true },
+  seller_order_completed: { title: 'Argent crédité', fallback: false },
+  seller_payout_sent: { title: 'Reversement envoyé', fallback: true },
+  buyer_payment_confirmed: { title: 'Paiement reçu', fallback: false },
+  buyer_order_accepted: { title: 'Commande en préparation', fallback: false },
+  buyer_in_delivery: { title: 'Commande en route', fallback: true },
+  buyer_awaiting_collection: { title: 'Colis au point relais', fallback: true },
+  buyer_delivered: { title: 'Commande remise', fallback: false },
+  order_cancelled: { title: 'Commande annulée', fallback: true },
+  buyer_refunded: { title: 'Remboursement envoyé', fallback: true },
+  buyer_late_payment: { title: 'Paiement remboursé', fallback: true },
+};
+
+/** Texte d'une notification : sans le préfixe « Zandu : », le titre le remplace. */
+export const pushBody = (text: string): string => text.replace(/^Zandu : /, '');
+
 export function render(template: string, variables: Vars): string {
   const fn = TEMPLATES[template];
   if (!fn) throw new Error(`Modèle de message inconnu : ${template}`);

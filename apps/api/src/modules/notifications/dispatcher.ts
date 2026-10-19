@@ -1,8 +1,8 @@
 import { formatXaf } from '@zandu/domain';
 import type { AppContext } from '../../context.js';
 import { withTx, type Db } from '../../db/pool.js';
-import type { Channel } from './sender.js';
-import { render } from './templates.js';
+import { PushTokenInvalidError, type Channel } from './sender.js';
+import { PUSH, pushBody, render } from './templates.js';
 
 interface OutboxRow {
   id: number;
@@ -18,6 +18,8 @@ interface Message {
   channel: Channel;
   template: string;
   variables: Record<string, string>;
+  /** Écran de l'application ouvert en touchant la notification. */
+  url?: string;
 }
 
 const dateFormat = new Intl.DateTimeFormat('fr-FR', {
@@ -72,6 +74,7 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
     channel,
     template,
     variables,
+    url: `/commande/${event.aggregate_id}`,
   });
   const toSeller = (
     o: OrderInfo,
@@ -83,6 +86,7 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
     channel: 'whatsapp',
     template,
     variables,
+    url: `/vendeur/commande/${event.aggregate_id}`,
   });
   const support = (message: string): Message[] =>
     ctx.config.supportAlertPhone
@@ -167,6 +171,7 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
           channel: 'whatsapp',
           template,
           variables: { amount: formatXaf(Number(p.amount)) },
+          url: event.topic === 'payout.succeeded' ? '/vendeur/argent' : '/commandes',
         },
       ];
     }
@@ -186,6 +191,7 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
                 channel: 'whatsapp' as const,
                 template: 'buyer_late_payment',
                 variables: { amount },
+                url: '/commandes',
               },
             ]
           : []),
@@ -232,10 +238,26 @@ export async function dispatchOutbox(ctx: AppContext): Promise<number> {
       try {
         await tx.query('SAVEPOINT outbox_event');
         for (const m of await messagesFor(ctx, tx, event)) {
+          // Application installée et connectée : la notification d'abord, WhatsApp en secours.
+          const push =
+            m.channel === 'whatsapp' &&
+            m.userId !== null &&
+            PUSH[m.template] !== undefined &&
+            (await activeDevices(tx, m.userId, now)).length > 0;
           await tx.query(
-            `INSERT INTO notifications (user_id, recipient, channel, template, variables, outbox_id)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [m.userId, m.recipient, m.channel, m.template, m.variables, event.id],
+            `INSERT INTO notifications
+               (user_id, recipient, channel, template, variables, outbox_id, data, fallback_channel)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              m.userId,
+              m.recipient,
+              push ? 'push' : m.channel,
+              m.template,
+              m.variables,
+              event.id,
+              m.url ? { url: m.url } : {},
+              push ? m.channel : null,
+            ],
           );
         }
         await tx.query('UPDATE outbox_events SET processed_at = $2 WHERE id = $1', [event.id, now]);
@@ -253,23 +275,98 @@ export async function dispatchOutbox(ctx: AppContext): Promise<number> {
   });
 }
 
+/** Jetons des téléphones connectés d'un utilisateur (session ouverte, jeton valide). */
+async function activeDevices(db: Db, userId: string, now: Date): Promise<string[]> {
+  const { rows } = await db.query<{ token: string }>(
+    `SELECT d.token FROM push_devices d JOIN sessions s ON s.id = d.session_id
+     WHERE d.user_id = $1 AND d.disabled_at IS NULL AND s.revoked_at IS NULL AND s.expires_at > $2
+     ORDER BY d.last_seen_at DESC LIMIT 5`,
+    [userId, now],
+  );
+  return rows.map((r) => r.token);
+}
+
+interface QueuedNotification {
+  id: string;
+  user_id: string | null;
+  recipient: string;
+  channel: Channel;
+  template: string;
+  variables: Record<string, string>;
+  outbox_id: number | null;
+  data: Record<string, string>;
+  fallback_channel: Channel | null;
+}
+
+/** Le même message par le canal de secours (WhatsApp, lui-même doublé par SMS s'il échoue). */
+async function fallBack(db: Db, n: QueuedNotification): Promise<void> {
+  await db.query(
+    `INSERT INTO notifications (user_id, recipient, channel, template, variables, outbox_id, data)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [n.user_id, n.recipient, n.fallback_channel, n.template, n.variables, n.outbox_id, n.data],
+  );
+  await db.query('UPDATE notifications SET fallback_done = true WHERE id = $1', [n.id]);
+}
+
+/**
+ * Notification envoyée à chaque téléphone connecté de l'utilisateur. Si aucun ne la reçoit
+ * (pas de téléphone, jetons refusés), le message part tout de suite par le canal de secours.
+ */
+async function sendPush(ctx: AppContext, db: Db, n: QueuedNotification, now: Date): Promise<void> {
+  const tokens = n.user_id ? await activeDevices(db, n.user_id, now) : [];
+  const text = render(n.template, n.variables);
+  let delivered = 0;
+  const errors: string[] = [];
+  for (const token of tokens) {
+    try {
+      await ctx.notifier.send({
+        channel: 'push',
+        recipient: token,
+        template: n.template,
+        variables: n.variables,
+        text: pushBody(text),
+        title: PUSH[n.template]?.title ?? 'Zandu',
+        data: { ...n.data, notificationId: n.id },
+      });
+      delivered++;
+    } catch (error) {
+      errors.push(String(error));
+      if (error instanceof PushTokenInvalidError) {
+        await db.query('UPDATE push_devices SET disabled_at = $2 WHERE token = $1', [token, now]);
+      }
+    }
+  }
+  if (delivered > 0) {
+    const fallbackAt = PUSH[n.template]?.fallback
+      ? new Date(now.getTime() + ctx.config.pushFallbackMinutes * 60_000)
+      : null;
+    await db.query(
+      `UPDATE notifications SET status = 'sent', sent_at = $2, fallback_at = $3 WHERE id = $1`,
+      [n.id, now, fallbackAt],
+    );
+    return;
+  }
+  await db.query(`UPDATE notifications SET status = 'failed', error = $2 WHERE id = $1`, [
+    n.id,
+    errors.join(' ; ') || 'Aucun téléphone connecté',
+  ]);
+  if (n.fallback_channel) await fallBack(db, n);
+}
+
 /** Envoie les notifications en file. Repli SMS si WhatsApp échoue. */
 export async function sendNotifications(ctx: AppContext): Promise<number> {
   const now = ctx.clock.now();
   return withTx(ctx.pool, async (tx) => {
-    const { rows } = await tx.query<{
-      id: string;
-      user_id: string | null;
-      recipient: string;
-      channel: Channel;
-      template: string;
-      variables: Record<string, string>;
-      outbox_id: number | null;
-    }>(
-      `SELECT id, user_id, recipient, channel, template, variables, outbox_id FROM notifications
+    const { rows } = await tx.query<QueuedNotification>(
+      `SELECT id, user_id, recipient, channel, template, variables, outbox_id, data, fallback_channel
+       FROM notifications
        WHERE status = 'queued' ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED`,
     );
     for (const n of rows) {
+      if (n.channel === 'push') {
+        await sendPush(ctx, tx, n, now);
+        continue;
+      }
       try {
         const { providerRef } = await ctx.notifier.send({
           channel: n.channel,
@@ -298,4 +395,46 @@ export async function sendNotifications(ctx: AppContext): Promise<number> {
     }
     return rows.length;
   });
+}
+
+/**
+ * Notification importante restée sans suite : ni ouverte, ni reçue application ouverte, ni
+ * suivie d'une visite dans l'application depuis son envoi. Elle part alors par WhatsApp/SMS.
+ */
+export async function pushFallbacks(ctx: AppContext): Promise<number> {
+  const now = ctx.clock.now();
+  return withTx(ctx.pool, async (tx) => {
+    const { rows } = await tx.query<QueuedNotification & { seen: boolean }>(
+      `SELECT n.id, n.user_id, n.recipient, n.channel, n.template, n.variables, n.outbox_id,
+              n.data, n.fallback_channel,
+              EXISTS (SELECT 1 FROM sessions s
+                      WHERE s.user_id = n.user_id AND s.last_seen_at > n.sent_at) AS seen
+       FROM notifications n
+       WHERE n.fallback_at <= $1 AND n.acked_at IS NULL AND NOT n.fallback_done
+       ORDER BY n.fallback_at LIMIT 50 FOR UPDATE OF n SKIP LOCKED`,
+      [now],
+    );
+    for (const n of rows) {
+      if (n.seen) {
+        await tx.query('UPDATE notifications SET fallback_done = true WHERE id = $1', [n.id]);
+      } else {
+        await fallBack(tx, n);
+      }
+    }
+    return rows.length;
+  });
+}
+
+/** L'application signale une notification reçue (ouverte) : plus besoin de la doubler. */
+export async function ackNotification(
+  ctx: AppContext,
+  userId: string,
+  id: string,
+): Promise<boolean> {
+  const { rowCount } = await ctx.pool.query(
+    `UPDATE notifications SET acked_at = coalesce(acked_at, $3)
+     WHERE id = $1 AND user_id = $2 AND channel = 'push'`,
+    [id, userId, ctx.clock.now()],
+  );
+  return rowCount === 1;
 }

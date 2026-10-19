@@ -66,6 +66,9 @@ pnpm dev:mobile                                # puis « a » (émulateur Androi
 
 - Adresse de l'API : `http://10.0.2.2:3000` depuis l'émulateur Android, `http://<IP du poste>:3000`
   depuis un téléphone sur le même Wi-Fi, `http://localhost:3000` pour la version web (`w`).
+- Notifications (ADR-0018) : `EXPO_PUBLIC_EAS_PROJECT_ID` (projet Expo) et `google-services.json`
+  dans `apps/mobile` (jamais versionné) ; sans eux, l'application tourne sans notifications. Côté
+  API, `PUSH_PROVIDER=expo` les envoie ; par défaut (`none`), elles sont seulement journalisées.
 - `EXPO_PUBLIC_SIMULATOR=1` affiche sur l'écran d'attente un bouton « Simuler la validation du PIN ».
 - Tous les textes sont dans `apps/mobile/src/i18n/fr.ts` ; les appels à l'API passent par le client typé
   `@zandu/api-client`. Après une modification du contrat : `pnpm --filter @zandu/api-client generate`.

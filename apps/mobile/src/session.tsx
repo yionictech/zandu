@@ -11,6 +11,7 @@ import {
 import { onlineManager } from '@tanstack/react-query';
 import { api, bindSession, isNetworkError, queryClient, unwrap } from './api';
 import { forgetCache, persistCache, restoreCache } from './offlineCache';
+import { closeSessionOnServer, finishPendingLogout } from './pushDevice';
 import { loadJson, saveJson, secureStorage } from './storage';
 
 const TOKEN_KEY = 'zandu.session';
@@ -36,6 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const hadToken = token !== null;
+    if (token) void closeSessionOnServer(token);
     setToken(null);
     setUser(null);
     bindSession(null, () => undefined);
@@ -78,6 +80,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setUser(account);
       setReady(true);
     })();
+  }, []);
+
+  // Déconnexion faite sans réseau : la session est fermée côté serveur dès qu'il répond.
+  useEffect(() => {
+    void finishPendingLogout();
+    return onlineManager.subscribe((online) => {
+      if (online) void finishPendingLogout();
+    });
   }, []);
 
   // La copie enregistrée suit le compte connecté.

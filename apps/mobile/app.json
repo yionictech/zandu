@@ -29,6 +29,12 @@
           "photosPermission": "Zandu accède à vos photos pour illustrer vos produits.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#C2410C"
+        }
       ]
     ]
   }

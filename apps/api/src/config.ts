@@ -61,6 +61,12 @@ const EnvSchema = z.object({
   S3_PRIVATE_BUCKET: z.string().default('zandu-private'),
   /** CDN devant le compartiment public, ex. https://media.exemple.cg */
   MEDIA_PUBLIC_BASE_URL: z.string().default(''),
+  /** Notifications sur le téléphone : `expo` (service d'Expo) ou `none` (rien n'est envoyé). */
+  PUSH_PROVIDER: z.enum(['expo', 'none']).default('none'),
+  /** Jeton d'accès Expo, si l'envoi sécurisé est activé sur le projet Expo. */
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+  /** Délai avant de doubler par WhatsApp/SMS une notification importante restée sans suite. */
+  PUSH_FALLBACK_MINUTES: z.coerce.number().int().positive().default(15),
   /** Second facteur (TOTP) du personnel. Toujours exigé en production ; désactivé par défaut en test. */
   STAFF_MFA_REQUIRED: z.stringbool().optional(),
 });
@@ -82,6 +88,8 @@ export interface Config {
   paymentProvider: string;
   simulatorWebhookSecret: string;
   supportAlertPhone: string | null;
+  push: { provider: 'expo' | 'none'; expoAccessToken: string | null };
+  pushFallbackMinutes: number;
   /** Recette : clé de la boîte de réception des SMS de test ; null ailleurs. */
   recetteKey: string | null;
   workerTickMs: number;
@@ -180,6 +188,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     paymentProvider: env.PAYMENT_PROVIDER,
     simulatorWebhookSecret: env.SIMULATOR_WEBHOOK_SECRET,
     supportAlertPhone: env.SUPPORT_ALERT_PHONE ?? null,
+    push: { provider: env.PUSH_PROVIDER, expoAccessToken: env.EXPO_ACCESS_TOKEN ?? null },
+    pushFallbackMinutes: env.PUSH_FALLBACK_MINUTES,
     recetteKey: deployment === 'recette' ? env.RECETTE_KEY! : null,
     workerTickMs: env.WORKER_TICK_SECONDS * 1000,
     payments: {

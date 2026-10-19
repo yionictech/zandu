@@ -454,6 +454,19 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     expectConforms('/v1/admin/reconciliation/discrepancies/{id}/resolve', 'post', 200, resolved);
   });
 
+  it('notifications : téléphone enregistré, accusé, oubli', async () => {
+    const api = clientFor(await sessionToken('05 777 77 71'));
+    const token = 'ExponentPushToken[contrat-1]';
+    const registered = await api.PUT('/v1/me/devices', { body: { token, platform: 'android' } });
+    expect(registered.response.status).toBe(204);
+    const ack = await api.POST('/v1/me/notifications/{id}/ack', {
+      params: { path: { id: '00000000-0000-4000-8000-000000000000' } },
+    });
+    expectConforms('/v1/me/notifications/{id}/ack', 'post', 404, ack.error);
+    const forgotten = await clientFor(null).POST('/v1/devices/unregister', { body: { token } });
+    expect(forgotten.response.status).toBe(204);
+  });
+
   it('les erreurs suivent le format documenté', async () => {
     const result = await clientFor(null).GET('/v1/products/{id}', {
       params: { path: { id: '00000000-0000-4000-8000-000000000000' } },

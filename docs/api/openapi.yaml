@@ -61,6 +61,10 @@ tags:
     description: >-
       Back-office (administrateurs) — contrôle quotidien du grand livre contre le relevé de
       l'agrégateur, écarts et régularisations
+  - name: Notifications
+    description: >-
+      Téléphones qui reçoivent les notifications de l'application, accusé de réception (WhatsApp
+      puis SMS en secours)
   - name: Webhooks
     description: Notifications signées des agrégateurs
   - name: Système
@@ -172,6 +176,69 @@ paths:
       responses:
         '204': { description: Session révoquée }
         '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/devices:
+    put:
+      tags: [Notifications]
+      summary: Enregistrer ce téléphone pour les notifications
+      description: >-
+        Rattaché à la session en cours : une session fermée (déconnexion, accès retiré,
+        expiration) ne reçoit plus rien. Un jeton déjà connu change de compte.
+      operationId: registerDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, platform]
+              properties:
+                token:
+                  type: string
+                  maxLength: 200
+                  pattern: '^Expo(nent)?PushToken\[[\w-]+\]$'
+                  description: Jeton Expo (`ExponentPushToken[…]`)
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        '204': { description: Téléphone enregistré }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/devices/unregister:
+    post:
+      tags: [Notifications]
+      summary: Ne plus recevoir de notifications sur ce téléphone
+      description: >-
+        Sans session : une déconnexion faite sans réseau est renvoyée au retour du réseau,
+        quand la session n'existe plus. Posséder le jeton suffit.
+      operationId: unregisterDevice
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, maxLength: 200 }
+      responses:
+        '204': { description: Téléphone oublié }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/me/notifications/{id}/ack:
+    post:
+      tags: [Notifications]
+      summary: Notification reçue ou touchée
+      description: >-
+        Une notification importante sans accusé ni visite dans l'application est doublée par
+        WhatsApp puis SMS après `PUSH_FALLBACK_MINUTES` (15 par défaut).
+      operationId: ackNotification
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Accusé enregistré }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/categories:
     get:

@@ -96,6 +96,66 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/me/devices': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Enregistrer ce téléphone pour les notifications
+     * @description Rattaché à la session en cours : une session fermée (déconnexion, accès retiré, expiration) ne reçoit plus rien. Un jeton déjà connu change de compte.
+     */
+    put: operations['registerDevice'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/devices/unregister': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Ne plus recevoir de notifications sur ce téléphone
+     * @description Sans session : une déconnexion faite sans réseau est renvoyée au retour du réseau, quand la session n'existe plus. Posséder le jeton suffit.
+     */
+    post: operations['unregisterDevice'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/notifications/{id}/ack': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Notification reçue ou touchée
+     * @description Une notification importante sans accusé ni visite dans l'application est doublée par WhatsApp puis SMS après `PUSH_FALLBACK_MINUTES` (15 par défaut).
+     */
+    post: operations['ackNotification'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/categories': {
     parameters: {
       query?: never;
@@ -2237,6 +2297,82 @@ export interface operations {
         content?: never;
       };
       401: components['responses']['Error'];
+    };
+  };
+  registerDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Jeton Expo (`ExponentPushToken[…]`) */
+          token: string;
+          /** @enum {string} */
+          platform: 'android' | 'ios';
+        };
+      };
+    };
+    responses: {
+      /** @description Téléphone enregistré */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['Error'];
+      401: components['responses']['Error'];
+    };
+  };
+  unregisterDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          token: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Téléphone oublié */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['Error'];
+    };
+  };
+  ackNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Accusé enregistré */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Error'];
+      404: components['responses']['Error'];
     };
   };
   listCategories: {

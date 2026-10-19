@@ -34,6 +34,9 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   opération par opération ; les paiements dont le webhook s'est perdu sont conclus, les frais du
   relevé comptabilisés, et tout autre écart part en alerte, à clore par un administrateur avec une
   explication et, si besoin, une écriture.
+- **Notifications sur le téléphone** : nouvelle commande, suivi de livraison, argent ; la toucher
+  ouvre la commande. WhatsApp puis SMS prennent le relais si elle ne part pas, ou si un message
+  important reste sans suite 15 minutes. Codes toujours par SMS.
 - **Comptes du personnel** gérés par les administrateurs dans le back-office : ajout par numéro,
   rôle, retrait d'accès, déconnexion partout, second facteur ; chaque changement est journalisé et
   la personne est prévenue par SMS.
@@ -41,7 +44,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **185 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+- **194 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
   contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 

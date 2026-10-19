@@ -45,7 +45,9 @@ export function createZanduClient(options: ClientOptions) {
   const session: Middleware = {
     async onRequest({ request }) {
       const token = await options.getToken?.();
-      if (token) request.headers.set('authorization', `Bearer ${token}`);
+      // Un en-tête donné par l'appelant prime (ex. fermer une ancienne session après déconnexion).
+      if (token && !request.headers.has('authorization'))
+        request.headers.set('authorization', `Bearer ${token}`);
       return request;
     },
     async onResponse({ response }) {

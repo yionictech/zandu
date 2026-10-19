@@ -17,3 +17,5 @@ apps/mobile/ios/
 # Recette : sauvegardes de la base sur le serveur
 deploy/recette/sauvegardes/
 deploy/recette/.essai-local/
+# Fichier Firebase des notifications (secret GitHub GOOGLE_SERVICES_JSON pour l'APK)
+apps/mobile/google-services.json

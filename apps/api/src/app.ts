@@ -11,7 +11,11 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
-import { DevNotificationSender } from './modules/notifications/sender.js';
+import { deviceRoutes } from './modules/notifications/devices.routes.js';
+import {
+  DevNotificationSender,
+  RoutingNotificationSender,
+} from './modules/notifications/sender.js';
 import { orderRoutes } from './modules/orders/orders.routes.js';
 import { reconciliationRoutes } from './modules/reconciliation/reconciliation.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
@@ -79,10 +83,13 @@ export async function buildApp(
   await app.register(reconciliationRoutes(ctx));
   await app.register(supportRoutes(ctx));
   await app.register(webhookRoutes(ctx));
+  await app.register(deviceRoutes(ctx));
 
-  if (ctx.config.env !== 'production' && ctx.notifier instanceof DevNotificationSender) {
+  const inbox =
+    ctx.notifier instanceof RoutingNotificationSender ? ctx.notifier.messaging : ctx.notifier;
+  if (ctx.config.env !== 'production' && inbox instanceof DevNotificationSender) {
     // En recette, l'API est en ligne : les codes ne se lisent qu'avec la clé de recette.
-    await app.register(devMessagesRoutes(ctx.notifier, ctx.pool, ctx.config.recetteKey));
+    await app.register(devMessagesRoutes(inbox, ctx.pool, ctx.config.recetteKey));
   }
   if (ctx.config.env !== 'production' && ctx.storage instanceof MemoryStorage) {
     await app.register(devStorageRoutes(ctx.storage));

@@ -139,8 +139,8 @@ export async function verifyOtp(
       ? addHours(now, ctx.config.auth.staffSessionHours)
       : addHours(now, ctx.config.auth.sessionDays * 24);
     await tx.query(
-      `INSERT INTO sessions (user_id, token_hash, device_label, ip, expires_at, created_at)
-       VALUES ($1, $2, $3, $4::inet, $5, $6)`,
+      `INSERT INTO sessions (user_id, token_hash, device_label, ip, expires_at, created_at, last_seen_at)
+       VALUES ($1, $2, $3, $4::inet, $5, $6, $6)`,
       [user.id, sha256(token), meta.deviceLabel ?? null, meta.ip, expiresAt, now],
     );
     return {
@@ -168,31 +168,39 @@ export async function authenticate(
   ctx: AppContext,
   token: string,
 ): Promise<(AuthUser & AuthSession) | null> {
+  const now = ctx.clock.now();
   const { rows } = await ctx.pool.query<{
     session_id: string;
     mfa_verified: boolean;
+    last_seen_at: Date;
     id: string;
     phone: string;
     full_name: string | null;
     roles: Role[];
   }>(
-    `SELECT s.id AS session_id, s.mfa_verified_at IS NOT NULL AS mfa_verified,
+    `SELECT s.id AS session_id, s.mfa_verified_at IS NOT NULL AS mfa_verified, s.last_seen_at,
             u.id, u.phone, u.full_name, u.roles::text[] AS roles
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND u.status = 'active'`,
-    [sha256(token), ctx.clock.now()],
+    [sha256(token), now],
   );
   const r = rows[0];
-  return r
-    ? {
-        sessionId: r.session_id,
-        mfaVerified: r.mfa_verified,
-        id: r.id,
-        phone: r.phone,
-        fullName: r.full_name,
-        roles: r.roles,
-      }
-    : null;
+  if (!r) return null;
+  // Dernière activité, à la minute près : « Personnel » et le secours des notifications s'en servent.
+  if (now.getTime() - r.last_seen_at.getTime() >= 60_000) {
+    await ctx.pool.query('UPDATE sessions SET last_seen_at = $2 WHERE id = $1', [
+      r.session_id,
+      now,
+    ]);
+  }
+  return {
+    sessionId: r.session_id,
+    mfaVerified: r.mfa_verified,
+    id: r.id,
+    phone: r.phone,
+    fullName: r.full_name,
+    roles: r.roles,
+  };
 }
 
 export async function revokeSession(ctx: AppContext, sessionId: string): Promise<void> {

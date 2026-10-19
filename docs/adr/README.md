@@ -22,3 +22,4 @@ jamais effacée ; si on change d'avis, on écrit un nouvel ADR qui « remplace �
 | 0015 | [Rapprochement quotidien avec l'agrégateur](0015-rapprochement-quotidien.md)                               | Acceptée |
 | 0016 | [Site acheteurs utilisable quand le réseau coupe](0016-site-hors-connexion.md)                             | Acceptée |
 | 0017 | [Application Android utilisable quand le réseau coupe](0017-application-hors-connexion.md)                 | Acceptée |
+| 0018 | [Application Android utilisable quand le réseau coupe](0017-application-hors-connexion.md)                 | Acceptée |

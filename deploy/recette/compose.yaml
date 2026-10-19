@@ -16,6 +16,9 @@ x-api-env: &api-env
   PAYMENT_PROVIDER: simulator
   SIMULATOR_WEBHOOK_SECRET: ${SIMULATOR_WEBHOOK_SECRET:?SIMULATOR_WEBHOOK_SECRET manquant dans .env}
   SUPPORT_ALERT_PHONE: ${SUPPORT_ALERT_PHONE:-}
+  # Notifications sur les téléphones des testeurs (ADR-0018) : « expo » une fois Firebase configuré.
+  PUSH_PROVIDER: ${PUSH_PROVIDER:-none}
+  EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
   PUBLIC_API_URL: https://${API_HOST}
   CORS_ORIGINS: https://${SITE_HOST},https://${BACKOFFICE_HOST}
   STORAGE_DRIVER: s3

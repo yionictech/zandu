@@ -167,6 +167,18 @@ remboursements, back-office minimal, audit ; 102 tests ; CI.
   doublon (`Idempotency-Key` sur la création, rattachement de photo rejouable).
 - Corrigé : ouvrir l'application sans réseau déconnectait l'utilisateur.
 
+### Sprint 1 duodecies — Notifications sur le téléphone (✅ fait, ce dépôt)
+
+- Notification de l'application d'abord (ADR-0018) : nouvelle commande au vendeur, suivi de
+  livraison à l'acheteur, argent ; la toucher ouvre la commande.
+- Secours : WhatsApp puis SMS tout de suite si elle ne peut pas partir ; après 15 minutes pour ce
+  qui demande d'agir, si elle n'a été ni touchée ni suivie d'une visite dans l'application.
+- Codes (connexion, remise) toujours par SMS ; jeton lié à la session : un téléphone prêté ne
+  reçoit plus les messages de l'ancien compte.
+- Corrigé : la déconnexion dans l'application ne fermait pas la session côté serveur ; la
+  « Dernière activité » du personnel ne bougeait plus après la connexion.
+- Fondateur : comptes Expo et Firebase gratuits (guide §10 bis), quand la recette sera en ligne.
+
 ### Prochaine étape — Recette en ligne, téléphones réels, agrégateur
 
 - Fondateur : louer le serveur de recette et pointer quatre adresses DNS (D12, guide §1-2), puis

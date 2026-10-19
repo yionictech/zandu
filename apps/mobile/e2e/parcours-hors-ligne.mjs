@@ -115,6 +115,14 @@ const left = await page.evaluate(() => ({
 const personal = ['["seller"', '["orders"'].some((k) => left.cache?.includes(k));
 if (personal || (left.profile && left.profile !== 'null'))
   throw new Error('Données du compte restées sur le téléphone');
+// La session est aussi fermée côté serveur (elle restait valable jusqu'ici).
+let revoked = false;
+for (let i = 0; i < 20 && !revoked; i++) {
+  revoked =
+    (await fetch(`${API}/v1/me`, { headers: { authorization: `Bearer ${token}` } })).status === 401;
+  if (!revoked) await sleep(250);
+}
+if (!revoked) throw new Error('Session toujours valable après la déconnexion');
 
 await browser.close();
 console.log('Parcours hors connexion (application) : OK');

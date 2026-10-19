@@ -2,7 +2,11 @@ import { DomainError } from '@zandu/domain';
 import { SYSTEM, type AppContext } from '../context.js';
 import { withTx } from '../db/pool.js';
 import { processProductMedia } from '../modules/media/media.service.js';
-import { dispatchOutbox, sendNotifications } from '../modules/notifications/dispatcher.js';
+import {
+  dispatchOutbox,
+  pushFallbacks,
+  sendNotifications,
+} from '../modules/notifications/dispatcher.js';
 import { applyOrderEvent } from '../modules/orders/orders.service.js';
 import {
   expireCheckouts,
@@ -56,6 +60,8 @@ export const SWEEPERS: ReadonlyArray<[string, (ctx: AppContext) => Promise<numbe
   // Après les reversements et avant l'envoi des messages : une alerte d'écart part dans la passe.
   ['reconcileStatements', reconcileStatements],
   ['dispatchOutbox', dispatchOutbox],
+  // Notifications restées sans suite : doublées par WhatsApp/SMS dans la même passe.
+  ['pushFallbacks', pushFallbacks],
   ['sendNotifications', sendNotifications],
   // En dernier : le traitement d'image est le plus lent, l'argent et les messages passent avant.
   ['processProductMedia', processProductMedia],
