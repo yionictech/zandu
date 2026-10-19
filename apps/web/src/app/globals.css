@@ -1,29 +1,12 @@
 /* Site Zandu : pensé d'abord pour un téléphone en 3G (texte lisible, cibles de 48 px, peu d'octets). */
 :root {
-  --brand: #c2410c;
-  --brand-dark: #9a3412;
-  --brand-soft: #fff7ed;
-  --trust: #047857;
-  --trust-soft: #ecfdf5;
-  --waiting: #b45309;
-  --waiting-soft: #fffbeb;
-  --danger: #b91c1c;
-  --danger-soft: #fef2f2;
-  --text: #111827;
-  --muted: #4b5563;
-  --border: #e5e7eb;
-  --background: #f3f4f6;
-  --surface: #fff;
-  --radius: 12px;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    'Noto Sans',
-    sans-serif;
+  /* Couleurs, espacements et polices : @zandu/design (tokens.css, importé dans layout.tsx). */
+  --brand-dark: var(--brand-pressed);
+  --radius: 16px;
+  font-family: var(--font-body);
   color: var(--text);
   background: var(--background);
+  color-scheme: dark;
   -webkit-text-size-adjust: 100%;
 }
 * {
@@ -41,6 +24,11 @@ a {
 img {
   max-width: 100%;
   display: block;
+}
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 h1 {
   font-size: 22px;
@@ -97,10 +85,14 @@ main {
   }
 }
 .logo {
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 22px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.logo-dot {
   color: var(--brand);
-  letter-spacing: 0.3px;
 }
 .search {
   flex: 1;
@@ -115,7 +107,7 @@ main {
   border-radius: 21px 0 0 21px;
   padding: 0 14px;
   font: inherit;
-  background: var(--background);
+  background: var(--surface);
 }
 .search button {
   height: 42px;
@@ -123,7 +115,7 @@ main {
   border-radius: 0 21px 21px 0;
   padding: 0 16px;
   background: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
   font: inherit;
   font-weight: 700;
 }
@@ -138,16 +130,16 @@ main {
   position: absolute;
   top: -4px;
   right: -10px;
-  background: var(--brand);
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-brand);
   border-radius: 10px;
   font-size: 11px;
   padding: 0 6px;
   line-height: 18px;
 }
 .recette-banner {
-  background: #1e293b;
-  color: #fde68a;
+  background: var(--accent);
+  color: var(--on-brand);
   font-size: 12px;
   font-weight: 700;
   text-align: center;
@@ -165,6 +157,7 @@ main {
 /* ---------- Blocs ---------- */
 .card {
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
 }
@@ -197,7 +190,7 @@ main {
 .chip.active {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
 }
 .grid {
   display: grid;
@@ -307,12 +300,12 @@ main {
   justify-content: center;
   min-height: 48px;
   padding: 0 18px;
-  border-radius: 10px;
-  border: 1.5px solid transparent;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
   background: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
   text-align: center;
 }
@@ -320,19 +313,27 @@ main {
   background: var(--brand-dark);
 }
 .button.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.button.secondary:hover {
   background: var(--surface);
-  color: var(--brand);
-  border-color: var(--brand);
 }
 .button.trust {
   background: var(--trust);
+  color: var(--on-brand);
 }
 .button.whatsapp {
-  background: #128c4b;
+  background: #25d366;
+  color: var(--on-brand);
 }
 .button.ghost {
   background: transparent;
   color: var(--brand);
+}
+.button.ghost:hover {
+  background: var(--brand-soft);
 }
 .button.block {
   width: 100%;
@@ -358,11 +359,20 @@ textarea {
   font: inherit;
   min-height: 48px;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   color: var(--text);
   width: 100%;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+::placeholder {
+  color: var(--faint);
 }
 textarea {
   min-height: 90px;
@@ -491,12 +501,12 @@ textarea {
 .qty button {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--brand);
-  background: #fff;
-  color: var(--brand);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
 }
 .footer {
   text-align: center;
@@ -507,8 +517,8 @@ textarea {
 
 /* ---------- Hors connexion ---------- */
 .offline-banner {
-  background: #1f2937;
-  color: #fff;
+  background: var(--text);
+  color: var(--background);
   font-size: 13px;
   font-weight: 600;
   text-align: center;

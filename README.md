@@ -48,6 +48,8 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
+![Nouvelle direction visuelle](docs/ux/captures/fondations-sombres.jpg)
+
 ![Parcours acheteur](docs/ux/captures/parcours-acheteur.jpg)
 
 ![Parcours vendeur et livreur](docs/ux/captures/parcours-vendeur-livreur.jpg)
@@ -101,6 +103,7 @@ apps/web/          Site web acheteurs (Next.js, rendu serveur, aperçus WhatsApp
 apps/backoffice/   Back-office du support (Next.js, rendu serveur)
 packages/domain/   Règles métier pures (argent, statuts, grand livre)
 packages/api-client/  Client typé généré depuis le contrat OpenAPI
+packages/design/   Fondations visuelles partagées (couleurs, polices, espacements)
 db/migrations/     Schéma SQL versionné
 db/seeds/          Données de référence (zones, tarifs, catégories, commissions)
 deploy/recette/    Recette sur un serveur : Docker Compose, Caddy, vérifications, sauvegardes

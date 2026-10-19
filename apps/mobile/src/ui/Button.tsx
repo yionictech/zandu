@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { colors, font, radius, touchTarget } from '../theme';
 
 type Variant = 'primary' | 'secondary' | 'trust' | 'ghost';
@@ -41,13 +42,14 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' || variant === 'trust' ? '#fff' : colors.brand}
+          color={variant === 'primary' || variant === 'trust' ? colors.onBrand : colors.brand}
         />
       ) : (
         <Text
           style={[
             styles.label,
-            (variant === 'secondary' || variant === 'ghost') && styles.labelAlt,
+            variant === 'secondary' && styles.labelAlt,
+            variant === 'ghost' && styles.labelGhost,
           ]}
         >
           {label}
@@ -59,17 +61,18 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: touchTarget,
-    borderRadius: radius.md,
+    minHeight: Math.max(touchTarget, 54),
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   primary: { backgroundColor: colors.brand },
   trust: { backgroundColor: colors.trust },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.brand },
+  secondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   ghost: { backgroundColor: 'transparent' },
-  disabled: { opacity: 0.5 },
-  label: { color: '#fff', fontSize: font.body, fontWeight: '700', textAlign: 'center' },
-  labelAlt: { color: colors.brand },
+  disabled: { opacity: 0.4 },
+  label: { color: colors.onBrand, fontSize: font.body, fontWeight: '700', textAlign: 'center' },
+  labelAlt: { color: colors.text },
+  labelGhost: { color: colors.brand },
 });

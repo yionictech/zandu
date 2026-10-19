@@ -33,7 +33,7 @@ async function pushToken(): Promise<string | null> {
   await Notifications.setNotificationChannelAsync('commandes', {
     name: 'Commandes et livraisons',
     importance: Notifications.AndroidImportance.HIGH,
-    lightColor: '#C2410C',
+    lightColor: '#C6F432',
   });
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());

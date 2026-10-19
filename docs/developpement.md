@@ -105,6 +105,14 @@ quel numéro) ou « Mon espace vendeur » (06 100 00 01, 06 100 00 02, 05 100 00
 pour le livreur 06 800 00 00. Les livraisons sont assignées par le support :
 `POST /v1/support/deliveries/{commande}/assign` avec le compte administrateur 06 900 00 00.
 
+## Fondations visuelles (`packages/design`)
+
+Couleurs, espacements, rayons et polices sont dans `packages/design/src/tokens.ts`
+([direction visuelle](ux/03-nouvelle-direction-visuelle.md)). Après une modification :
+`pnpm --filter @zandu/design generate` régénère `tokens.css` (site et back-office) ; la CI vérifie
+qu'il est à jour. Dans l'application, importer `Text` et `TextInput` depuis `src/ui/Text` (pas
+depuis `react-native`) : ils appliquent la bonne police et la couleur du thème sombre.
+
 ## Commandes utiles
 
 | Commande                                   | Effet                                                                  |

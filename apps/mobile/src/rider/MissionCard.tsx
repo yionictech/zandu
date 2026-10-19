@@ -1,6 +1,7 @@
 import type { RiderMission } from '@zandu/api-client';
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { t } from '../i18n/fr';
 import { colors, font, radius, space } from '../theme';
 

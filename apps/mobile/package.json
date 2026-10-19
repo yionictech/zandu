@@ -12,10 +12,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo-google-fonts/unbounded": "^0.4.1",
     "@expo/metro-runtime": "~58.0.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.104.3",
     "@zandu/api-client": "workspace:*",
+    "@zandu/design": "workspace:*",
     "@zandu/domain": "workspace:*",
     "expo": "~58.0.14",
     "expo-constants": "~58.0.12",
@@ -29,11 +32,13 @@
     "expo-router": "~58.0.23",
     "expo-secure-store": "~58.0.2",
     "expo-status-bar": "~58.0.3",
+    "lucide-react-native": "^1.59.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
+    "react-native-svg": "15.16.0",
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {

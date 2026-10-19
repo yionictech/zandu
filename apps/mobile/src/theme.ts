@@ -1,36 +1,23 @@
 /**
- * Fondations visuelles (docs/ux/01-principes-experience.md §3) : une couleur de marque,
- * un vert réservé à la confiance (garantie, séquestre), contrastes AA, police système.
+ * Fondations visuelles de l'application : celles de `@zandu/design` (docs/ux/03), partagées avec
+ * le site et le back-office, plus les noms des polices chargées par l'application.
  */
-export const colors = {
-  brand: '#C2410C',
-  brandPressed: '#9A3412',
-  brandSoft: '#FFF7ED',
-  trust: '#047857',
-  trustSoft: '#ECFDF5',
-  waiting: '#B45309',
-  waitingSoft: '#FFFBEB',
-  danger: '#B91C1C',
-  dangerSoft: '#FEF2F2',
-  text: '#111827',
-  muted: '#4B5563',
-  border: '#E5E7EB',
-  background: '#F3F4F6',
-  surface: '#FFFFFF',
-  placeholder: '#E5E7EB',
+import { fontSize } from '@zandu/design';
+
+export { colors, radius, space, touchTarget } from '@zandu/design';
+
+/** Tailles de texte. */
+export const font = fontSize;
+
+/**
+ * Polices chargées au démarrage (app/_layout.tsx). Sur Android, une police chargée ne se met pas
+ * en gras toute seule : chaque graisse est une police à part (voir ui/Text.tsx).
+ */
+export const fonts = {
+  regular: 'DMSans_400Regular',
+  medium: 'DMSans_500Medium',
+  bold: 'DMSans_700Bold',
+  /** Titres et montants : linéale large. */
+  display: 'Unbounded_700Bold',
+  displayHeavy: 'Unbounded_800ExtraBold',
 } as const;
-
-export const space = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
-
-export const radius = { sm: 6, md: 10, lg: 16 } as const;
-
-export const font = {
-  small: 13,
-  body: 15,
-  title: 18,
-  headline: 22,
-  amount: 32,
-} as const;
-
-/** Cible tactile minimale (48 dp). */
-export const touchTarget = 48;

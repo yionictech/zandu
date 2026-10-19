@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { useCart, type CartLine } from '../../src/cart';
 import { formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';

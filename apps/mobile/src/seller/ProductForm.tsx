@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { api, unwrap } from '../api';
 import { formatRate, formatXaf, groupThousands } from '../format';
 import { t } from '../i18n/fr';

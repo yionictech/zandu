@@ -30,7 +30,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
     <div className="shell">
       <aside className="sidebar">
         <div className="logo">
-          Zandu
+          zandu<span className="logo-dot">.</span>
           <small>Back-office</small>
         </div>
         <Nav

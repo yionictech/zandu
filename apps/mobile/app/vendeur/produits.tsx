@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';

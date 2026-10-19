@@ -1,4 +1,10 @@
+import { DMSans_400Regular } from '@expo-google-fonts/dm-sans/400Regular';
+import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
+import { DMSans_700Bold } from '@expo-google-fonts/dm-sans/700Bold';
+import { Unbounded_700Bold } from '@expo-google-fonts/unbounded/700Bold';
+import { Unbounded_800ExtraBold } from '@expo-google-fonts/unbounded/800ExtraBold';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,6 +13,7 @@ import { CartProvider } from '../src/cart';
 import { t } from '../src/i18n/fr';
 import { SessionProvider } from '../src/session';
 import { colors } from '../src/theme';
+import { darkHeader } from '../src/ui/navigation';
 import { OfflineBar } from '../src/ui/OfflineBar';
 import { OutboxRunner } from '../src/seller/outbox';
 import { PushNotifications } from '../src/notifications';
@@ -15,19 +22,27 @@ import { PushNotifications } from '../src/notifications';
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function RootLayout() {
+  // Polices comprises dans l'application (aucun téléchargement) ; l'écran attend leur chargement.
+  const [fontsLoaded, fontError] = useFonts({
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+    Unbounded_700Bold,
+    Unbounded_800ExtraBold,
+  });
+  if (!fontsLoaded && !fontError) return null;
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
           <CartProvider>
-            <StatusBar style="dark" />
+            <StatusBar style="light" />
             <OutboxRunner />
             <PushNotifications />
             <OfflineBar>
               <Stack
                 screenOptions={{
-                  headerTintColor: colors.text,
-                  headerTitleStyle: { fontWeight: '700' },
+                  ...darkHeader,
                   headerBackTitle: t.common.back,
                   contentStyle: { backgroundColor: colors.background },
                 }}

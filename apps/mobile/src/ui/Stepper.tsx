@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { colors, font, radius, touchTarget } from '../theme';
 
 /** Quantité « − 5 + » : gros boutons, saisie directe possible pour les grands stocks. */
@@ -50,19 +51,19 @@ export function Stepper({
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
-  label: { fontSize: font.small, fontWeight: '600', color: colors.text },
+  label: { fontSize: font.small, fontWeight: '600', color: colors.muted },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   button: {
     width: touchTarget,
     height: touchTarget,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
   },
-  sign: { fontSize: 24, color: colors.brand, fontWeight: '700' },
+  sign: { fontSize: 24, color: colors.text, fontWeight: '500' },
   input: {
     width: 88,
     height: touchTarget,
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     textAlign: 'center',
     fontSize: font.title,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text,
     backgroundColor: colors.surface,
   },

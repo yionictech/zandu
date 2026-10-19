@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorMessage, newIdempotencyKey, unwrap } from '../../src/api';
 import { useCart } from '../../src/cart';
 import { displayPhone, formatXaf, isValidCongoPhone } from '../../src/format';

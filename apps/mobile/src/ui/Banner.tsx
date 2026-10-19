@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { colors, font, radius, space } from '../theme';
 
 type Tone = 'trust' | 'waiting' | 'danger' | 'brand';

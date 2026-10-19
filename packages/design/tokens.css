@@ -1,0 +1,40 @@
+/* Généré depuis src/tokens.ts (pnpm --filter @zandu/design generate) : ne pas modifier. */
+:root {
+  --background: #0b0e15;
+  --bar: #10141d;
+  --surface: #161a25;
+  --surface-raised: #1c2230;
+  --border: #232832;
+  --text: #eceef1;
+  --muted: #9b9fa7;
+  --faint: #585d65;
+  --brand: #c6f432;
+  --brand-pressed: #a8cf24;
+  --on-brand: #0b0e15;
+  --brand-soft: #1c2316;
+  --brand-border: #445033;
+  --trust: #c6f432;
+  --trust-soft: #1c2316;
+  --waiting: #3bdffd;
+  --waiting-soft: #10252b;
+  --danger: #f77858;
+  --danger-soft: #2a1714;
+  --accent: #8b7bff;
+  --placeholder: #1c2230;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --text-small: 13px;
+  --text-body: 15px;
+  --text-title: 18px;
+  --text-headline: 24px;
+  --text-amount: 34px;
+  --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

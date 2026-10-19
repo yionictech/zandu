@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, StyleSheet, Text } from 'react-native';
+import { Linking, StyleSheet } from 'react-native';
+import { Text } from '../src/ui/Text';
 import { api, errorMessage, unwrap } from '../src/api';
 import { RECETTE_SMS_URL } from '../src/config';
 import { displayPhone, isValidCongoPhone } from '../src/format';

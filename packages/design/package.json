@@ -1,0 +1,25 @@
+{
+  "name": "@zandu/design",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fondations visuelles de Zandu (docs/ux/03) : couleurs, rayons, espacements, typographie, partagées par l'application, le site et le back-office.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "zandu-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./tokens.css"
+  },
+  "files": [
+    "dist",
+    "tokens.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate": "node --experimental-strip-types scripts/css.ts && prettier --write tokens.css",
+    "check-generated": "pnpm generate && git diff --exit-code -- tokens.css"
+  }
+}

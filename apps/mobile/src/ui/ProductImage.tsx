@@ -1,12 +1,6 @@
 import { Image } from 'expo-image';
-import {
-  StyleSheet,
-  Text,
-  View,
-  type ImageStyle,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { StyleSheet, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { colors } from '../theme';
 
 /** Photo produit ; à défaut, une vignette avec l'initiale (aucun octet téléchargé). */

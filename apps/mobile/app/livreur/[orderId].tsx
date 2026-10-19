@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorCode, errorMessage, unwrap } from '../../src/api';
 import { displayPhone } from '../../src/format';
 import { t } from '../../src/i18n/fr';

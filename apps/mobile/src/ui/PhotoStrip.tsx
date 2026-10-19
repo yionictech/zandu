@@ -1,5 +1,7 @@
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Camera } from 'lucide-react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { t } from '../i18n/fr';
 import { colors, font, radius, space } from '../theme';
 import { Button } from './Button';
@@ -65,7 +67,7 @@ export function PhotoStrip({
                   testID={`photo-${photo.state}`}
                 >
                   {photo.state === 'uploading' ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={colors.text} />
                   ) : (
                     <Text style={styles.retry}>↻</Text>
                   )}
@@ -93,7 +95,7 @@ export function PhotoStrip({
             {busy ? (
               <ActivityIndicator color={colors.brand} />
             ) : (
-              <Text style={styles.addText}>📷</Text>
+              <Camera color={colors.muted} size={26} strokeWidth={1.8} />
             )}
           </Pressable>
         ) : null}
@@ -122,7 +124,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: colors.brand,
+    borderColor: colors.faint,
     backgroundColor: colors.brandSoft,
   },
   tip: { color: colors.muted, fontSize: font.small, textAlign: 'center', lineHeight: 19 },
@@ -138,12 +140,12 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(17,24,39,0.45)',
+    backgroundColor: 'rgba(11,14,21,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  overlayFailed: { backgroundColor: 'rgba(185,28,28,0.65)' },
-  retry: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  overlayFailed: { backgroundColor: 'rgba(247,120,88,0.75)' },
+  retry: { color: colors.onBrand, fontSize: 28, fontWeight: '800' },
   remove: {
     position: 'absolute',
     top: -8,
@@ -151,20 +153,21 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.text,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeText: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 20 },
+  removeText: { color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 20 },
   add: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: colors.brand,
+    borderColor: colors.faint,
     backgroundColor: colors.brandSoft,
   },
-  addText: { fontSize: 30 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   count: { color: colors.muted, fontSize: font.small },
   link: { color: colors.brand, fontSize: font.small, fontWeight: '700' },

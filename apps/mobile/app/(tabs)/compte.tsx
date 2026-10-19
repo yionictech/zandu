@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { displayPhone } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useSession } from '../../src/session';

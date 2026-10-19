@@ -2,7 +2,8 @@ import type { Payment } from '@zandu/api-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorCode, errorMessage, newIdempotencyKey, unwrap } from '../../src/api';
 import { API_URL, SIMULATOR_ENABLED } from '../../src/config';
 import {

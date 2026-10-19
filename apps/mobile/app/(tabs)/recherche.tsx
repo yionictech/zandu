@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { t } from '../../src/i18n/fr';
 import { colors, font, radius, space, touchTarget } from '../../src/theme';
@@ -39,7 +40,7 @@ export default function SearchScreen() {
           value={text}
           onChangeText={setText}
           placeholder={t.search.placeholder}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.faint}
           autoFocus
           returnKeyType="search"
           style={styles.input}

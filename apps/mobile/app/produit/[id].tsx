@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlatList, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { useCart } from '../../src/cart';
 import { formatDate, formatXaf } from '../../src/format';

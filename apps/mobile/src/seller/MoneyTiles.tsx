@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { formatXaf } from '../format';
 import { t } from '../i18n/fr';
 import { colors, font, radius, space } from '../theme';

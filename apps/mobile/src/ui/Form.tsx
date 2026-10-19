@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
+import { Text, TextInput } from './Text';
 import { colors, font, radius, space, touchTarget } from '../theme';
 
 export function Field({
@@ -6,13 +8,27 @@ export function Field({
   error,
   ...input
 }: TextInputProps & { label: string; error?: string | null }) {
+  // Champ actif : contour citron, comme les maquettes (et pas le contour du navigateur).
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        placeholderTextColor="#9CA3AF"
         {...input}
-        style={[styles.input, input.multiline && styles.multiline, !!error && styles.inputError]}
+        onFocus={(e) => {
+          setFocused(true);
+          input.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          input.onBlur?.(e);
+        }}
+        style={[
+          styles.input,
+          input.multiline && styles.multiline,
+          focused && styles.inputFocused,
+          !!error && styles.inputError,
+        ]}
         accessibilityLabel={label}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -55,9 +71,9 @@ export function ErrorText({ message }: { message: string | null | undefined }) {
 
 const styles = StyleSheet.create({
   field: { gap: 6 },
-  label: { fontSize: font.small, fontWeight: '600', color: colors.text },
+  label: { fontSize: font.small, fontWeight: '600', color: colors.muted },
   input: {
-    minHeight: touchTarget,
+    minHeight: Math.max(touchTarget, 52),
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -67,12 +83,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   multiline: { minHeight: 96, paddingTop: 12, textAlignVertical: 'top' },
+  inputFocused: { borderColor: colors.brand },
   inputError: { borderColor: colors.danger },
   error: { color: colors.danger, fontSize: font.small },
   chip: {
     minHeight: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -80,7 +97,13 @@ const styles = StyleSheet.create({
   },
   chipSelected: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipText: { color: colors.text, fontSize: font.small, fontWeight: '600' },
-  chipTextSelected: { color: '#fff' },
-  errorBox: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md },
+  chipTextSelected: { color: colors.onBrand },
+  errorBox: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.md,
+    padding: space.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
   errorBoxText: { color: colors.danger, fontSize: font.small, lineHeight: 19 },
 });

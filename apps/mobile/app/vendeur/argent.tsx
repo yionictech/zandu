@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { errorMessage } from '../../src/api';
 import { displayPhone, formatDateTime, formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';

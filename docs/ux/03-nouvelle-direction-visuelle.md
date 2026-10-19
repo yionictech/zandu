@@ -210,3 +210,27 @@ modèle à héberger). **Recommandation** : retirer l'icône pour l'instant.
 
 Chaque étape garde les parcours de bout en bout verts et ajoute des captures comparées aux
 maquettes.
+
+## 6. Étape 1 — fondations (✅ faite)
+
+![Fondations sombres](captures/fondations-sombres.jpg)
+
+- **`packages/design`** : couleurs, espacements, rayons, tailles et polices en un seul endroit.
+  L'application lit `src/tokens.ts` ; le site et le back-office lisent `tokens.css`, généré à
+  partir de lui (`pnpm --filter @zandu/design generate`, vérifié par la CI).
+- **Application** : thème sombre partout (en-têtes, onglets, barres du bas), polices Unbounded et
+  DM Sans comprises dans l'application, icônes Lucide dans la barre d'onglets et l'encart
+  « Garantie Zandu ». Le composant `src/ui/Text.tsx` choisit la police selon la graisse
+  (sur Android, chaque graisse est une police à part) et met le texte en clair par défaut.
+  Bouton principal citron en pilule, champs avec contour citron à la saisie, puces en pilule,
+  cartes à bord fin, code à 6 cases en citron.
+- **Site** : mêmes couleurs ; la police des titres (Unbounded, 21 Ko) se charge **après** la page
+  et vient ensuite du cache du téléphone ; le texte courant garde la police du téléphone. Fiche
+  produit en 3G : 163 Ko, page utilisable en 2,3-2,4 s (budget 2,5 s ; 155 Ko et 2,3 s avant).
+- **Back-office** : menu latéral sombre, logo « zandu. », tableaux, onglets et boutons du thème ;
+  DM Sans et Unbounded (ordinateurs du support, pas de contrainte 3G).
+- Polices **provisoires** : un seul endroit à changer (`fontFamily` et les fichiers chargés) quand
+  la designer confirme les siennes.
+- Restent pour les étapes suivantes : les émojis dans les écrans, les montants avec « FCFA » en
+  petit, les couleurs propres à chaque écran (« Refuser » en corail…), et les petites fonctions
+  listées au §3.

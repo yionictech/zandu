@@ -1,6 +1,7 @@
 import type { KycDocumentType } from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { t } from '../../src/i18n/fr';
 import { sellerKeys, useShop } from '../../src/seller/queries';

@@ -4,7 +4,9 @@ import { Suspense, type ReactNode } from 'react';
 import { RECETTE, SITE_URL } from '@/lib/api';
 import { sessionToken } from '@/lib/session';
 import { CartCount } from '@/components/CartCount';
+import { LateFonts } from '@/components/LateFonts';
 import { OfflineSupport } from '@/components/OfflineSupport';
+import '@zandu/design/tokens.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
   ...(RECETTE && { robots: { index: false, follow: false } }),
 };
 
-export const viewport: Viewport = { themeColor: '#C2410C', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#0B0E15', width: 'device-width', initialScale: 1 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const signedIn = (await sessionToken()) !== null;
@@ -35,7 +37,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <header className="header">
           <div className="header-row">
             <Link href="/" className="logo" aria-label="Zandu, accueil">
-              Zandu
+              zandu<span className="logo-dot">.</span>
             </Link>
             <form action="/recherche" className="search" role="search">
               <input
@@ -59,6 +61,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </header>
         <Suspense fallback={null}>
           <OfflineSupport signedIn={signedIn} />
+          <LateFonts />
         </Suspense>
         <div className="trust-banner">🛡 Mobile Money protégé jusqu’à la livraison</div>
         {children}

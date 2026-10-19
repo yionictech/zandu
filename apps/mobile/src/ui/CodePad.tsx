@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { t } from '../i18n/fr';
 import { colors, radius, space } from '../theme';
 
@@ -70,8 +71,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxActive: { borderColor: colors.brand },
-  digit: { fontSize: 28, fontWeight: '800', color: colors.text },
+  boxActive: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  digit: { fontSize: 26, fontWeight: '800', color: colors.brand },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   key: { width: '31.5%', height: 64 },
   keyButton: {

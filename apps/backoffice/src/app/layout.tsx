@@ -1,5 +1,10 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+// Polices servies par le back-office lui-même, caractères latins seulement.
+import '@fontsource/dm-sans/latin-400.css';
+import '@fontsource/dm-sans/latin-700.css';
+import '@fontsource/unbounded/latin-700.css';
+import '@zandu/design/tokens.css';
 import './globals.css';
 
 export const metadata: Metadata = {

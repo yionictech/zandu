@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { t } from '../../src/i18n/fr';
 import { colors, font, radius, space, touchTarget } from '../../src/theme';

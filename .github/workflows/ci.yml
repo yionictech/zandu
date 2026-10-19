@@ -42,6 +42,8 @@ jobs:
         run: pnpm lint:openapi
       - name: Client d'API à jour avec le contrat
         run: pnpm --filter @zandu/api-client check-generated
+      - name: Variables CSS à jour avec les fondations visuelles
+        run: pnpm --filter @zandu/design check-generated
       - name: Application mobile — compilation Android (Metro + Hermes)
         run: pnpm --filter @zandu/mobile exec expo export --platform android --output-dir ${{ runner.temp }}/android-bundle
         env:

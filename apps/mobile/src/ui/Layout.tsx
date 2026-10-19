@@ -4,14 +4,14 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   type ViewStyle,
 } from 'react-native';
+import { Text } from './Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../i18n/fr';
 import { useOnline } from '../network';
-import { colors, font, space } from '../theme';
+import { colors, font, radius, space } from '../theme';
 import { Button } from './Button';
 
 /** Écran défilant avec une barre d'action fixe en bas (zone du pouce). */
@@ -106,12 +106,19 @@ const styles = StyleSheet.create({
   content: { padding: space.md, gap: space.md, paddingBottom: space.xl },
   footer: {
     padding: space.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bar,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: space.sm,
   },
-  section: { backgroundColor: colors.surface, borderRadius: 12, padding: space.md, gap: space.sm },
+  section: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.md,
+    gap: space.sm,
+  },
   sectionTitle: { fontSize: font.title, fontWeight: '800', color: colors.text },
   center: {
     flex: 1,

@@ -1,6 +1,7 @@
 import type { SellerOrder } from '@zandu/api-client';
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { formatDateTime, formatXaf } from '../format';
 import { t } from '../i18n/fr';
 import { statusColor } from '../status';

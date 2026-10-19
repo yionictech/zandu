@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../src/ui/Text';
 import { api, errorCode, errorMessage, unwrap } from '../../src/api';
 import { displayPhone, isValidCongoPhone, suggestOperator } from '../../src/format';
 import { t } from '../../src/i18n/fr';

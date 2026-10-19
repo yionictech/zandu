@@ -2,7 +2,8 @@ import type { SellerProduct } from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Text } from '../../../src/ui/Text';
 import { api, errorMessage, newIdempotencyKey, unwrap } from '../../../src/api';
 import { t } from '../../../src/i18n/fr';
 import {

@@ -6,7 +6,8 @@
  * l'argent ou une identité : paiement, validation du panier, connexion, routes /api.
  * Les pages de suivi de commande (données personnelles) vont dans un cache à part, vidé dès
  * que le site voit l'acheteur déconnecté.
- * Fichiers de l'application (/_next/static, noms à empreinte) et photos : cache d'abord.
+ * Fichiers de l'application (/_next/static, noms à empreinte), police des titres (/fonts) et
+ * photos : cache d'abord.
  */
 const VERSION = 'v1';
 const PAGES = `zandu-pages-${VERSION}`;
@@ -136,7 +137,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(page(request, url, remember, event.resultingClientId));
     return;
   }
-  if (sameOrigin && url.pathname.startsWith('/_next/static/')) {
+  if (
+    sameOrigin &&
+    (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/fonts/'))
+  ) {
     event.respondWith(cacheFirst(STATIC, request));
     return;
   }
