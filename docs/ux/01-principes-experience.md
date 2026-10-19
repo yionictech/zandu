@@ -69,6 +69,9 @@
 
 ## 3. Fondations visuelles (pour le designer)
 
+> **Octobre 2026** : une nouvelle direction visuelle (thème sombre, citron) remplace les couleurs
+> ci-dessous — voir [03-nouvelle-direction-visuelle.md](03-nouvelle-direction-visuelle.md).
+
 | Élément     | Règle                                                                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Couleurs    | Une couleur de marque + un **vert « confiance »** réservé à la garantie/au séquestre + ambre (attente) + rouge (problème). Contraste AA minimum. |
