@@ -560,6 +560,61 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     expect(seen.response.status).toBe(204);
   });
 
+  it('back-office redessiné : vue d’ensemble, commandes, paiements, clients, catalogue, réglages', async () => {
+    const admin = clientFor(m.admin.headers.authorization!.slice(7));
+    expectConforms(
+      '/v1/support/dashboard',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/dashboard', { params: { query: { period: '7d' } } })),
+    );
+    expectConforms(
+      '/v1/support/orders',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/orders', { params: { query: { status: 'completed' } } })),
+    );
+    expectConforms(
+      '/v1/support/payments',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/payments', { params: { query: { period: '30d' } } })),
+    );
+    const customers = unwrap(await admin.GET('/v1/support/customers', { params: { query: {} } }));
+    expectConforms('/v1/support/customers', 'get', 200, customers);
+    expectConforms(
+      '/v1/support/customers/{id}',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/support/customers/{id}', {
+          params: { path: { id: customers.items[0]!.id } },
+        }),
+      ),
+    );
+    expectConforms(
+      '/v1/admin/products',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/products', { params: { query: {} } })),
+    );
+    expectConforms(
+      '/v1/admin/sellers',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/admin/sellers', { params: { query: { status: 'verified' } } })),
+    );
+    expectConforms(
+      '/v1/admin/sellers/{id}',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/admin/sellers/{id}', { params: { path: { id: m.seller.sellerId } } }),
+      ),
+    );
+    expectConforms('/v1/admin/settings', 'get', 200, unwrap(await admin.GET('/v1/admin/settings')));
+  });
+
   it('les erreurs suivent le format documenté', async () => {
     const result = await clientFor(null).GET('/v1/products/{id}', {
       params: { path: { id: '00000000-0000-4000-8000-000000000000' } },

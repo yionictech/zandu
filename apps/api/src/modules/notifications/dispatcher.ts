@@ -147,6 +147,13 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
           toSeller(o, 'seller_dispute_opened', { ref }),
           ...support(`Litige ouvert sur ${ref}`),
         ];
+      case 'order.dispute_reminder':
+        return [
+          toSeller(o, 'seller_dispute_reminder', {
+            ref,
+            deadline: formatDate(p.slaDueAt ? new Date(String(p.slaDueAt)) : null),
+          }),
+        ];
       case 'order.refunded':
         return [];
       default:

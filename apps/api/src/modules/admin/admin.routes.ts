@@ -10,6 +10,23 @@ import { DISPLAYABLE, variantKeySql } from '../media/media.service.js';
 import { audit } from './audit.js';
 
 /** Back-office (F16) : vérification des vendeurs, modération, contrôle du grand livre. */
+/**
+ * Alertes calculées pour la modération (maquette « Catalogue ») : prix très bas pour la
+ * catégorie (moins de 40 % du prix médian), photo unique, description vide.
+ */
+export function productAlerts(
+  price: number,
+  description: string,
+  photoCount: number,
+  categoryMedian: number | null,
+): Array<'low_price' | 'single_photo' | 'no_description'> {
+  const alerts: Array<'low_price' | 'single_photo' | 'no_description'> = [];
+  if (categoryMedian !== null && price < categoryMedian * 0.4) alerts.push('low_price');
+  if (photoCount <= 1) alerts.push('single_photo');
+  if (description.trim().length < 10) alerts.push('no_description');
+  return alerts;
+}
+
 export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
   return async (app) => {
     app.addHook('preHandler', requireAuth(ctx));
@@ -70,14 +87,33 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
         .parse(request.query);
       const { rows } = await ctx.pool.query(
         `SELECT s.id, s.shop_name AS "shopName", s.kind, s.city, s.verification_status AS "verificationStatus",
-                s.created_at AS "createdAt", u.phone,
-                (SELECT count(*)::int FROM kyc_documents k WHERE k.seller_id = s.id AND k.status = 'pending') AS "pendingDocuments"
+                s.created_at AS "createdAt", u.phone, u.full_name AS "managerName",
+                (SELECT count(*)::int FROM kyc_documents k WHERE k.seller_id = s.id AND k.status = 'pending') AS "pendingDocuments",
+                -- Pièce (carte ou passeport) et selfie reçus : le dossier est complet.
+                (EXISTS (SELECT 1 FROM kyc_documents k WHERE k.seller_id = s.id AND k.status <> 'rejected'
+                           AND k.type IN ('national_id', 'passport'))
+                 AND EXISTS (SELECT 1 FROM kyc_documents k WHERE k.seller_id = s.id AND k.status <> 'rejected'
+                           AND k.type = 'selfie')) AS "documentsComplete",
+                (SELECT max(k.created_at) FROM kyc_documents k WHERE k.seller_id = s.id) AS "lastDocumentAt"
          FROM seller_profiles s JOIN users u ON u.id = s.user_id
          WHERE s.verification_status = $1::seller_verification_status
          ORDER BY s.updated_at LIMIT 200`,
         [status],
       );
-      return { items: rows };
+      const { rows: counts } = await ctx.pool.query<{ status: string; n: number }>(
+        `SELECT verification_status AS status, count(*)::int AS n FROM seller_profiles GROUP BY 1`,
+      );
+      const count = (key: string) => counts.find((c) => c.status === key)?.n ?? 0;
+      return {
+        counts: {
+          pending_review: count('pending_review'),
+          verified: count('verified'),
+          suspended: count('suspended'),
+          unverified: count('unverified'),
+          rejected: count('rejected'),
+        },
+        items: rows,
+      };
     });
 
     /** Fiche d'une boutique pour la décision de vérification. */
@@ -86,7 +122,10 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
       const { rows } = await ctx.pool.query(
         `SELECT s.id, s.shop_name AS "shopName", s.kind, s.city, s.verification_status AS "verificationStatus",
                 s.rejection_reason AS "rejectionReason", s.payout_msisdn AS "payoutPhone",
-                s.payout_operator AS "payoutOperator", s.created_at AS "createdAt", u.phone,
+                s.payout_operator AS "payoutOperator", s.payout_account_name AS "payoutAccountName",
+                s.created_at AS "createdAt", u.phone, s.rccm, s.niu, s.opening_hours AS "openingHours",
+                (SELECT coalesce(array_agg(c.name ORDER BY c.position), '{}') FROM categories c
+                 WHERE c.id = ANY(s.sold_category_ids)) AS "soldCategories",
                 u.full_name AS "fullName", z.name AS "pickupZone",
                 (SELECT count(*)::int FROM products p WHERE p.seller_id = s.id AND p.status <> 'archived') AS "productCount",
                 (SELECT count(*)::int FROM orders o WHERE o.seller_id = s.id AND o.paid_at IS NOT NULL) AS "orderCount"
@@ -136,21 +175,40 @@ export function adminRoutes(ctx: AppContext): FastifyPluginAsync {
           status: z.enum(['pending_review', 'rejected', 'published']).default('pending_review'),
         })
         .parse(request.query);
-      const { rows } = await ctx.pool.query<{ photoKeys: string[] }>(
+      const { rows } = await ctx.pool.query<{
+        photoKeys: string[];
+        price: number;
+        description: string;
+        median: number | null;
+      }>(
         `SELECT p.id, p.title, p.description, p.price, p.stock, p.status, p.rejection_reason AS "rejectionReason",
-                p.updated_at AS "updatedAt", c.name AS "category",
+                p.updated_at AS "updatedAt", c.name AS "category", p.condition,
                 s.id AS "sellerId", s.shop_name AS "shopName", s.verification_status AS "sellerVerification",
                 (SELECT coalesce(json_agg(${variantKeySql('large')} ORDER BY m.position), '[]')
-                 FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS "photoKeys"
+                 FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS "photoKeys",
+                -- Prix médian de la catégorie (au moins 3 produits en ligne), pour l'alerte « prix très bas ».
+                (SELECT CASE WHEN count(*) >= 3 THEN percentile_cont(0.5) WITHIN GROUP (ORDER BY o.price) END
+                 FROM products o WHERE o.category_id = p.category_id AND o.status = 'published'
+                   AND o.id <> p.id) AS median
          FROM products p JOIN seller_profiles s ON s.id = p.seller_id JOIN categories c ON c.id = p.category_id
          WHERE p.status = $1::product_status
          ORDER BY p.updated_at LIMIT 100`,
         [status],
       );
+      const { rows: counts } = await ctx.pool.query<{ status: string; n: number }>(
+        `SELECT status, count(*)::int AS n FROM products
+         WHERE status IN ('pending_review', 'published', 'rejected') GROUP BY status`,
+      );
       return {
-        items: rows.map(({ photoKeys, ...p }) => ({
+        counts: {
+          pending_review: counts.find((c) => c.status === 'pending_review')?.n ?? 0,
+          published: counts.find((c) => c.status === 'published')?.n ?? 0,
+          rejected: counts.find((c) => c.status === 'rejected')?.n ?? 0,
+        },
+        items: rows.map(({ photoKeys, median, ...p }) => ({
           ...p,
           photos: photoKeys.map((key) => ctx.storage.publicUrl(key)),
+          alerts: productAlerts(p.price, p.description, photoKeys.length, median),
         })),
       };
     });

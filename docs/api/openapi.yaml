@@ -1842,8 +1842,17 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [counts, items]
                 properties:
+                  counts:
+                    type: object
+                    required: [pending_review, verified, suspended, unverified, rejected]
+                    properties:
+                      pending_review: { type: integer }
+                      verified: { type: integer }
+                      suspended: { type: integer }
+                      unverified: { type: integer }
+                      rejected: { type: integer }
                   items:
                     type: array
                     items:
@@ -1856,7 +1865,10 @@ paths:
                           city,
                           verificationStatus,
                           phone,
+                          managerName,
                           pendingDocuments,
+                          documentsComplete,
+                          lastDocumentAt,
                           createdAt,
                         ]
                       properties:
@@ -1866,7 +1878,11 @@ paths:
                         city: { type: string }
                         verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
                         phone: { type: string }
+                        managerName: { type: [string, 'null'] }
                         pendingDocuments: { type: integer }
+                        documentsComplete:
+                          { type: boolean, description: Pièce d'identité et selfie reçus }
+                        lastDocumentAt: { type: [string, 'null'], format: date-time }
                         createdAt: { type: string, format: date-time }
         '403': { $ref: '#/components/responses/Error' }
 
@@ -1995,8 +2011,13 @@ paths:
                     rejectionReason,
                     payoutPhone,
                     payoutOperator,
+                    payoutAccountName,
                     createdAt,
                     phone,
+                    rccm,
+                    niu,
+                    openingHours,
+                    soldCategories,
                     fullName,
                     pickupZone,
                     productCount,
@@ -2011,8 +2032,14 @@ paths:
                   rejectionReason: { type: [string, 'null'] }
                   payoutPhone: { type: string }
                   payoutOperator: { $ref: '#/components/schemas/Operator' }
+                  payoutAccountName:
+                    { type: [string, 'null'], description: À comparer au nom de la pièce }
                   createdAt: { type: string, format: date-time }
                   phone: { type: string }
+                  rccm: { type: [string, 'null'] }
+                  niu: { type: [string, 'null'] }
+                  openingHours: { type: [string, 'null'] }
+                  soldCategories: { type: array, items: { type: string } }
                   fullName: { type: [string, 'null'] }
                   pickupZone: { type: string }
                   productCount: { type: integer }
@@ -2036,8 +2063,15 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [counts, items]
                 properties:
+                  counts:
+                    type: object
+                    required: [pending_review, published, rejected]
+                    properties:
+                      pending_review: { type: integer }
+                      published: { type: integer }
+                      rejected: { type: integer }
                   items:
                     type: array
                     items:
@@ -2053,10 +2087,12 @@ paths:
                           rejectionReason,
                           updatedAt,
                           category,
+                          condition,
                           sellerId,
                           shopName,
                           sellerVerification,
                           photos,
+                          alerts,
                         ]
                       properties:
                         id: { type: string, format: uuid }
@@ -2071,7 +2107,322 @@ paths:
                         sellerId: { type: string, format: uuid }
                         shopName: { type: string }
                         sellerVerification: { $ref: '#/components/schemas/VerificationStatus' }
+                        condition: { $ref: '#/components/schemas/ProductCondition' }
                         photos: { type: array, items: { type: string, format: uri } }
+                        alerts:
+                          type: array
+                          description: >-
+                            Alertes calculées : prix sous 40 % du prix médian de la catégorie,
+                            photo unique, description vide
+                          items: { type: string, enum: [low_price, single_photo, no_description] }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/dashboard:
+    get:
+      tags: [Support]
+      summary: Vue d'ensemble — volume, argent bloqué, commissions, litiges, 14 derniers jours
+      description: Les commissions ne sont renvoyées qu'aux administrateurs (null pour le support).
+      operationId: supportDashboard
+      parameters:
+        - { $ref: '#/components/parameters/Period' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [period, volume, escrow, commission, disputes, todo, daily]
+                properties:
+                  period: { type: string, enum: [today, 7d, 30d] }
+                  volume:
+                    type: object
+                    required: [amount, paidOrders]
+                    properties:
+                      amount: { $ref: '#/components/schemas/Amount' }
+                      paidOrders: { type: integer }
+                  escrow:
+                    type: object
+                    required: [amount, orders]
+                    properties:
+                      amount: { $ref: '#/components/schemas/Amount' }
+                      orders: { type: integer }
+                  commission:
+                    type: [object, 'null']
+                    required: [amount, rateBps]
+                    properties:
+                      amount: { $ref: '#/components/schemas/Amount' }
+                      rateBps: { type: integer }
+                  disputes:
+                    type: object
+                    required: [open, dueToday, first]
+                    properties:
+                      open: { type: integer }
+                      dueToday: { type: integer }
+                      first:
+                        type: [object, 'null']
+                        required: [id, publicRef, reason]
+                        properties:
+                          id: { type: string, format: uuid }
+                          publicRef: { type: string }
+                          reason: { $ref: '#/components/schemas/DisputeReason' }
+                  todo:
+                    type: object
+                    required: [kycPending, productsPending, deliveriesToAssign, moneyFailures]
+                    properties:
+                      kycPending: { type: integer }
+                      productsPending: { type: integer }
+                      deliveriesToAssign: { type: integer }
+                      moneyFailures: { type: integer }
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      required: [date, orders]
+                      properties:
+                        date: { type: string, format: date }
+                        orders: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/payments:
+    get:
+      tags: [Support]
+      summary: Paiements — encaissé, séquestre, libéré, par opérateur, mouvements
+      operationId: supportPayments
+      parameters:
+        - { $ref: '#/components/parameters/Period' }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [all, in, out], default: all }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    period,
+                    collected,
+                    escrow,
+                    released,
+                    payoutsPending,
+                    failures,
+                    byOperator,
+                    movements,
+                  ]
+                properties:
+                  period: { type: string, enum: [today, 7d, 30d] }
+                  collected:
+                    type: object
+                    required: [amount, count]
+                    properties:
+                      amount: { $ref: '#/components/schemas/Amount' }
+                      count: { type: integer }
+                  escrow: { $ref: '#/components/schemas/Amount' }
+                  released:
+                    type: object
+                    required: [amount, sellers]
+                    properties:
+                      amount: { $ref: '#/components/schemas/Amount' }
+                      sellers: { type: integer }
+                  payoutsPending: { type: integer }
+                  failures: { type: integer }
+                  byOperator:
+                    type: array
+                    items:
+                      type: object
+                      required: [operator, amount]
+                      properties:
+                        operator: { $ref: '#/components/schemas/Operator' }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                  movements:
+                    type: array
+                    items:
+                      type: object
+                      required: [kind, at, reference, beneficiary, operator, amount, status]
+                      properties:
+                        kind: { type: string, enum: [collection, payout, refund] }
+                        at: { type: string, format: date-time }
+                        reference: { type: [string, 'null'] }
+                        beneficiary: { type: [string, 'null'] }
+                        operator: { $ref: '#/components/schemas/Operator' }
+                        amount: { type: integer, description: Négatif pour une sortie }
+                        status: { type: string }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/customers:
+    get:
+      tags: [Support]
+      summary: Clients — recherche par nom ou numéro
+      operationId: listCustomers
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 60 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CustomerSummary' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/customers/{id}:
+    get:
+      tags: [Support]
+      summary: Fiche d'un client (consultation journalisée)
+      operationId: getCustomer
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CustomerSummary'
+                  - type: object
+                    required: [addresses, recentOrders]
+                    properties:
+                      addresses:
+                        type: array
+                        items:
+                          type: object
+                          required: [zone, city, landmark]
+                          properties:
+                            zone: { type: string }
+                            city: { type: string }
+                            landmark: { type: [string, 'null'] }
+                      recentOrders:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            [
+                              id,
+                              publicRef,
+                              status,
+                              total,
+                              createdAt,
+                              shopName,
+                              disputeId,
+                              disputeReason,
+                            ]
+                          properties:
+                            id: { type: string, format: uuid }
+                            publicRef: { type: string }
+                            status: { $ref: '#/components/schemas/OrderStatus' }
+                            total: { $ref: '#/components/schemas/Amount' }
+                            createdAt: { type: string, format: date-time }
+                            shopName: { type: string }
+                            disputeId: { type: [string, 'null'], format: uuid }
+                            disputeReason:
+                              oneOf:
+                                - type: 'null'
+                                - $ref: '#/components/schemas/DisputeReason'
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/support/customers/{id}/status:
+    post:
+      tags: [Support]
+      summary: Bloquer ou débloquer un compte client (sessions fermées, journalisé)
+      operationId: setCustomerStatus
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason]
+              properties:
+                status: { type: string, enum: [active, suspended] }
+                reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { type: string, enum: [active, suspended] }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/support/disputes/{id}/remind-seller:
+    post:
+      tags: [Support]
+      summary: Relancer le vendeur qui n'a pas répondu au litige
+      operationId: remindSellerOfDispute
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Rappel envoyé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, reminded]
+                properties:
+                  id: { type: string, format: uuid }
+                  reminded: { type: boolean }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/settings:
+    get:
+      tags: [Support]
+      summary: Réglages en vigueur (lecture) — commission par défaut, livraison, délais
+      operationId: adminSettings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [money, delays]
+                properties:
+                  money:
+                    type: object
+                    required: [defaultCommissionBps, deliveryRates, newSellerPayoutCap]
+                    properties:
+                      defaultCommissionBps: { type: [integer, 'null'] }
+                      deliveryRates:
+                        type: array
+                        items:
+                          type: object
+                          required: [city, mode, min, max]
+                          properties:
+                            city: { type: string }
+                            mode: { type: string, enum: [home, pickup_point] }
+                            min: { $ref: '#/components/schemas/Amount' }
+                            max: { $ref: '#/components/schemas/Amount' }
+                      newSellerPayoutCap: { $ref: '#/components/schemas/Amount' }
+                  delays:
+                    type: object
+                    required:
+                      [
+                        sellerAcceptanceHours,
+                        disputeWindowHours,
+                        disputeSlaHours,
+                        pushFallbackMinutes,
+                      ]
+                    properties:
+                      sellerAcceptanceHours: { type: number }
+                      disputeWindowHours: { type: number }
+                      disputeSlaHours: { type: number }
+                      pushFallbackMinutes: { type: number }
         '403': { $ref: '#/components/responses/Error' }
 
   /v1/support/overview:
@@ -2204,8 +2555,37 @@ paths:
         - name: q
           in: query
           schema: { type: string, maxLength: 40, examples: [ZD-7K3M9Q2P, 06 612 34 56] }
+        - name: status
+          in: query
+          description: Onglet de la liste — un ou plusieurs statuts séparés par des virgules
+          schema: { type: string, examples: ['paid,preparing'] }
       responses:
-        '200': { $ref: '#/components/responses/OrderList' }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [counts, items]
+                properties:
+                  counts:
+                    type: object
+                    description: Nombre de commandes par statut (onglets)
+                    additionalProperties: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Order'
+                        - type: object
+                          required: [buyerName, riderName, operator]
+                          properties:
+                            buyerName: { type: [string, 'null'] }
+                            riderName: { type: [string, 'null'] }
+                            operator:
+                              oneOf:
+                                - type: 'null'
+                                - $ref: '#/components/schemas/Operator'
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
 
@@ -2738,6 +3118,11 @@ components:
       description: Jeton opaque obtenu par `POST /v1/auth/otp/verify`
 
   parameters:
+    Period:
+      name: period
+      in: query
+      description: Aujourd'hui, 7 ou 30 derniers jours (jours entiers, heure de Brazzaville)
+      schema: { type: string, enum: [today, 7d, 30d], default: today }
     Id:
       name: id
       in: path
@@ -2847,6 +3232,19 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    CustomerSummary:
+      type: object
+      required: [id, name, phone, status, createdAt, orders, paid, disputes]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: [string, 'null'] }
+        phone: { type: string }
+        status: { type: string, enum: [active, suspended, closed] }
+        createdAt: { type: string, format: date-time }
+        city: { type: [string, 'null'] }
+        orders: { type: integer }
+        paid: { $ref: '#/components/schemas/Amount' }
+        disputes: { type: integer }
     PrepMinutes:
       type: integer
       enum: [15, 30, 60, 120]

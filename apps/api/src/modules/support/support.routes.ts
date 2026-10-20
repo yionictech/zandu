@@ -7,6 +7,19 @@ import { requireAuth, requireStaff } from '../auth/guards.js';
 import { orderViews } from '../orders/orders.service.js';
 
 const IdParam = z.object({ id: z.uuid() });
+const ORDER_STATUSES = [
+  'pending_payment',
+  'paid',
+  'preparing',
+  'ready_for_pickup',
+  'in_delivery',
+  'awaiting_collection',
+  'delivered',
+  'completed',
+  'disputed',
+  'refunded',
+  'cancelled',
+] as const;
 /** Fenêtre des alertes de reversement et de remboursement en échec. */
 const ALERT_DAYS = 30;
 
@@ -115,33 +128,83 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
      * destinataire). Sans critère : les 50 dernières commandes.
      */
     app.get('/v1/support/orders', async (request) => {
-      const { q } = z.object({ q: z.string().trim().max(40).optional() }).parse(request.query);
-      if (!q) return { items: (await orderViews(ctx.pool, 'true', [])).slice(0, 50) };
-      // « ZD-7K3M9Q2P », « zd7k3m9q2p » ou « 7K3M9Q2P » (8 caractères dont une lettre :
-      // sinon c'est un numéro de téléphone saisi sans le 0).
-      const compact = q.toUpperCase().replace(/[\s-]/g, '');
-      const ref = compact.startsWith('ZD') ? compact.slice(2) : compact;
-      if (/^[0-9A-Z]{8}$/.test(ref) && (compact.startsWith('ZD') || /[A-Z]/.test(ref))) {
-        return { items: await orderViews(ctx.pool, 'o.public_ref = $1', [`ZD-${ref}`]) };
+      const { q, status } = z
+        .object({
+          q: z.string().trim().max(40).optional(),
+          /** Onglet de la liste : un ou plusieurs statuts séparés par des virgules. */
+          status: z
+            .string()
+            .optional()
+            .transform((v) => (v ? v.split(',').filter(Boolean) : undefined))
+            .pipe(z.array(z.enum(ORDER_STATUSES)).optional()),
+        })
+        .parse(request.query);
+      const statusFilter = status?.length ? status : null;
+      let items;
+      if (!q) {
+        items = statusFilter
+          ? await orderViews(ctx.pool, 'o.status = ANY($1::order_status[])', [statusFilter])
+          : (await orderViews(ctx.pool, 'true', [])).slice(0, 50);
+      } else {
+        // « ZD-7K3M9Q2P », « zd7k3m9q2p » ou « 7K3M9Q2P » (8 caractères dont une lettre :
+        // sinon c'est un numéro de téléphone saisi sans le 0).
+        const compact = q.toUpperCase().replace(/[\s-]/g, '');
+        const ref = compact.startsWith('ZD') ? compact.slice(2) : compact;
+        if (/^[0-9A-Z]{8}$/.test(ref) && (compact.startsWith('ZD') || /[A-Z]/.test(ref))) {
+          items = await orderViews(ctx.pool, 'o.public_ref = $1', [`ZD-${ref}`]);
+        } else {
+          let phone: string;
+          try {
+            phone = parseCongoMobile(q).e164;
+          } catch {
+            throw new HttpError(
+              400,
+              'invalid_search',
+              'Saisissez une référence de commande (ZD-…) ou un numéro de téléphone',
+            );
+          }
+          items = await orderViews(
+            ctx.pool,
+            `(o.buyer_id = (SELECT id FROM users WHERE phone = $1)
+              OR s.user_id = (SELECT id FROM users WHERE phone = $1)
+              OR o.shipping_address->>'phone' = $1)`,
+            [phone],
+          );
+        }
+        if (statusFilter) items = items.filter((o) => statusFilter.includes(o.status));
       }
-      let phone: string;
-      try {
-        phone = parseCongoMobile(q).e164;
-      } catch {
-        throw new HttpError(
-          400,
-          'invalid_search',
-          'Saisissez une référence de commande (ZD-…) ou un numéro de téléphone',
-        );
-      }
+      // Colonnes du tableau (maquette « Commandes ») : acheteur, livreur, opérateur payé.
+      const { rows: extra } = await ctx.pool.query<{
+        id: string;
+        buyerName: string | null;
+        riderName: string | null;
+        operator: string | null;
+      }>(
+        `SELECT o.id, coalesce(b.full_name, o.shipping_address->>'recipientName') AS "buyerName",
+                ru.full_name AS "riderName",
+                (SELECT p.operator FROM payments p WHERE p.checkout_id = o.checkout_id AND p.status = 'succeeded'
+                 ORDER BY p.succeeded_at DESC LIMIT 1) AS operator
+         FROM orders o JOIN users b ON b.id = o.buyer_id
+         LEFT JOIN deliveries d ON d.order_id = o.id LEFT JOIN riders r ON r.id = d.rider_id
+         LEFT JOIN users ru ON ru.id = r.user_id
+         WHERE o.id = ANY($1::uuid[])`,
+        [items.map((o) => o.id)],
+      );
+      const byId = new Map(extra.map((e) => [e.id, e]));
+      const { rows: counts } = await ctx.pool.query<{ status: string; n: number }>(
+        'SELECT status, count(*)::int AS n FROM orders GROUP BY status',
+      );
       return {
-        items: await orderViews(
-          ctx.pool,
-          `(o.buyer_id = (SELECT id FROM users WHERE phone = $1)
-            OR s.user_id = (SELECT id FROM users WHERE phone = $1)
-            OR o.shipping_address->>'phone' = $1)`,
-          [phone],
-        ),
+        counts: Object.fromEntries(counts.map((c) => [c.status, c.n])),
+        items: items.map((o) => {
+          const e = byId.get(o.id);
+          return {
+            ...o,
+            buyerName: e?.buyerName ?? null,
+            riderName: e?.riderName ?? null,
+            operator: e?.operator ?? null,
+          };
+        }),
       };
     });
 

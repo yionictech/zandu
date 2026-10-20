@@ -25,6 +25,8 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : la commande ${v.ref} est annulée.${v.refund ? ` Remboursement de ${v.refund} en cours.` : ''}`,
   seller_dispute_opened: (v) =>
     `Zandu : un litige est ouvert sur la commande ${v.ref}. Le reversement est suspendu.`,
+  seller_dispute_reminder: (v) =>
+    `Zandu : le support attend votre réponse au litige sur la commande ${v.ref}, avant ${v.deadline}. Répondez dans l'application.`,
   buyer_refunded: (v) =>
     `Zandu : remboursement de ${v.amount} envoyé sur votre compte Mobile Money.`,
   seller_payout_sent: (v) =>
@@ -46,6 +48,7 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
 export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   seller_new_order: { title: 'Nouvelle commande', fallback: true },
   seller_dispute_opened: { title: 'Litige ouvert', fallback: true },
+  seller_dispute_reminder: { title: 'Litige : votre réponse est attendue', fallback: true },
   seller_order_completed: { title: 'Argent crédité', fallback: false },
   seller_payout_sent: { title: 'Reversement envoyé', fallback: true },
   buyer_payment_confirmed: { title: 'Paiement reçu', fallback: false },

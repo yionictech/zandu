@@ -7,6 +7,7 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 import { commissionRuleRoutes } from './modules/admin/commission-rules.routes.js';
 import { staffRoutes } from './modules/admin/staff.routes.js';
 import { supportRoutes } from './modules/support/support.routes.js';
+import { backofficeRoutes } from './modules/support/backoffice.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
@@ -83,6 +84,7 @@ export async function buildApp(
   await app.register(reportRoutes(ctx));
   await app.register(reconciliationRoutes(ctx));
   await app.register(supportRoutes(ctx));
+  await app.register(backofficeRoutes(ctx));
   await app.register(webhookRoutes(ctx));
   await app.register(deviceRoutes(ctx));
   await app.register(inboxRoutes(ctx));
