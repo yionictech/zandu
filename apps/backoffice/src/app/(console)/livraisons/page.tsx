@@ -4,7 +4,7 @@ import { ORDER_STATUS } from '@/lib/labels';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Badge, Empty, Flash, PageHeader, readParams, type SearchParams } from '@/components/ui';
 
-export const metadata = { title: 'Livraisons' };
+export const metadata = { title: 'Livreurs' };
 
 async function assign(form: FormData) {
   'use server';
@@ -27,10 +27,32 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
   return (
     <>
       <PageHeader
-        title="Livraisons à assigner"
-        subtitle="Le livreur reçoit la mission dans son application ; le client garde son code de remise."
+        title="Livreurs"
+        subtitle="Le livreur reçoit la mission dans son application ; le client garde son code de remise. Inscription et activation des livreurs : avec le modèle livreur (docs/ux/03 §4.1)."
       />
       <Flash ok={ok} erreur={erreur} />
+      <section className="grid grid-4">
+        <div className="card kpi">
+          <span className="label dot" style={{ ['--dot' as string]: 'var(--brand)' }}>
+            Livreurs actifs
+          </span>
+          <span className="value">{riders.items.length}</span>
+          <span className="note">
+            dont {riders.items.filter((r) => r.activeMissions > 0).length} en course
+          </span>
+        </div>
+        <div className="card kpi">
+          <span className="label dot" style={{ ['--dot' as string]: 'var(--danger)' }}>
+            À assigner
+          </span>
+          <span className="value">{deliveries.items.length}</span>
+          <span className="note">
+            dont {deliveries.items.filter((d) => d.orderStatus === 'ready_for_pickup').length} colis
+            prêts
+          </span>
+        </div>
+      </section>
+      <h2 style={{ margin: 0 }}>Livraisons à assigner</h2>
       {deliveries.items.length === 0 ? (
         <Empty>Aucun colis en attente de livreur.</Empty>
       ) : (

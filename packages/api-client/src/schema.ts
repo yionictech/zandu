@@ -1121,7 +1121,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Litiges ouverts, les plus urgents d'abord */
+    /** Litiges ouverts (les plus urgents d'abord) ou résolus */
     get: operations['listOpenDisputes'];
     put?: never;
     post?: never;
@@ -4408,7 +4408,9 @@ export interface operations {
   };
   listOpenDisputes: {
     parameters: {
-      query?: never;
+      query?: {
+        status?: 'open' | 'resolved';
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -4422,7 +4424,14 @@ export interface operations {
         };
         content: {
           'application/json': {
+            counts: {
+              open: number;
+              resolved: number;
+            };
             items: {
+              shopName: string;
+              buyerName: string | null;
+              sellerChoice: null | components['schemas']['DisputeSellerChoice'];
               /** Format: uuid */
               id: string;
               reason: components['schemas']['DisputeReason'];

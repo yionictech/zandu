@@ -1,63 +1,35 @@
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { load } from '@/lib/api';
-import { deadline, formatDateTime, formatXaf } from '@/lib/format';
-import { DISPUTE_REASON } from '@/lib/labels';
-import { Badge, Empty, Flash, PageHeader, readParams, type SearchParams } from '@/components/ui';
+import { DisputeList, DisputesHeader } from '@/components/DisputeList';
+import { Flash, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Litiges' };
 
-/** Litiges ouverts (F12), les plus proches de l'échéance de 72 h en tête. */
+/**
+ * Litiges (F12) : le plus urgent s'ouvre directement à droite de la liste (maquette) ; le
+ * reversement au vendeur reste gelé jusqu'à la décision. Objectif : sous 72 h.
+ */
 export default async function DisputesPage({ searchParams }: { searchParams: SearchParams }) {
-  const { ok, erreur } = await readParams(searchParams);
-  const { items } = await load((api) => api.GET('/v1/support/disputes'));
+  const { one, ok, erreur } = await readParams(searchParams);
+  const resolved = one('vue') === 'resolus';
+  const { items, counts } = await load((api) =>
+    api.GET('/v1/support/disputes', {
+      params: { query: { status: resolved ? 'resolved' : 'open' } },
+    }),
+  );
+  if (items[0] && !ok && !erreur) {
+    redirect(`/litiges/${items[0].id}${resolved ? '?vue=resolus' : ''}`);
+  }
   return (
     <>
-      <PageHeader
-        title="Litiges ouverts"
-        subtitle="Le reversement au vendeur est gelé jusqu'à la décision. Objectif : sous 72 h."
-      />
+      <DisputesHeader open={counts.open} resolved={counts.resolved} showResolved={resolved} />
       <Flash ok={ok} erreur={erreur} />
-      {items.length === 0 ? (
-        <Empty>Aucun litige ouvert.</Empty>
-      ) : (
-        <div className="card table-card">
-          <table>
-            <thead>
-              <tr>
-                <th>Commande</th>
-                <th>Motif</th>
-                <th className="num">Montant</th>
-                <th>Ouvert le</th>
-                <th>Échéance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((d) => {
-                const due = deadline(d.slaDueAt);
-                return (
-                  <tr key={d.id}>
-                    <td>
-                      <Link
-                        href={`/litiges/${d.id}`}
-                        className="ref"
-                        data-testid={`dispute-${d.publicRef}`}
-                      >
-                        {d.publicRef}
-                      </Link>
-                    </td>
-                    <td>{DISPUTE_REASON[d.reason]}</td>
-                    <td className="num">{formatXaf(d.total)}</td>
-                    <td>{formatDateTime(d.createdAt)}</td>
-                    <td>
-                      <Badge tone={due.late ? 'danger' : 'waiting'}>{due.label}</Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <div className="split left">
+        <DisputeList status={resolved ? 'resolved' : 'open'} />
+        <div className="card empty">
+          {items.length ? 'Choisissez un litige.' : 'Rien à trancher pour le moment.'}
         </div>
-      )}
+      </div>
     </>
   );
 }

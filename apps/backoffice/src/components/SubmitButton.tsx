@@ -7,9 +7,14 @@ export function SubmitButton({
   children,
   variant,
   confirm,
+  name,
+  value,
 }: {
   children: React.ReactNode;
   variant?: 'trust' | 'danger' | 'secondary';
+  /** Bouton qui porte un choix (plusieurs décisions dans un même formulaire). */
+  name?: string;
+  value?: string;
   /** Question de confirmation avant les décisions irréversibles. */
   confirm?: string;
 }) {
@@ -17,6 +22,8 @@ export function SubmitButton({
   return (
     <button
       type="submit"
+      name={name}
+      value={value}
       className={`button ${variant ?? ''}`}
       disabled={pending}
       onClick={(event) => {

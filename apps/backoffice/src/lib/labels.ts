@@ -39,6 +39,21 @@ export const ORDER_STATUS: Record<OrderStatus, [string, Tone]> = {
   cancelled: ['Annulée', 'neutral'],
 };
 
+/** Statut court des tableaux (maquettes Admin) : cyan en route, citron terminé, corail litige. */
+export const ORDER_SHORT: Record<OrderStatus, [string, Tone]> = {
+  pending_payment: ['À payer', 'neutral'],
+  paid: ['Payée', 'neutral'],
+  preparing: ['En préparation', 'neutral'],
+  ready_for_pickup: ['Prête', 'brand'],
+  in_delivery: ['En livraison', 'waiting'],
+  awaiting_collection: ['Au point relais', 'waiting'],
+  delivered: ['Remise', 'trust'],
+  completed: ['Terminée', 'trust'],
+  disputed: ['Litige', 'danger'],
+  refunded: ['Remboursée', 'danger'],
+  cancelled: ['Annulée', 'neutral'],
+};
+
 export const DISPUTE_REASON: Record<DisputeReason, string> = {
   not_received: 'Rien reçu',
   not_as_described: "Différent de l'annonce",

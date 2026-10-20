@@ -133,7 +133,7 @@ await page.getByTestId('totp-secret').waitFor();
 const secret = (await page.getByTestId('totp-secret').innerText()).replace(/\s/g, '');
 await page.getByLabel("Code affiché par l'application").fill(totp(secret));
 await page.getByRole('button', { name: 'Activer et continuer' }).click();
-await page.getByRole('heading', { name: 'Tableau de bord' }).waitFor();
+await page.getByRole('heading', { name: 'Vue d’ensemble' }).waitFor();
 
 // 4. Contrôle de la journée en cours : l'écart apparaît.
 await page.getByRole('link', { name: /^Rapprochement/ }).click();

@@ -2,6 +2,9 @@ import { formatXaf, parseCongoMobile } from '@zandu/domain';
 
 export { formatXaf };
 
+/** « 1 245 000 F » : montant des tuiles et des tableaux denses (maquettes Admin). */
+export const formatF = (amount: number): string => formatXaf(amount).replace(/\s?FCFA$/, ' F');
+
 const dateTime = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Africa/Brazzaville',
   day: 'numeric',

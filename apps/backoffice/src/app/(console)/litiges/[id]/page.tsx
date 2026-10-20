@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { act, field, load } from '@/lib/api';
-import { deadline, displayPhone, formatDateTime, formatXaf } from '@/lib/format';
-import { DISPUTE_REASON, ORDER_STATUS } from '@/lib/labels';
+import { deadline, formatDateTime, formatXaf } from '@/lib/format';
+import { DISPUTE_REASON } from '@/lib/labels';
 import { SubmitButton } from '@/components/SubmitButton';
-import { Badge, Flash, PageHeader, readParams, type SearchParams } from '@/components/ui';
+import { DisputeList, DisputesHeader } from '@/components/DisputeList';
+import { Badge, Flash, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Litige' };
 
@@ -14,9 +15,9 @@ const SELLER_CHOICE = {
 } as const;
 
 const RESOLUTIONS = {
-  release_to_seller: "Payer le vendeur (l'acheteur n'a pas raison)",
-  refund_full: "Rembourser intégralement l'acheteur",
-  refund_partial: "Rembourser une partie à l'acheteur, le reste au vendeur",
+  release_to_seller: 'Libéré au vendeur',
+  refund_full: 'Acheteur remboursé intégralement',
+  refund_partial: 'Remboursement partiel, le reste au vendeur',
 } as const;
 
 async function resolve(id: string, form: FormData) {
@@ -35,9 +36,36 @@ async function resolve(id: string, form: FormData) {
   );
 }
 
+async function remind(id: string) {
+  'use server';
+  await act(`/litiges/${id}`, 'Vendeur relancé', (api) =>
+    api.POST('/v1/support/disputes/{id}/remind-seller', { params: { path: { id } } }),
+  );
+}
+
+function Photos({ urls, alt }: { urls: string[]; alt: string }) {
+  if (!urls.length) return <p className="small muted">Aucune photo jointe.</p>;
+  return (
+    <>
+      <div className="gallery">
+        {urls.map((url) => (
+          <a key={url} href={url} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={alt} />
+          </a>
+        ))}
+      </div>
+      <p className="small muted">
+        {urls.length > 1 ? `${urls.length} photos jointes` : '1 photo jointe'} · liens valables 5
+        minutes, consultation journalisée
+      </p>
+    </>
+  );
+}
+
 /**
- * Décider d'un litige (F9, F12) : preuves de l'acheteur (URL signées, consultation journalisée),
- * commande, puis décision motivée qui déclenche automatiquement remboursement et/ou reversement.
+ * Décider d'un litige (F9, F12), maquette « Litiges » : ce que dit l'acheteur, la réponse du
+ * vendeur (ou le relancer), puis une décision motivée qui déclenche remboursement et/ou reversement.
  */
 export default async function DisputePage({
   params,
@@ -47,142 +75,158 @@ export default async function DisputePage({
   searchParams: SearchParams;
 }) {
   const { id } = await params;
-  const { ok, erreur } = await readParams(searchParams);
-  const d = await load((api) => api.GET('/v1/support/disputes/{id}', { params: { path: { id } } }));
+  const { one, ok, erreur } = await readParams(searchParams);
+  const [d, list] = await Promise.all([
+    load((api) => api.GET('/v1/support/disputes/{id}', { params: { path: { id } } })),
+    load((api) => api.GET('/v1/support/disputes', { params: { query: {} } })),
+  ]);
   const o = d.order;
-  const [orderLabel, orderTone] = ORDER_STATUS[o.status];
   const due = deadline(d.slaDueAt);
-  const buyerEvidence = d.evidence.filter((e) => e.from === 'buyer');
-  const sellerEvidence = d.evidence.filter((e) => e.from === 'seller');
+  const open = d.status === 'open';
+  const buyerEvidence = d.evidence.filter((e) => e.from === 'buyer').map((e) => e.url);
+  const sellerEvidence = d.evidence.filter((e) => e.from === 'seller').map((e) => e.url);
+  const showResolved = one('vue') === 'resolus' || !open;
   return (
     <>
-      <PageHeader
-        title={`Litige ${o.publicRef}`}
-        subtitle={
-          <>
-            {DISPUTE_REASON[d.reason]} · ouvert le {formatDateTime(d.createdAt)} ·{' '}
-            {d.status === 'open' ? (
-              <Badge tone={due.late ? 'danger' : 'waiting'}>échéance {due.label}</Badge>
-            ) : (
-              <Badge tone="trust">tranché</Badge>
-            )}
-          </>
-        }
-      >
-        <Link href={`/commandes/${o.id}`}>Dossier complet de la commande →</Link>
-      </PageHeader>
+      <DisputesHeader
+        open={list.counts.open}
+        resolved={list.counts.resolved}
+        showResolved={showResolved}
+      />
       <Flash ok={ok} erreur={erreur} />
-      <section className="grid grid-2">
-        <div className="card">
-          <h2>Ce que dit l'acheteur</h2>
-          <p style={{ whiteSpace: 'pre-wrap', marginTop: 0 }}>{d.description}</p>
-          <div className="gallery large">
-            {buyerEvidence.map((e) => (
-              <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={e.url} alt="Preuve envoyée par l'acheteur" />
-              </a>
-            ))}
-            {buyerEvidence.length === 0 ? <p className="muted">Aucune photo jointe.</p> : null}
-          </div>
-          <h2>Réponse du vendeur</h2>
-          {d.sellerChoice ? (
-            <>
-              <p style={{ marginTop: 0 }}>
-                <Badge tone="waiting">{SELLER_CHOICE[d.sellerChoice]}</Badge> ·{' '}
-                {formatDateTime(d.sellerRespondedAt)}
-              </p>
-              {d.sellerMessage ? <p style={{ whiteSpace: 'pre-wrap' }}>{d.sellerMessage}</p> : null}
-              <div className="gallery large">
-                {sellerEvidence.map((e) => (
-                  <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={e.url} alt="Preuve envoyée par le vendeur" />
-                  </a>
-                ))}
+      <div className="split left">
+        <DisputeList status={showResolved ? 'resolved' : 'open'} selected={id} />
+        <div className="grid">
+          <section className="card panel-head">
+            <div>
+              <h2 className="ref" style={{ fontSize: 22, margin: 0 }}>
+                {o.publicRef}
+              </h2>
+              <div className="muted">
+                {o.shippingAddress.recipientName} contre {o.seller.shopName} · signalé le{' '}
+                {formatDateTime(d.createdAt)}
               </div>
-            </>
+              <div className="chips" style={{ marginTop: 8 }}>
+                <Badge tone="danger">{DISPUTE_REASON[d.reason]}</Badge>
+                <Badge>Remis le {formatDateTime(o.deliveredAt)}</Badge>
+                {open ? (
+                  <Badge tone={due.late ? 'danger' : 'waiting'}>Échéance {due.label}</Badge>
+                ) : (
+                  <Badge tone="trust">Tranché</Badge>
+                )}
+                <Link href={`/commandes/${o.id}`} className="small">
+                  Dossier de la commande →
+                </Link>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p className="eyebrow" style={{ color: 'var(--waiting)' }}>
+                {open ? 'Bloqué' : 'Était bloqué'}
+              </p>
+              <div className="price" style={{ fontSize: 22 }}>
+                {formatXaf(o.total)}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-2">
+            <div className="card">
+              <p className="eyebrow">Acheteur</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>« {d.description} »</p>
+              <Photos urls={buyerEvidence} alt="Preuve envoyée par l'acheteur" />
+            </div>
+            <div className="card">
+              <p className="eyebrow">Vendeur</p>
+              {d.sellerChoice ? (
+                <>
+                  <p>
+                    <Badge tone="waiting">{SELLER_CHOICE[d.sellerChoice]}</Badge>{' '}
+                    <span className="small muted">{formatDateTime(d.sellerRespondedAt)}</span>
+                  </p>
+                  {d.sellerMessage ? (
+                    <p style={{ whiteSpace: 'pre-wrap' }}>« {d.sellerMessage} »</p>
+                  ) : null}
+                  <Photos urls={sellerEvidence} alt="Preuve envoyée par le vendeur" />
+                </>
+              ) : (
+                <>
+                  <p className="muted">Le vendeur n'a pas encore répondu.</p>
+                  {open ? (
+                    <form action={remind.bind(null, id)}>
+                      <SubmitButton variant="secondary">Relancer le vendeur</SubmitButton>
+                    </form>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </section>
+
+          {open ? (
+            <section className="card" style={{ borderColor: 'var(--brand-border)' }}>
+              <h2>Décision</h2>
+              <form action={resolve.bind(null, id)} className="stack">
+                <label>
+                  Note de décision (journal d'audit, visible par l'équipe)
+                  <textarea
+                    name="note"
+                    minLength={5}
+                    maxLength={2000}
+                    required
+                    placeholder="Motif de la décision"
+                  />
+                </label>
+                <label>
+                  Montant remboursé (remboursement partiel seulement, moins que les articles :{' '}
+                  {formatXaf(o.itemsSubtotal)})
+                  <input name="refundAmount" inputMode="numeric" placeholder="Ex. 10000" />
+                </label>
+                <div className="chips">
+                  <SubmitButton
+                    variant="danger"
+                    name="resolution"
+                    value="refund_full"
+                    confirm="Rembourser intégralement l'acheteur ? L'argent part immédiatement."
+                  >
+                    Rembourser l'acheteur · {formatXaf(o.total - o.refundedAmount)}
+                  </SubmitButton>
+                  <SubmitButton
+                    variant="secondary"
+                    name="resolution"
+                    value="refund_partial"
+                    confirm="Rembourser ce montant et payer le reste au vendeur ?"
+                  >
+                    Remboursement partiel
+                  </SubmitButton>
+                  <SubmitButton
+                    variant="secondary"
+                    name="resolution"
+                    value="release_to_seller"
+                    confirm="Libérer l'argent au vendeur ?"
+                  >
+                    Libérer au vendeur
+                  </SubmitButton>
+                </div>
+              </form>
+            </section>
           ) : (
-            <p className="muted">Le vendeur n'a pas encore répondu.</p>
+            <section className="card">
+              <h2>Décision prise</h2>
+              <dl className="kv">
+                <dt>Décision</dt>
+                <dd>{d.resolution ? RESOLUTIONS[d.resolution] : '—'}</dd>
+                {d.refundAmount ? (
+                  <>
+                    <dt>Remboursé</dt>
+                    <dd>{formatXaf(d.refundAmount)}</dd>
+                  </>
+                ) : null}
+                <dt>Note</dt>
+                <dd>{d.decisionNote}</dd>
+              </dl>
+            </section>
           )}
         </div>
-        <div className="card">
-          <h2>Commande</h2>
-          <dl className="kv">
-            <dt>Statut</dt>
-            <dd>
-              <Badge tone={orderTone}>{orderLabel}</Badge>
-            </dd>
-            <dt>Boutique</dt>
-            <dd>{o.seller.shopName}</dd>
-            <dt>Articles</dt>
-            <dd>
-              {o.items.map((i) => (
-                <div key={i.itemId}>
-                  {i.quantity} × {i.title} — {formatXaf(i.lineTotal)}
-                </div>
-              ))}
-            </dd>
-            <dt>Livraison</dt>
-            <dd>{formatXaf(o.deliveryFee)}</dd>
-            <dt>Total payé</dt>
-            <dd className="big-money">{formatXaf(o.total)}</dd>
-            <dt>Destinataire</dt>
-            <dd>
-              {o.shippingAddress.recipientName} · {displayPhone(o.shippingAddress.phone)}
-            </dd>
-            <dt>Remise</dt>
-            <dd>{formatDateTime(o.deliveredAt)}</dd>
-          </dl>
-        </div>
-      </section>
-      {d.status === 'open' ? (
-        <section className="card">
-          <h2>Décision</h2>
-          <form action={resolve.bind(null, id)} className="stack">
-            {Object.entries(RESOLUTIONS).map(([value, label], index) => (
-              <label key={value} className="radio">
-                <input
-                  type="radio"
-                  name="resolution"
-                  value={value}
-                  defaultChecked={index === 0}
-                  required
-                />
-                {label}
-              </label>
-            ))}
-            <label>
-              Montant remboursé (remboursement partiel seulement, moins que les articles :{' '}
-              {formatXaf(o.itemsSubtotal)})
-              <input name="refundAmount" inputMode="numeric" placeholder="Ex. 10000" />
-            </label>
-            <label>
-              Note de décision (visible dans le journal d'audit)
-              <textarea name="note" minLength={5} maxLength={2000} required />
-            </label>
-            <SubmitButton confirm="Appliquer cette décision ? L'argent part immédiatement.">
-              Appliquer la décision
-            </SubmitButton>
-          </form>
-        </section>
-      ) : (
-        <section className="card">
-          <h2>Décision prise</h2>
-          <dl className="kv">
-            <dt>Décision</dt>
-            <dd>{d.resolution ? RESOLUTIONS[d.resolution] : '—'}</dd>
-            {d.refundAmount ? (
-              <>
-                <dt>Remboursé</dt>
-                <dd>{formatXaf(d.refundAmount)}</dd>
-              </>
-            ) : null}
-            <dt>Note</dt>
-            <dd>{d.decisionNote}</dd>
-          </dl>
-        </section>
-      )}
+      </div>
     </>
   );
 }

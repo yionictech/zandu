@@ -1,8 +1,10 @@
+import { IdCard, UserRound } from 'lucide-react';
+import Link from 'next/link';
 import { act, field, load } from '@/lib/api';
 import { displayPhone, formatDateTime, OPERATORS } from '@/lib/format';
 import { DOCUMENTS, VERIFICATION } from '@/lib/labels';
 import { SubmitButton } from '@/components/SubmitButton';
-import { Badge, Flash, PageHeader, readParams, type SearchParams } from '@/components/ui';
+import { Badge, Flash, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Boutique' };
 
@@ -14,7 +16,7 @@ async function decide(id: string, form: FormData) {
   const reason = field(form, 'reason');
   const labels = {
     verified: 'Boutique vérifiée',
-    rejected: 'Dossier refusé',
+    rejected: 'Demande envoyée au vendeur',
     suspended: 'Boutique suspendue',
   };
   await act(`/vendeurs/${id}`, labels[decision], (api) =>
@@ -25,9 +27,17 @@ async function decide(id: string, form: FormData) {
   );
 }
 
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter((w) => /^\p{L}/u.test(w))
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+
 /**
- * Décision de vérification : pièces affichées par URL signées de 5 minutes ; chaque
- * consultation est inscrite au journal d'audit (loi 29-2019).
+ * Vérification d'une boutique (maquette « Vendeurs ») : identité et compte Mobile Money à gauche,
+ * pièces et contrôles à droite. Pièces par URL signées de 5 minutes, consultation journalisée.
  */
 export default async function SellerPage({
   params,
@@ -44,34 +54,63 @@ export default async function SellerPage({
   ]);
   const [statusLabel, tone] = VERIFICATION[seller.verificationStatus];
   const action = decide.bind(null, id);
+  const live = documents.items.filter((d) => d.status !== 'rejected');
+  const idDoc = live.find((d) => d.type === 'national_id' || d.type === 'passport');
+  const selfie = live.find((d) => d.type === 'selfie');
+  const others = live.filter((d) => d !== idDoc && d !== selfie);
+  const canDecide = ['pending_review', 'unverified', 'rejected'].includes(
+    seller.verificationStatus,
+  );
   return (
     <>
-      <PageHeader title={seller.shopName} subtitle={<Badge tone={tone}>{statusLabel}</Badge>} />
+      <header className="page-header">
+        <div>
+          <Link href="/vendeurs" className="small">
+            ← Vendeurs
+          </Link>
+          <h1>{seller.shopName}</h1>
+        </div>
+        <Badge tone={tone}>{statusLabel}</Badge>
+      </header>
       <Flash ok={ok} erreur={erreur} />
-      <section className="grid grid-2">
-        <div className="card">
-          <h2>Boutique</h2>
+      <section className="grid grid-2" style={{ alignItems: 'start' }}>
+        <div className="card grid">
+          <div className="identity">
+            <span className="avatar">{initials(seller.shopName)}</span>
+            <div>
+              <strong>{seller.shopName}</strong>
+              <div className="small muted">
+                Gérant : {seller.fullName ?? '—'} · {seller.city}, {seller.pickupZone}
+              </div>
+            </div>
+          </div>
           <dl className="kv">
             <dt>Type</dt>
             <dd>{seller.kind === 'business' ? 'Entreprise' : 'Particulier'}</dd>
-            <dt>Responsable</dt>
-            <dd>{seller.fullName ?? '—'}</dd>
             <dt>Téléphone</dt>
             <dd>{displayPhone(seller.phone)}</dd>
-            <dt>Reversements</dt>
+            <dt>Mobile Money de paiement</dt>
             <dd>
-              {displayPhone(seller.payoutPhone)} · {OPERATORS[seller.payoutOperator]}
+              {OPERATORS[seller.payoutOperator]} · {displayPhone(seller.payoutPhone)}
             </dd>
-            <dt>Enlèvement</dt>
+            <dt>Nom sur le compte</dt>
+            <dd>{seller.payoutAccountName ?? <span className="muted">Non renseigné</span>}</dd>
+            <dt>NIU / RCCM</dt>
             <dd>
-              {seller.pickupZone}, {seller.city}
+              {[seller.niu, seller.rccm].filter(Boolean).join(' · ') || (
+                <span className="muted">Non renseigné</span>
+              )}
             </dd>
-            <dt>Ouverte le</dt>
-            <dd>{formatDateTime(seller.createdAt)}</dd>
+            <dt>Catégories prévues</dt>
+            <dd>{seller.soldCategories.join(', ') || <span className="muted">—</span>}</dd>
+            <dt>Horaires</dt>
+            <dd>{seller.openingHours ?? <span className="muted">—</span>}</dd>
             <dt>Produits / ventes</dt>
             <dd>
               {seller.productCount} / {seller.orderCount}
             </dd>
+            <dt>Ouverte le</dt>
+            <dd>{formatDateTime(seller.createdAt)}</dd>
             {seller.rejectionReason ? (
               <>
                 <dt>Dernier motif</dt>
@@ -80,70 +119,105 @@ export default async function SellerPage({
             ) : null}
           </dl>
         </div>
-        <div className="card">
-          <h2>Décision</h2>
-          <form action={action} className="stack">
-            <input type="hidden" name="decision" value="verified" />
-            <p className="muted small">
-              La pièce est lisible, le selfie correspond, le nom du compte Mobile Money concorde.
-            </p>
-            <SubmitButton variant="trust">Vérifier la boutique</SubmitButton>
-          </form>
-          <hr />
-          <form action={action} className="stack">
-            <label>
-              Motif (envoyé au vendeur)
-              <select name="reason" required defaultValue="">
-                <option value="" disabled>
-                  Choisir un motif…
-                </option>
-                <option>Pièce illisible ou coupée</option>
-                <option>Selfie ne correspondant pas à la pièce</option>
-                <option>Pièce expirée</option>
-                <option>Documents d'entreprise manquants</option>
-              </select>
-            </label>
-            <div className="decisions">
-              <button type="submit" name="decision" value="rejected" className="button danger">
-                Refuser le dossier
-              </button>
-              <button type="submit" name="decision" value="suspended" className="button secondary">
+
+        <div className="card grid">
+          <p className="eyebrow">Pièces fournies</p>
+          <div className="thumbs">
+            {[
+              [idDoc, 'Pièce d’identité', IdCard],
+              [selfie, 'Selfie avec la pièce', UserRound],
+            ].map(([doc, label, Icon]) => {
+              const d = doc as (typeof live)[number] | undefined;
+              const Glyph = Icon as typeof IdCard;
+              return (
+                <figure key={label as string}>
+                  {d ? (
+                    <a href={d.url} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={d.url} alt={label as string} />
+                    </a>
+                  ) : (
+                    <span className="missing">
+                      <Glyph size={22} aria-hidden />
+                    </span>
+                  )}
+                  <figcaption className="small">
+                    <strong>{label as string}</strong> {d ? '' : '· manquante'}
+                  </figcaption>
+                </figure>
+              );
+            })}
+            {others.map((d) => (
+              <figure key={d.id}>
+                <a href={d.url} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={d.url} alt={DOCUMENTS[d.type]} />
+                </a>
+                <figcaption className="small">
+                  <strong>{DOCUMENTS[d.type]}</strong>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>
+            Liens valables 5 minutes ; consultation journalisée.
+          </p>
+
+          {canDecide ? (
+            <>
+              <form action={action} className="stack">
+                <input type="hidden" name="decision" value="verified" />
+                <label className="check">
+                  <input type="checkbox" required />
+                  Le nom de la pièce correspond au compte Mobile Money
+                </label>
+                <label className="check">
+                  <input type="checkbox" required />
+                  Le selfie correspond à la pièce
+                </label>
+                <SubmitButton>Approuver la boutique</SubmitButton>
+              </form>
+              <form action={action} className="stack">
+                <label>
+                  Motif (envoyé au vendeur)
+                  <select name="reason" required defaultValue="">
+                    <option value="" disabled>
+                      Choisir un motif…
+                    </option>
+                    <option>Verso de la pièce manquant</option>
+                    <option>Pièce illisible ou coupée</option>
+                    <option>Selfie ne correspondant pas à la pièce</option>
+                    <option>Nom du compte Mobile Money différent de la pièce</option>
+                    <option>Pièce expirée</option>
+                    <option>Documents d'entreprise manquants</option>
+                  </select>
+                </label>
+                <div className="chips">
+                  <button
+                    type="submit"
+                    name="decision"
+                    value="rejected"
+                    className="button secondary"
+                  >
+                    Demander un document
+                  </button>
+                  <button type="submit" name="decision" value="suspended" className="button danger">
+                    Refuser et suspendre
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : seller.verificationStatus === 'verified' ? (
+            <form action={action} className="stack">
+              <label>
+                Motif de la suspension (envoyé au vendeur)
+                <input name="reason" minLength={3} maxLength={300} required />
+              </label>
+              <button type="submit" name="decision" value="suspended" className="button danger">
                 Suspendre la boutique
               </button>
-            </div>
-          </form>
-        </div>
-      </section>
-      <section className="card">
-        <h2>Pièces ({documents.items.length})</h2>
-        <p className="small muted">Liens valables 5 minutes ; consultation journalisée.</p>
-        <div className="gallery large">
-          {documents.items.map((doc) => (
-            <figure key={doc.id} style={{ margin: 0 }}>
-              <a href={doc.url} target="_blank" rel="noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={doc.url} alt={DOCUMENTS[doc.type]} />
-              </a>
-              <figcaption className="small">
-                {DOCUMENTS[doc.type]} ·{' '}
-                <Badge
-                  tone={
-                    doc.status === 'accepted'
-                      ? 'trust'
-                      : doc.status === 'rejected'
-                        ? 'danger'
-                        : 'waiting'
-                  }
-                >
-                  {doc.status === 'accepted'
-                    ? 'acceptée'
-                    : doc.status === 'rejected'
-                      ? 'refusée'
-                      : 'à examiner'}
-                </Badge>
-              </figcaption>
-            </figure>
-          ))}
+            </form>
+          ) : null}
         </div>
       </section>
     </>

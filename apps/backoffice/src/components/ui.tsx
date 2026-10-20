@@ -59,7 +59,7 @@ export function Tabs({
           aria-current={item.active ? 'page' : undefined}
         >
           {item.label}
-          {item.count !== undefined ? ` (${item.count})` : ''}
+          {item.count !== undefined ? ` · ${item.count}` : ''}
         </Link>
       ))}
     </nav>

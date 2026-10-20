@@ -189,22 +189,25 @@ await shot('02-second-facteur');
 const secret = (await page.getByTestId('totp-secret').innerText()).replace(/\s/g, '');
 await page.getByLabel("Code affiché par l'application").fill(totp(secret));
 await page.getByRole('button', { name: 'Activer et continuer' }).click();
-await page.getByRole('heading', { name: 'Tableau de bord' }).waitFor();
-await shot('03-tableau-de-bord');
+await page.getByRole('heading', { name: 'Vue d’ensemble' }).waitFor();
+await shot('03-vue-d-ensemble');
 
 // 3. Vérification de la boutique
-await page.getByRole('link', { name: /Vérifications/ }).click();
+await page.getByRole('link', { name: /Vendeurs/ }).click();
+await shot('04-vendeurs-a-verifier');
 await page.locator(`a[href="/vendeurs/${shop.id}"]`).click();
 await page.getByRole('heading', { name: 'Boutique Bana Mboka' }).waitFor();
-await page.locator('.gallery img').first().waitFor();
-await shot('04-boutique-a-verifier');
-await page.getByRole('button', { name: 'Vérifier la boutique' }).click();
+await page.locator('.thumbs img').first().waitFor();
+await page.getByLabel('Le nom de la pièce correspond au compte Mobile Money').check();
+await page.getByLabel('Le selfie correspond à la pièce').check();
+await shot('05-boutique-a-verifier');
+await page.getByRole('button', { name: 'Approuver la boutique' }).click();
 await page.getByText('Boutique vérifiée').first().waitFor();
 
 // 4. Modération du produit
-await page.getByRole('link', { name: /Modération/ }).click();
+await page.getByRole('link', { name: /Catalogue/ }).click();
 await page.getByTestId(`moderation-${draft.id}`).waitFor();
-await shot('05-moderation');
+await shot('06-catalogue');
 await page
   .getByTestId(`moderation-${draft.id}`)
   .getByRole('button', { name: 'Mettre en ligne' })
@@ -212,10 +215,10 @@ await page
 await page.getByText('Produit mis en ligne').waitFor();
 
 // 5. Assignation du livreur
-await page.getByRole('link', { name: /Livraisons/ }).click();
+await page.getByRole('link', { name: /Livreurs/ }).click();
 const row = page.getByTestId(`delivery-${toAssign.publicRef}`);
 await row.waitFor();
-await shot('06-livraisons-a-assigner');
+await shot('07-livreurs');
 await row.getByRole('button', { name: 'Assigner' }).click();
 await page.getByText(`Livreur assigné à ${toAssign.publicRef}`).waitFor();
 
@@ -223,15 +226,16 @@ await page.getByText(`Livreur assigné à ${toAssign.publicRef}`).waitFor();
 await page.getByRole('link', { name: /Litiges/ }).click();
 await page.getByTestId(`dispute-${toDispute.publicRef}`).click();
 await page.locator('.gallery img').first().waitFor();
-await page.getByLabel("Rembourser une partie à l'acheteur, le reste au vendeur").check();
+await page.getByRole('button', { name: 'Relancer le vendeur' }).click();
+await page.getByText('Vendeur relancé').waitFor();
 await page.getByLabel(/Montant remboursé/).fill('10000');
 await page
   .getByLabel(/Note de décision/)
   .fill("Photo du pied fendu : geste de 10 000 FCFA accepté par l'acheteur au téléphone.");
-await shot('07-litige-decision');
-await page.getByRole('button', { name: 'Appliquer la décision' }).click();
+await shot('08-litige-decision');
+await page.getByRole('button', { name: 'Remboursement partiel' }).click();
 await page.getByText('Décision appliquée').waitFor();
-await shot('08-litige-tranche');
+await shot('09-litige-tranche');
 
 // 7. Dossier de commande retrouvé par le téléphone de l'acheteur
 await sleep(4000); // le worker exécute le remboursement et le reversement
@@ -239,13 +243,27 @@ await page.getByRole('link', { name: /Commandes/ }).click();
 await page.getByLabel('Référence ou téléphone').fill(buyerPhone);
 await page.getByRole('button', { name: 'Chercher' }).click();
 await page.getByTestId(`order-${toDispute.publicRef}`).click();
+await page.getByTestId('order-panel').waitFor();
+await shot('10-commandes-volet');
+await page.getByRole('link', { name: 'Dossier complet' }).click();
 await page.getByRole('heading', { name: 'Argent' }).waitFor();
-await shot('09-dossier-commande');
+await shot('11-dossier-commande');
 
-// 8. Contrôle comptable
-await page.getByRole('link', { name: /Comptabilité/ }).click();
+// 8. Client : fiche retrouvée par son numéro
+await page.getByRole('link', { name: /Clients/ }).click();
+await page.getByLabel('Nom ou téléphone').fill(buyerPhone);
+await page.getByRole('button', { name: 'Chercher' }).click();
+await page.locator('[data-testid^="customer-"]').first().click();
+await page.getByTestId('customer-panel').waitFor();
+await shot('12-clients');
+
+// 9. Paiements, puis contrôle comptable
+await page.getByRole('link', { name: /Paiements/ }).click();
+await page.getByTestId('movements').waitFor();
+await shot('13-paiements');
+await page.getByRole('link', { name: 'Contrôle comptable' }).click();
 await page.getByTestId('trial-balance').waitFor();
-await shot('10-comptabilite');
+await shot('14-comptabilite');
 const balance = await page.getByTestId('trial-balance').innerText();
 await browser.close();
 

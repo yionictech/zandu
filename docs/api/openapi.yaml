@@ -1738,8 +1738,12 @@ paths:
   /v1/support/disputes:
     get:
       tags: [Support]
-      summary: Litiges ouverts, les plus urgents d'abord
+      summary: Litiges ouverts (les plus urgents d'abord) ou résolus
       operationId: listOpenDisputes
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved], default: open }
       responses:
         '200':
           description: OK
@@ -1747,14 +1751,39 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [counts, items]
                 properties:
+                  counts:
+                    type: object
+                    required: [open, resolved]
+                    properties:
+                      open: { type: integer }
+                      resolved: { type: integer }
                   items:
                     type: array
                     items:
                       type: object
-                      required: [id, reason, status, slaDueAt, createdAt, orderId, publicRef, total]
+                      required:
+                        [
+                          id,
+                          reason,
+                          status,
+                          slaDueAt,
+                          createdAt,
+                          orderId,
+                          publicRef,
+                          total,
+                          shopName,
+                          buyerName,
+                          sellerChoice,
+                        ]
                       properties:
+                        shopName: { type: string }
+                        buyerName: { type: [string, 'null'] }
+                        sellerChoice:
+                          oneOf:
+                            - type: 'null'
+                            - $ref: '#/components/schemas/DisputeSellerChoice'
                         id: { type: string, format: uuid }
                         reason: { $ref: '#/components/schemas/DisputeReason' }
                         status: { type: string, enum: [open, resolved] }

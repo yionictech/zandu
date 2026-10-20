@@ -138,7 +138,7 @@ await page.getByTestId('totp-secret').waitFor();
 const secret = (await page.getByTestId('totp-secret').innerText()).replace(/\s/g, '');
 await page.getByLabel("Code affiché par l'application").fill(totp(secret));
 await page.getByRole('button', { name: 'Activer et continuer' }).click();
-await page.getByRole('heading', { name: 'Tableau de bord' }).waitFor();
+await page.getByRole('heading', { name: 'Vue d’ensemble' }).waitFor();
 
 // 3. Rapport du mois : indicateurs, ventes par jour (survol), catégories, boutiques.
 await page.getByRole('link', { name: 'Rapports' }).click();
@@ -171,6 +171,9 @@ await page
 await page.getByRole('button', { name: 'Enregistrer le taux' }).click();
 await page.getByText('Nouveau taux enregistré').waitFor();
 await shot('02-commissions');
+await page.getByRole('link', { name: 'Paramètres' }).click();
+await page.getByTestId('settings-delays').waitFor();
+await shot('03-parametres');
 
 const pagnes = shops[1];
 const fashion = pagnes.products.find((p) => p.categoryId === MODE);

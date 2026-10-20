@@ -70,54 +70,76 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
   const { one, erreur } = await readParams(searchParams);
   const challenge = await pendingChallenge();
   return (
-    <main className="auth">
-      <div className="card">
-        <div>
-          <h1>Back-office Zandu</h1>
-          <p className="muted">Réservé au support et à l'administration.</p>
+    <main className="auth split-auth">
+      <section className="auth-hero" aria-hidden>
+        <div className="logo" style={{ padding: 0 }}>
+          zandu<span className="logo-dot">.</span>
+          <span className="logo-badge">Admin</span>
         </div>
-        {one('expiree') ? <Flash erreur="Session terminée : reconnectez-vous." /> : null}
-        <Flash erreur={erreur} />
-        {challenge ? (
-          <>
-            <form action={verifyCode} className="stack">
+        <h1>
+          Chaque franc bloqué,
+          <br />
+          chaque colis suivi.
+        </h1>
+        <p className="muted">
+          Espace réservé à l'équipe Zandu : litiges, vérifications, paiements et réglages de la
+          place de marché.
+        </p>
+      </section>
+      <div className="auth-form">
+        <div className="card">
+          <div>
+            <h1>Connexion</h1>
+            <p className="muted">
+              Avec votre numéro, puis le code de votre application d'authentification.
+            </p>
+          </div>
+          {one('expiree') ? <Flash erreur="Session terminée : reconnectez-vous." /> : null}
+          <Flash erreur={erreur} />
+          {challenge ? (
+            <>
+              <form action={verifyCode} className="stack">
+                <label>
+                  Code reçu par SMS au {displayPhone(challenge.phone)}
+                  <input
+                    name="code"
+                    className="code-input"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    required
+                    autoFocus
+                  />
+                </label>
+                <SubmitButton>Valider</SubmitButton>
+              </form>
+              <form action={restart}>
+                <button type="submit" className="button secondary">
+                  Changer de numéro
+                </button>
+              </form>
+            </>
+          ) : (
+            <form action={requestCode} className="stack">
               <label>
-                Code reçu par SMS au {displayPhone(challenge.phone)}
+                Numéro de téléphone
                 <input
-                  name="code"
-                  className="code-input"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="\d{6}"
-                  maxLength={6}
+                  name="phone"
+                  type="tel"
+                  placeholder="06 612 34 56"
+                  autoComplete="tel"
                   required
                   autoFocus
                 />
               </label>
-              <SubmitButton>Valider</SubmitButton>
+              <SubmitButton>Recevoir le code par SMS</SubmitButton>
             </form>
-            <form action={restart}>
-              <button type="submit" className="button secondary">
-                Changer de numéro
-              </button>
-            </form>
-          </>
-        ) : (
-          <form action={requestCode} className="stack">
-            <label>
-              Numéro de téléphone
-              <input
-                name="phone"
-                type="tel"
-                placeholder="06 612 34 56"
-                autoComplete="tel"
-                required
-                autoFocus
-              />
-            </label>
-            <SubmitButton>Recevoir le code par SMS</SubmitButton>
-          </form>
-        )}
+          )}
+          <p className="small muted" style={{ margin: 0 }}>
+            Accès journalisé · chaque action est enregistrée avec son auteur.
+          </p>
+        </div>
       </div>
     </main>
   );

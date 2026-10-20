@@ -667,14 +667,34 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
 
       /** Décision de litige (F12, F9) : reverser au vendeur, rembourser tout ou partie. */
       /** File des litiges ouverts, les plus urgents d'abord (SLA 72 h). */
-      staff.get('/v1/support/disputes', async () => {
+      /** Litiges ouverts (les plus proches de l'échéance d'abord) ou résolus (`?status=resolved`). */
+      staff.get('/v1/support/disputes', async (request) => {
+        const { status } = z
+          .object({ status: z.enum(['open', 'resolved']).default('open') })
+          .parse(request.query);
         const { rows } = await ctx.pool.query(
           `SELECT d.id, d.reason, d.status, d.sla_due_at AS "slaDueAt", d.created_at AS "createdAt",
-                  o.id AS "orderId", o.public_ref AS "publicRef", o.total
+                  o.id AS "orderId", o.public_ref AS "publicRef", o.total,
+                  s.shop_name AS "shopName",
+                  coalesce(b.full_name, o.shipping_address->>'recipientName') AS "buyerName",
+                  d.seller_choice AS "sellerChoice"
            FROM disputes d JOIN orders o ON o.id = d.order_id
-           WHERE d.status = 'open' ORDER BY d.sla_due_at LIMIT 200`,
+           JOIN seller_profiles s ON s.id = o.seller_id JOIN users b ON b.id = o.buyer_id
+           WHERE d.status = $1::dispute_status
+           ORDER BY CASE WHEN $1 = 'open' THEN d.sla_due_at END, d.decided_at DESC NULLS LAST
+           LIMIT 200`,
+          [status],
         );
-        return { items: rows };
+        const { rows: counts } = await ctx.pool.query<{ status: string; n: number }>(
+          'SELECT status, count(*)::int AS n FROM disputes GROUP BY status',
+        );
+        return {
+          counts: {
+            open: counts.find((c) => c.status === 'open')?.n ?? 0,
+            resolved: counts.find((c) => c.status === 'resolved')?.n ?? 0,
+          },
+          items: rows,
+        };
       });
 
       /** Détail d'un litige avec preuves (URL signées de 5 min, consultation journalisée). */

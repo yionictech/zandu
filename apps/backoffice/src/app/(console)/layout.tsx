@@ -31,39 +31,71 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
       <aside className="sidebar">
         <div className="logo">
           zandu<span className="logo-dot">.</span>
-          <small>Back-office</small>
+          <span className="logo-badge">Admin</span>
         </div>
         <Nav
           items={[
-            { href: '/', label: 'Tableau de bord' },
-            { href: '/vendeurs', label: 'Vérifications', count: q.kycPending },
-            { href: '/produits', label: 'Modération', count: q.productsPending },
-            { href: '/livraisons', label: 'Livraisons', count: q.deliveriesToAssign },
+            { href: '/', label: 'Vue d’ensemble', icon: 'home' },
+            { href: '/commandes', label: 'Commandes', icon: 'orders' },
             {
               href: '/litiges',
               label: 'Litiges',
+              icon: 'disputes',
               count: q.disputesOpen,
-              hot: q.disputesOverdue > 0,
+              hot: q.disputesOpen > 0,
             },
-            { href: '/commandes', label: 'Commandes' },
-            { href: '/alertes', label: 'Alertes', count: q.alerts, hot: q.alerts > 0 },
-            { href: '/comptabilite', label: 'Comptabilité' },
-            // Chiffre d'affaires, taux et caisse : administrateurs seulement (l'API le vérifie aussi).
+            {
+              href: '/vendeurs',
+              label: 'Vendeurs',
+              icon: 'sellers',
+              count: q.kycPending,
+              hot: q.kycPending > 0,
+            },
+            {
+              href: '/livraisons',
+              label: 'Livreurs',
+              icon: 'riders',
+              count: q.deliveriesToAssign,
+              hot: q.deliveriesToAssign > 0,
+            },
+            { href: '/clients', label: 'Clients', icon: 'customers' },
+            {
+              href: '/produits',
+              label: 'Catalogue',
+              icon: 'catalog',
+              count: q.productsPending,
+              hot: q.productsPending > 0,
+            },
+            {
+              href: '/paiements',
+              label: 'Paiements',
+              icon: 'payments',
+              count: q.alerts,
+              hot: q.alerts > 0,
+            },
             ...(admin
-              ? [
-                  { href: '/rapports', label: 'Rapports' },
-                  { href: '/commissions', label: 'Commissions' },
-                  { href: '/personnel', label: 'Personnel' },
-                  {
-                    href: '/rapprochement',
-                    label: 'Rapprochement',
-                    count: reconciliation!.open.count,
-                    hot: reconciliation!.open.count > 0,
-                  },
-                ]
+              ? [{ href: '/parametres', label: 'Paramètres', icon: 'settings' as const }]
               : []),
           ]}
         />
+        {/* Chiffre d'affaires, taux, caisse et équipe : administrateurs seulement (l'API le vérifie aussi). */}
+        {admin ? (
+          <Nav
+            title="Pilotage"
+            items={[
+              { href: '/rapports', label: 'Rapports', icon: 'reports' },
+              {
+                href: '/rapprochement',
+                label: 'Rapprochement',
+                icon: 'reconciliation',
+                count: reconciliation!.open.count,
+                hot: reconciliation!.open.count > 0,
+              },
+              { href: '/commissions', label: 'Commissions', icon: 'commissions' },
+              { href: '/personnel', label: 'Personnel', icon: 'staff' },
+            ]}
+          />
+        ) : null}
         <div className="sidebar-footer">
           <span>
             {displayPhone(me.phone)} · {admin ? 'administrateur' : 'support'}

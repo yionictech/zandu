@@ -318,3 +318,47 @@ API : migration 0009 ; routes `PATCH /v1/seller/shop`, `GET /v1/seller/dashboard
   prévoir) ; les initiales servent de logo.
 - Le stock restant après la commande et la photo des articles ne sont pas encore dans la vue
   vendeur d'une commande (icône à la place).
+
+## 9. Étape 4 — back-office (✅ faite)
+
+![Back-office sombre](captures/back-office-sombre.jpg)
+
+Le back-office suit les maquettes « Admin ». Les quatre parcours de bout en bout (support,
+rapports, personnel, rapprochement) passent par les nouveaux écrans.
+
+- **Menu latéral** à icônes : Vue d'ensemble, Commandes, Litiges, Vendeurs, Livreurs, Clients,
+  Catalogue, Paiements, Paramètres (administrateurs) ; pastilles du nombre de cas à traiter.
+  Rapports, Rapprochement, Commissions et Personnel restent groupés sous « Pilotage ».
+- **Connexion** en deux colonnes ; toujours numéro + SMS + application d'authentification (§4.5).
+- **Vue d'ensemble** : période (aujourd'hui, 7 jours, 30 jours), volume, argent bloqué, à valider,
+  litiges ouverts, commandes sur 14 jours, liste « À traiter », commandes récentes
+  (`GET /v1/support/dashboard`). La commission n'est montrée qu'aux administrateurs.
+- **Commandes** : onglets avec compteurs, recherche par référence ou téléphone, volet à droite
+  (frise, contacts, « Dossier complet », annulation).
+- **Litiges** : liste à gauche, dossier à droite (ce que dit l'acheteur, réponse du vendeur ou
+  « Relancer le vendeur », décision motivée : rembourser, partiel, libérer).
+- **Vendeurs** : onglets avec compteurs ; vérification avec pièces en vignettes, deux contrôles
+  obligatoires avant « Approuver la boutique », motifs types pour « Demander un document » ou
+  « Refuser et suspendre ».
+- **Catalogue** en cartes, alertes calculées (prix très bas pour la catégorie, photo unique,
+  description vide), motif de refus choisi dans une liste.
+- **Clients** (nouveau) : recherche par nom ou numéro, fiche (commandes, payé, litiges, adresses),
+  SMS, appel, blocage motivé qui ferme les sessions.
+- **Paiements** (nouveau) : encaissé, en séquestre, reversé, versements en attente, répartition
+  par opérateur, mouvements ; liens vers Alertes, Contrôle comptable et Rapprochement.
+- **Paramètres** (nouveau) : commission par défaut, tarifs de livraison, plafond des nouveaux
+  vendeurs, délais ; équipe et accès.
+- **Livreurs** : indicateurs et livraisons à assigner.
+
+API : routes `GET /v1/support/dashboard`, `/payments`, `/customers` (et fiche, blocage),
+`POST /v1/support/disputes/{id}/remind-seller`, `GET /v1/admin/settings` ; compteurs et filtres
+ajoutés aux listes des commandes, litiges, vendeurs et produits ; contrat et client à jour.
+
+Écarts volontaires avec les maquettes (décisions du §4) :
+
+- **Paramètres en lecture seule** : le réglage à l'écran viendra avec le délai d'acceptation (§4.4).
+- **Pas de carte « Retrait à contrôler »** (§4.3) ni de **Promotions** (§4.6).
+- **Livreurs** limité à l'assignation des livraisons (§4.1).
+- « Organiser un retour » remplacé par **« Remboursement partiel »** tant qu'il n'y a pas de
+  parcours de retour (§4.1).
+- Comptabilité et Alertes restent des pages à part, accessibles depuis Paiements.
