@@ -177,7 +177,9 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
              FROM deliveries d LEFT JOIN riders r ON r.id = d.rider_id LEFT JOIN users u ON u.id = r.user_id
              WHERE d.order_id = $1`),
           q(`SELECT id, status, reason, resolution, refund_amount AS "refundAmount",
-                    sla_due_at AS "slaDueAt", created_at AS "createdAt"
+                    sla_due_at AS "slaDueAt", created_at AS "createdAt",
+                    seller_choice AS "sellerChoice", seller_message AS "sellerMessage",
+                    seller_responded_at AS "sellerRespondedAt"
              FROM disputes WHERE order_id = $1`),
         ],
       );

@@ -16,6 +16,7 @@ import {
   staffActor,
 } from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
+import { PrepMinutes } from '../seller/seller.routes.js';
 import { consumeUpload } from '../uploads/uploads.service.js';
 import {
   applyOrderEvent,
@@ -27,6 +28,49 @@ import {
 } from './orders.service.js';
 
 const IdParam = z.object({ id: z.uuid() });
+
+/**
+ * Détail vendeur : livreur attribué (prénom et initiale, pas de téléphone), litige et sa
+ * réponse, avis laissés sur la commande.
+ */
+async function sellerOrderExtras(db: Db, orderId: string) {
+  const { rows: riders } = await db.query<{ name: string | null }>(
+    `SELECT u.full_name AS name FROM deliveries d JOIN riders r ON r.id = d.rider_id
+     JOIN users u ON u.id = r.user_id WHERE d.order_id = $1`,
+    [orderId],
+  );
+  const { rows: disputes } = await db.query(
+    `SELECT d.id, d.reason, d.description, d.status, d.resolution, d.sla_due_at AS "slaDueAt",
+            d.seller_choice AS "sellerChoice", d.seller_message AS "sellerMessage",
+            d.seller_responded_at AS "sellerRespondedAt",
+            coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "buyerName",
+            (SELECT count(*)::int FROM dispute_evidence e WHERE e.dispute_id = d.id AND e.uploaded_by = d.opened_by) AS "buyerEvidenceCount",
+            (SELECT count(*)::int FROM dispute_evidence e WHERE e.dispute_id = d.id AND e.uploaded_by <> d.opened_by) AS "sellerEvidenceCount"
+     FROM disputes d JOIN users u ON u.id = d.opened_by WHERE d.order_id = $1`,
+    [orderId],
+  );
+  const { rows: reviews } = await db.query(
+    `SELECT r.id, r.rating, r.comment, r.tags, r.created_at AS "createdAt",
+            coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "authorName",
+            r.seller_reply AS reply
+     FROM reviews r JOIN order_items oi ON oi.id = r.order_item_id JOIN users u ON u.id = r.buyer_id
+     WHERE oi.order_id = $1 AND NOT r.hidden ORDER BY r.created_at`,
+    [orderId],
+  );
+  const name = riders[0]?.name?.trim();
+  return {
+    rider: riders[0] ? { name: name ? shortName(name) : 'Livreur Zandu' } : null,
+    dispute: disputes[0] ?? null,
+    reviews,
+  };
+}
+
+/** « Junior Mabiala » → « Junior M. » */
+function shortName(full: string): string {
+  const [first, ...rest] = full.split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last[0]!.toUpperCase()}.` : first!;
+}
 
 async function sellerIdOf(db: Db, userId: string | null): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
@@ -362,7 +406,11 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           sellerId,
         ]);
         if (!order) throw notFound('Commande');
-        return { ...order, history: await orderHistory(ctx.pool, id) };
+        return {
+          ...order,
+          history: await orderHistory(ctx.pool, id),
+          ...(await sellerOrderExtras(ctx.pool, id)),
+        };
       });
 
       const sellerAction = (
@@ -379,12 +427,88 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           return { id: o.id, status: o.status };
         });
 
-      sellerAction('accept', () => ({ type: 'seller_accepted' }));
+      /** Accepter, en promettant l'heure où le colis sera prêt (préparation par défaut sinon). */
+      seller.post('/v1/seller/orders/:id/accept', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const { readyInMinutes } = z
+          .object({ readyInMinutes: PrepMinutes.optional() })
+          .parse(request.body ?? {});
+        const a = actor(request, 'seller');
+        const o = await withTx(ctx.pool, async (tx) => {
+          await ownedOrder(tx, id, a);
+          const updated = await applyOrderEvent(ctx, tx, id, { type: 'seller_accepted' }, a);
+          await tx.query(
+            `UPDATE orders o SET ready_promised_at = $2::timestamptz + make_interval(mins =>
+               coalesce($3::int, (SELECT s.default_prep_minutes FROM seller_profiles s WHERE s.id = o.seller_id)))
+             WHERE o.id = $1`,
+            [id, ctx.clock.now(), readyInMinutes ?? null],
+          );
+          return updated;
+        });
+        return { id: o.id, status: o.status };
+      });
       sellerAction('reject', (body) => ({
         type: 'seller_rejected',
         reason: z.object({ reason: z.string().trim().min(3).max(300) }).parse(body).reason,
       }));
       sellerAction('ready', () => ({ type: 'seller_marked_ready' }));
+
+      /**
+       * Réponse du vendeur à un litige : échanger, reprendre et rembourser, ou contester avec
+       * preuves. Le support la lit avant de trancher ; modifiable tant que le litige est ouvert.
+       */
+      seller.post('/v1/seller/orders/:id/dispute-response', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const body = z
+          .object({
+            choice: z.enum(['exchange', 'take_back_refund', 'contest']),
+            message: z.string().trim().max(1000).default(''),
+          })
+          .parse(request.body);
+        const a = actor(request, 'seller');
+        await withTx(ctx.pool, async (tx) => {
+          await ownedOrder(tx, id, a);
+          const { rows } = await tx.query<{ id: string }>(
+            `UPDATE disputes SET seller_choice = $2, seller_message = nullif($3, ''), seller_responded_at = $4
+             WHERE order_id = $1 AND status = 'open' RETURNING id`,
+            [id, body.choice, body.message, ctx.clock.now()],
+          );
+          if (!rows[0]) throw new HttpError(409, 'no_open_dispute', 'Aucun litige ouvert');
+          await audit(tx, a, 'dispute.seller_responded', { type: 'dispute', id: rows[0].id });
+        });
+        return sellerOrderExtras(ctx.pool, id).then((e) => e.dispute);
+      });
+
+      /** Photos du vendeur à l'appui de sa réponse (prises avant la remise). */
+      seller.post('/v1/seller/orders/:id/dispute-evidence', async (request, reply) => {
+        const { id } = IdParam.parse(request.params);
+        const { uploadId } = z.object({ uploadId: z.uuid() }).parse(request.body);
+        const a = actor(request, 'seller');
+        await withTx(ctx.pool, async (tx) => {
+          await ownedOrder(tx, id, a);
+          const { rows } = await tx.query<{ id: string }>(
+            `SELECT id FROM disputes WHERE order_id = $1 AND status = 'open' FOR UPDATE`,
+            [id],
+          );
+          if (!rows[0]) throw new HttpError(409, 'no_open_dispute', 'Aucun litige ouvert');
+          const { rows: count } = await tx.query<{ n: number }>(
+            'SELECT count(*)::int AS n FROM dispute_evidence WHERE dispute_id = $1 AND uploaded_by = $2',
+            [rows[0].id, a.userId],
+          );
+          if (count[0]!.n >= 6) throw new HttpError(409, 'too_many_files', '6 photos au maximum');
+          const upload = await consumeUpload(ctx, tx, {
+            uploadId,
+            userId: a.userId!,
+            purpose: 'dispute_evidence',
+          });
+          await tx.query(
+            `INSERT INTO dispute_evidence (dispute_id, uploaded_by, storage_key, kind, upload_id)
+             VALUES ($1, $2, $3, 'photo', $4)`,
+            [rows[0].id, a.userId, upload.storageKey, upload.id],
+          );
+        });
+        return reply.status(201).send({ orderId: id });
+      });
     });
 
     // ---------------- Livreur partenaire ----------------
@@ -556,10 +680,12 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       /** Détail d'un litige avec preuves (URL signées de 5 min, consultation journalisée). */
       staff.get('/v1/support/disputes/:id', async (request) => {
         const { id } = IdParam.parse(request.params);
-        const { rows } = await ctx.pool.query<{ orderId: string }>(
+        const { rows } = await ctx.pool.query<{ orderId: string; openedBy: string }>(
           `SELECT d.id, d.order_id AS "orderId", d.reason, d.description, d.status, d.resolution,
                   d.refund_amount AS "refundAmount", d.decision_note AS "decisionNote",
-                  d.sla_due_at AS "slaDueAt", d.created_at AS "createdAt"
+                  d.sla_due_at AS "slaDueAt", d.created_at AS "createdAt",
+                  d.seller_choice AS "sellerChoice", d.seller_message AS "sellerMessage",
+                  d.seller_responded_at AS "sellerRespondedAt", d.opened_by AS "openedBy"
            FROM disputes d WHERE d.id = $1`,
           [id],
         );
@@ -569,8 +695,9 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           id: string;
           storage_key: string;
           kind: string;
+          uploaded_by: string;
         }>(
-          'SELECT id, storage_key, kind FROM dispute_evidence WHERE dispute_id = $1 ORDER BY created_at',
+          'SELECT id, storage_key, kind, uploaded_by FROM dispute_evidence WHERE dispute_id = $1 ORDER BY created_at',
           [id],
         );
         await audit(ctx.pool, staffActor(request), 'dispute.evidence_viewed', {
@@ -578,13 +705,15 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           id,
         });
         const [order] = await orderViews(ctx.pool, 'o.id = $1', [dispute.orderId]);
+        const { openedBy, ...view } = dispute;
         return {
-          ...dispute,
+          ...view,
           order,
           evidence: await Promise.all(
             files.map(async (f) => ({
               id: f.id,
               kind: f.kind,
+              from: f.uploaded_by === openedBy ? ('buyer' as const) : ('seller' as const),
               url: await ctx.storage.presignDownload({
                 bucket: 'private',
                 key: f.storage_key,

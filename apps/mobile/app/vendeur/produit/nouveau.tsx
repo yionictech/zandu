@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorMessage, isNetworkError, newIdempotencyKey, unwrap } from '../../../src/api';
 import { t } from '../../../src/i18n/fr';
@@ -19,6 +20,9 @@ import { ErrorText } from '../../../src/ui/Form';
 import { Loading, Screen, Section } from '../../../src/ui/Layout';
 import { PhotoStrip, type PhotoItem } from '../../../src/ui/PhotoStrip';
 import { RequireRole } from '../../../src/ui/RequireRole';
+import { Eyebrow } from '../../../src/ui/kit';
+import { Text } from '../../../src/ui/Text';
+import { colors, font, radius, space } from '../../../src/theme';
 import { useSession } from '../../../src/session';
 
 const MAX_PHOTOS = 6;
@@ -148,6 +152,8 @@ function NewProduct() {
             price: Number(form.price),
             stock: form.stock,
             categoryId: form.categoryId!,
+            condition: form.condition ?? 'new',
+            lowStockThreshold: form.lowStockThreshold ?? 2,
             publish: false,
           },
         }),
@@ -202,8 +208,28 @@ function NewProduct() {
         </>
       }
     >
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.draft}
+              accessibilityRole="button"
+              accessibilityHint={t.vendor.draftSaved}
+            >
+              <Text style={styles.draftText}>{t.vendor.draft}</Text>
+            </Pressable>
+          ),
+        }}
+      />
       {restored ? <Banner message={t.seller.draftRestored} tone="brand" /> : null}
       <Section>
+        <View style={styles.photosHead}>
+          <Eyebrow>{t.vendor.photos}</Eyebrow>
+          <Text style={styles.muted}>
+            {photos.length} / {MAX_PHOTOS}
+          </Text>
+        </View>
         <PhotoStrip
           photos={photos}
           max={MAX_PHOTOS}
@@ -215,6 +241,7 @@ function NewProduct() {
             if (photo) void send(photo);
           }}
         />
+        <Text style={styles.muted}>{t.vendor.photoTip}</Text>
       </Section>
       <Section>
         <ProductForm values={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
@@ -231,3 +258,17 @@ export default function NewProductScreen() {
     </RequireRole>
   );
 }
+
+const styles = StyleSheet.create({
+  photosHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  muted: { color: colors.muted, fontSize: font.small },
+  draft: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: space.md,
+    paddingVertical: 6,
+    marginRight: space.md,
+  },
+  draftText: { color: colors.text, fontWeight: '700', fontSize: font.small },
+});

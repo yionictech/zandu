@@ -492,39 +492,14 @@ paths:
           description: OK
           content:
             application/json:
-              schema:
-                type: object
-                required:
-                  [
-                    id,
-                    shopName,
-                    slug,
-                    kind,
-                    city,
-                    pickupZoneId,
-                    payoutPhone,
-                    payoutOperator,
-                    verificationStatus,
-                    ratingAvg,
-                    ratingCount,
-                  ]
-                properties:
-                  id: { type: string, format: uuid }
-                  shopName: { type: string }
-                  slug: { type: string }
-                  kind: { type: string, enum: [individual, business] }
-                  city: { type: string }
-                  pickupZoneId: { type: string, format: uuid }
-                  payoutPhone: { type: string }
-                  payoutOperator: { $ref: '#/components/schemas/Operator' }
-                  verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
-                  ratingAvg: { type: [number, 'null'] }
-                  ratingCount: { type: integer }
+              schema: { $ref: '#/components/schemas/SellerShop' }
         '404': { $ref: '#/components/responses/Error' }
     post:
       tags: [Vendeur]
-      summary: Ouvrir sa boutique
-      description: Aucune pièce demandée à ce stade ; la vérification (KYC) conditionne les reversements.
+      summary: Ouvrir sa boutique (étape 1 sur 3)
+      description: >-
+        Nom, ce qui est vendu, lieu de retrait, horaires. Le compte Mobile Money vient à
+        l'étape 3 (PATCH) ; par défaut, le numéro du gérant et l'opérateur deviné d'après lui.
       operationId: openShop
       requestBody:
         required: true
@@ -532,17 +507,160 @@ paths:
           application/json:
             schema:
               type: object
-              required: [shopName, city, pickupZoneId, payoutPhone, payoutOperator]
+              required: [shopName, city, pickupZoneId]
               properties:
                 shopName: { type: string, minLength: 2, maxLength: 80 }
                 city: { type: string }
                 pickupZoneId: { type: string, format: uuid }
+                soldCategoryIds:
+                  type: array
+                  maxItems: 10
+                  items: { type: string, format: uuid }
+                openingHours:
+                  {
+                    type: string,
+                    minLength: 3,
+                    maxLength: 80,
+                    examples: [Lun – Sam · 08:00 – 18:00],
+                  }
                 payoutPhone: { type: string }
                 payoutOperator: { $ref: '#/components/schemas/Operator' }
                 kind: { type: string, enum: [individual, business], default: individual }
       responses:
         '201': { $ref: '#/components/responses/Created' }
+        '400': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Vendeur]
+      summary: Modifier ma boutique (congés, préparation, horaires, compte Mobile Money)
+      description: >-
+        Fermer la boutique (`isOpen: false`) retire ses produits du catalogue et bloque les achats.
+        Un numéro de reversement changé après la vérification déclenche le délai de carence des
+        reversements.
+      operationId: updateMyShop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                shopName: { type: string, minLength: 2, maxLength: 80 }
+                city: { type: string }
+                pickupZoneId: { type: string, format: uuid, description: Lieu de retrait des colis }
+                soldCategoryIds:
+                  type: array
+                  maxItems: 10
+                  items: { type: string, format: uuid }
+                openingHours: { type: string, minLength: 3, maxLength: 80 }
+                isOpen: { type: boolean }
+                defaultPrepMinutes: { $ref: '#/components/schemas/PrepMinutes' }
+                payoutPhone: { type: string, description: Avec payoutOperator }
+                payoutOperator: { $ref: '#/components/schemas/Operator' }
+                payoutAccountName: { type: string, minLength: 2, maxLength: 80 }
+                acceptTerms: { type: boolean, enum: [true] }
+      responses:
+        '200':
+          description: Boutique à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerShop' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/dashboard:
+    get:
+      tags: [Vendeur]
+      summary: Tableau de bord (jour à l'heure de Brazzaville)
+      operationId: sellerDashboard
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [todaySales, todayOrders, toAccept, lowStock, productCount]
+                properties:
+                  todaySales: { $ref: '#/components/schemas/Amount' }
+                  todayOrders: { type: integer }
+                  toAccept:
+                    type: object
+                    required: [count, nextDeadline]
+                    properties:
+                      count: { type: integer }
+                      nextDeadline: { type: [string, 'null'], format: date-time }
+                  lowStock:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, stock, lowStockThreshold]
+                      properties:
+                        id: { type: string, format: uuid }
+                        title: { type: string }
+                        stock: { type: integer }
+                        lowStockThreshold: { type: integer }
+                  productCount: { type: integer, description: Produits hors archives }
+
+  /v1/seller/reviews:
+    get:
+      tags: [Vendeur]
+      summary: Avis clients de ma boutique
+      operationId: sellerReviews
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [average, count, distribution, items]
+                properties:
+                  average: { type: [number, 'null'] }
+                  count: { type: integer }
+                  distribution:
+                    type: object
+                    required: ['1', '2', '3', '4', '5']
+                    additionalProperties: false
+                    properties:
+                      '1': { type: integer }
+                      '2': { type: integer }
+                      '3': { type: integer }
+                      '4': { type: integer }
+                      '5': { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SellerReview' }
+
+  /v1/seller/reviews/{id}/reply:
+    post:
+      tags: [Vendeur]
+      summary: Répondre publiquement à un avis (modifiable)
+      operationId: replyToReview
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 2, maxLength: 1000 }
+      responses:
+        '200':
+          description: Réponse publiée
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, reply, repliedAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  reply: { type: string }
+                  repliedAt: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/seller/products:
     get:
@@ -575,6 +693,8 @@ paths:
                           stock,
                           status,
                           categoryId,
+                          condition,
+                          lowStockThreshold,
                           rejectionReason,
                           updatedAt,
                           coverImage,
@@ -587,6 +707,8 @@ paths:
                         stock: { type: integer }
                         status: { $ref: '#/components/schemas/ProductStatus' }
                         categoryId: { type: string, format: uuid }
+                        condition: { $ref: '#/components/schemas/ProductCondition' }
+                        lowStockThreshold: { type: integer }
                         rejectionReason: { type: [string, 'null'] }
                         updatedAt: { type: string, format: date-time }
                         coverImage: { type: [string, 'null'], format: uri }
@@ -620,6 +742,15 @@ paths:
                 description: { type: string, maxLength: 5000 }
                 price: { $ref: '#/components/schemas/Amount' }
                 stock: { type: integer, minimum: 0 }
+                condition: { $ref: '#/components/schemas/ProductCondition' }
+                lowStockThreshold:
+                  {
+                    type: integer,
+                    minimum: 0,
+                    maximum: 1000,
+                    default: 2,
+                    description: Alerte « Stock bas »,
+                  }
                 publish: { type: boolean, default: true }
       responses:
         '201':
@@ -648,7 +779,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [available, inEscrow, payouts]
+                required: [available, inEscrow, payoutAccount, payouts, movements]
                 properties:
                   available:
                     allOf: [{ $ref: '#/components/schemas/Amount' }]
@@ -671,6 +802,25 @@ paths:
                         publicRef: { type: [string, 'null'] }
                         createdAt: { type: string, format: date-time }
                         succeededAt: { type: [string, 'null'], format: date-time }
+                  payoutAccount:
+                    type: object
+                    required: [operator, phone]
+                    properties:
+                      operator: { $ref: '#/components/schemas/Operator' }
+                      phone: { type: string }
+                  movements:
+                    type: array
+                    description: >-
+                      Argent bloqué à la commande payée, libéré à la remise confirmée, versé sur
+                      Mobile Money ; montants nets de commission, les plus récents d'abord.
+                    items:
+                      type: object
+                      required: [kind, publicRef, amount, at]
+                      properties:
+                        kind: { type: string, enum: [held, released, paid_out] }
+                        publicRef: { type: [string, 'null'] }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                        at: { type: string, format: date-time }
 
         '401': { $ref: '#/components/responses/Error' }
   /v1/seller/orders:
@@ -714,16 +864,49 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SellerOrder'
                   - type: object
-                    required: [history]
+                    required: [history, rider, dispute, reviews]
                     properties:
                       history: { $ref: '#/components/schemas/OrderHistory' }
+                      rider:
+                        type: [object, 'null']
+                        description: Livreur attribué (prénom et initiale)
+                        required: [name]
+                        properties:
+                          name: { type: string, examples: [Junior M.] }
+                      dispute:
+                        oneOf:
+                          - type: 'null'
+                          - $ref: '#/components/schemas/SellerDispute'
+                      reviews:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, rating, comment, tags, createdAt, authorName, reply]
+                          properties:
+                            id: { type: string, format: uuid }
+                            rating: { type: integer, minimum: 1, maximum: 5 }
+                            comment: { type: [string, 'null'] }
+                            tags: { type: array, items: { $ref: '#/components/schemas/ReviewTag' } }
+                            createdAt: { type: string, format: date-time }
+                            authorName: { type: string }
+                            reply: { type: [string, 'null'] }
         '404': { $ref: '#/components/responses/Error' }
   /v1/seller/orders/{id}/accept:
     post:
       tags: [Vendeur]
-      summary: Accepter une commande payée (avant l'échéance de 24 h)
+      summary: Accepter une commande payée, en promettant l'heure où elle sera prête
       operationId: acceptOrder
       parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                readyInMinutes:
+                  allOf: [{ $ref: '#/components/schemas/PrepMinutes' }]
+                  description: Préparation par défaut de la boutique si absent
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
         '404': { $ref: '#/components/responses/Error' }
@@ -732,7 +915,7 @@ paths:
   /v1/seller/orders/{id}/reject:
     post:
       tags: [Vendeur]
-      summary: Refuser une commande (l'acheteur est remboursé)
+      summary: Refuser une commande, ou l'annuler en préparation (rupture de stock) ; l'acheteur est remboursé
       operationId: rejectOrder
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody: { $ref: '#/components/requestBodies/Reason' }
@@ -748,6 +931,57 @@ paths:
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/dispute-response:
+    post:
+      tags: [Vendeur]
+      summary: Répondre à un litige (lu par le support avant de trancher)
+      operationId: respondToDispute
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choice]
+              properties:
+                choice: { $ref: '#/components/schemas/DisputeSellerChoice' }
+                message: { type: string, maxLength: 1000 }
+      responses:
+        '200':
+          description: Réponse enregistrée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerDispute' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/dispute-evidence:
+    post:
+      tags: [Vendeur]
+      summary: Ajouter une photo à l'appui de sa réponse (6 au plus)
+      operationId: addSellerDisputeEvidence
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadId]
+              properties:
+                uploadId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Ajoutée
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId]
+                properties:
+                  orderId: { type: string, format: uuid }
         '409': { $ref: '#/components/responses/Error' }
 
   /v1/checkouts:
@@ -1250,7 +1484,7 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, rating, comment, tags, createdAt, authorName]
+                      required: [id, rating, comment, tags, createdAt, authorName, sellerReply]
                       properties:
                         id: { type: string, format: uuid }
                         rating: { type: integer, minimum: 1, maximum: 5 }
@@ -1260,6 +1494,8 @@ paths:
                           items: { $ref: '#/components/schemas/ReviewTag' }
                         createdAt: { type: string, format: date-time }
                         authorName: { type: string }
+                        sellerReply:
+                          { type: [string, 'null'], description: Réponse publique du vendeur }
         '400': { $ref: '#/components/responses/Error' }
 
   /v1/uploads:
@@ -1360,6 +1596,8 @@ paths:
                 description: { type: string, maxLength: 5000 }
                 price: { $ref: '#/components/schemas/Amount' }
                 stock: { type: integer, minimum: 0 }
+                condition: { $ref: '#/components/schemas/ProductCondition' }
+                lowStockThreshold: { type: integer, minimum: 0, maximum: 1000 }
                 status: { type: string, enum: [archived, published] }
       responses:
         '200':
@@ -1552,6 +1790,9 @@ paths:
                     decisionNote,
                     slaDueAt,
                     createdAt,
+                    sellerChoice,
+                    sellerMessage,
+                    sellerRespondedAt,
                     order,
                     evidence,
                   ]
@@ -1568,15 +1809,22 @@ paths:
                   decisionNote: { type: [string, 'null'] }
                   slaDueAt: { type: string, format: date-time }
                   createdAt: { type: string, format: date-time }
+                  sellerChoice:
+                    oneOf:
+                      - type: 'null'
+                      - $ref: '#/components/schemas/DisputeSellerChoice'
+                  sellerMessage: { type: [string, 'null'] }
+                  sellerRespondedAt: { type: [string, 'null'], format: date-time }
                   order: { $ref: '#/components/schemas/Order' }
                   evidence:
                     type: array
                     items:
                       type: object
-                      required: [id, kind, url]
+                      required: [id, kind, from, url]
                       properties:
                         id: { type: string, format: uuid }
                         kind: { type: string }
+                        from: { type: string, enum: [buyer, seller] }
                         url: { type: string, format: uri }
         '404': { $ref: '#/components/responses/Error' }
 
@@ -2599,6 +2847,106 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    PrepMinutes:
+      type: integer
+      enum: [15, 30, 60, 120]
+      description: « Prêt dans 15 min / 30 min / 1 h / 2 h »
+    ProductCondition:
+      type: string
+      enum: [new, refurbished, used]
+      description: Neuf, reconditionné, occasion
+    DisputeSellerChoice:
+      type: string
+      enum: [exchange, take_back_refund, contest]
+      description: Échanger le produit, reprendre et rembourser, contester avec preuves
+    SellerDispute:
+      type: object
+      required:
+        [
+          id,
+          reason,
+          description,
+          status,
+          resolution,
+          slaDueAt,
+          sellerChoice,
+          sellerMessage,
+          sellerRespondedAt,
+          buyerName,
+          buyerEvidenceCount,
+          sellerEvidenceCount,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        reason: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [open, resolved] }
+        resolution: { type: [string, 'null'] }
+        slaDueAt: { type: string, format: date-time }
+        sellerChoice:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/DisputeSellerChoice'
+        sellerMessage: { type: [string, 'null'] }
+        sellerRespondedAt: { type: [string, 'null'], format: date-time }
+        buyerName: { type: string }
+        buyerEvidenceCount: { type: integer }
+        sellerEvidenceCount: { type: integer }
+    SellerShop:
+      type: object
+      required:
+        [
+          id,
+          shopName,
+          slug,
+          kind,
+          city,
+          pickupZoneId,
+          pickupZoneName,
+          payoutPhone,
+          payoutOperator,
+          payoutAccountName,
+          verificationStatus,
+          ratingAvg,
+          ratingCount,
+          isOpen,
+          defaultPrepMinutes,
+          openingHours,
+          soldCategoryIds,
+          termsAccepted,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        shopName: { type: string }
+        slug: { type: string }
+        kind: { type: string, enum: [individual, business] }
+        city: { type: string }
+        pickupZoneId: { type: string, format: uuid }
+        pickupZoneName: { type: string }
+        payoutPhone: { type: string }
+        payoutOperator: { $ref: '#/components/schemas/Operator' }
+        payoutAccountName: { type: [string, 'null'] }
+        verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+        ratingAvg: { type: [number, 'null'] }
+        ratingCount: { type: integer }
+        isOpen: { type: boolean, description: Faux pendant les congés (produits masqués) }
+        defaultPrepMinutes: { $ref: '#/components/schemas/PrepMinutes' }
+        openingHours: { type: [string, 'null'] }
+        soldCategoryIds: { type: array, items: { type: string, format: uuid } }
+        termsAccepted: { type: boolean }
+    SellerReview:
+      type: object
+      required: [id, rating, comment, tags, createdAt, authorName, productTitle, reply, repliedAt]
+      properties:
+        id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'] }
+        tags: { type: array, items: { $ref: '#/components/schemas/ReviewTag' } }
+        createdAt: { type: string, format: date-time }
+        authorName: { type: string }
+        productTitle: { type: string }
+        reply: { type: [string, 'null'] }
+        repliedAt: { type: [string, 'null'], format: date-time }
     ReviewTag:
       type: string
       enum: [conforme, livreur_ponctuel, bien_emballe]
@@ -2859,9 +3207,11 @@ components:
           items: { type: string, enum: [buyer, seller, rider, support, admin] }
     ProductCard:
       type: object
-      required: [id, title, price, compareAtPrice, stock, city, categoryId, coverImage, seller]
+      required:
+        [id, title, price, compareAtPrice, stock, city, categoryId, condition, coverImage, seller]
       properties:
         id: { type: string, format: uuid }
+        condition: { $ref: '#/components/schemas/ProductCondition' }
         title: { type: string }
         price: { $ref: '#/components/schemas/Amount' }
         compareAtPrice: { type: [integer, 'null'] }
@@ -2878,9 +3228,11 @@ components:
             shopName: { type: string }
             slug: { type: string }
             verified: { type: boolean }
+            open:
+              { type: boolean, description: Faux si la boutique est en congé (achat impossible) }
             ratingAvg: { type: [number, 'null'] }
             ratingCount: { type: integer }
-          required: [id, shopName, slug, verified, ratingAvg, ratingCount]
+          required: [id, shopName, slug, verified, open, ratingAvg, ratingCount]
     OrderStatus:
       type: string
       enum:
@@ -3056,8 +3408,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/OrderCore'
         - type: object
-          required: [commission, sellerNet, destination]
+          required: [commission, sellerNet, destination, readyPromisedAt]
           properties:
+            readyPromisedAt:
+              type: [string, 'null']
+              format: date-time
+              description: Heure promise à l'acceptation (« Prêt dans 30 min »)
             commission: { $ref: '#/components/schemas/Amount' }
             sellerNet:
               allOf: [{ $ref: '#/components/schemas/Amount' }]
@@ -3080,6 +3436,8 @@ components:
           stock,
           status,
           categoryId,
+          condition,
+          lowStockThreshold,
           rejectionReason,
           updatedAt,
           photos,
@@ -3092,6 +3450,8 @@ components:
         stock: { type: integer }
         status: { $ref: '#/components/schemas/ProductStatus' }
         categoryId: { type: string, format: uuid }
+        condition: { $ref: '#/components/schemas/ProductCondition' }
+        lowStockThreshold: { type: integer }
         rejectionReason: { type: [string, 'null'] }
         updatedAt: { type: string, format: date-time }
         photos:

@@ -59,10 +59,11 @@ export default function RootLayout() {
                 <Stack.Screen name="commande/[id]" options={{ title: t.orders.order }} />
                 <Stack.Screen name="litige/[orderId]" options={{ title: t.dispute.title }} />
                 <Stack.Screen name="vendeur/ouvrir" options={{ title: t.seller.openTitle }} />
-                <Stack.Screen name="vendeur/index" options={{ title: t.account.sellerSpace }} />
-                <Stack.Screen name="vendeur/commandes" options={{ title: t.seller.orders }} />
+                <Stack.Screen name="vendeur/(onglets)" options={{ headerShown: false }} />
+                <Stack.Screen name="vendeur/compte" options={{ title: t.seller.openTitle }} />
+                <Stack.Screen name="vendeur/boutique" options={{ title: t.vendor.myShop }} />
+                <Stack.Screen name="vendeur/avis" options={{ title: t.vendor.reviewsTitle }} />
                 <Stack.Screen name="vendeur/commande/[id]" options={{ title: t.orders.order }} />
-                <Stack.Screen name="vendeur/produits" options={{ title: t.seller.products }} />
                 <Stack.Screen
                   name="vendeur/produit/nouveau"
                   options={{ title: t.seller.newProduct }}
@@ -71,7 +72,6 @@ export default function RootLayout() {
                   name="vendeur/produit/[id]"
                   options={{ title: t.seller.editProduct }}
                 />
-                <Stack.Screen name="vendeur/argent" options={{ title: t.seller.money }} />
                 <Stack.Screen
                   name="vendeur/verification"
                   options={{ title: t.seller.verificationTitle }}

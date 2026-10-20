@@ -22,6 +22,15 @@ export type ReconciliationRun = Schemas['ReconciliationRun'];
 export type Discrepancy = Schemas['Discrepancy'];
 export type StaffMember = Schemas['StaffMember'];
 export type StaffDetail = Schemas['StaffDetail'];
+export type SellerShop = Schemas['SellerShop'];
+export type SellerReview = Schemas['SellerReview'];
+export type SellerDispute = Schemas['SellerDispute'];
+export type ProductCondition = Schemas['ProductCondition'];
+export type PrepMinutes = Schemas['PrepMinutes'];
+export type DisputeSellerChoice = Schemas['DisputeSellerChoice'];
+/** Ligne de « Mes produits ». */
+export type SellerProductSummary =
+  paths['/v1/seller/products']['get']['responses']['200']['content']['application/json']['items'][number];
 
 export interface ClientOptions {
   baseUrl: string;

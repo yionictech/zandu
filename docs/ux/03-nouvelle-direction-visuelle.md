@@ -274,3 +274,47 @@ bout de l'application (acheteur, vendeur et livreur, hors connexion) passent.
   attendent les décisions du §4.
 - Le **site** garde pour l'instant les couleurs de l'étape 1 ; ses écrans acheteur seront repris
   sur le même modèle, en restant dans le budget 3G.
+
+## 8. Étape 3 — espace vendeur dans l'application (✅ faite)
+
+![Espace vendeur sombre](captures/vendeur-sombre.jpg)
+
+Les écrans vendeur suivent les maquettes. Le parcours de bout en bout vendeur et livreur passe
+par tous ces écrans, litige compris ; les parcours acheteur et hors connexion passent toujours.
+
+- **Ouverture en 3 étapes** : présentation, puis (1) nom, ce que vous vendez, lieu de retrait,
+  horaires ; (2) pièce d'identité et selfie ; (3) compte Mobile Money, nom du titulaire,
+  acceptation des conditions avec le taux de commission. Le compte Mobile Money vient désormais
+  à l'étape 3 : d'ici là, le numéro du gérant est retenu.
+- **Onglets vendeur** : Accueil, Commandes (pastille des commandes à accepter), Produits, Argent.
+- **Tableau de bord** : nouvelle commande en corail avec l'heure limite, argent bloqué et
+  disponible, ventes et commandes du jour (heure de Brazzaville), note, alerte de stock bas,
+  « Premiers pas » tant que la boutique n'est pas prête.
+- **Produits** : recherche, filtres (Tous, En ligne, Stock bas, Masqués), interrupteur
+  « en ligne / masqué » ; nouveau produit avec **état** (neuf, reconditionné, occasion, affiché
+  sur la fiche acheteur) et **seuil d'alerte** de stock.
+- **Commandes** : filtres, « Voir et accepter », « Marquer comme prête » directement dans la liste.
+- **Une commande, un écran par statut** : à accepter (« Prêt dans 15 min / 30 min / 1 h / 2 h »,
+  promesse enregistrée), à préparer (temps restant, liste « Avant de fermer le colis »,
+  « Rupture de stock ? Annuler et rembourser » — désormais permis en préparation), prête (livreur
+  attribué), livrée (vente, commission, solde, avis de la cliente), **litige** (échanger,
+  reprendre et rembourser, ou contester avec photos ; le support voit la réponse avant de trancher).
+- **Avis clients** : note, répartition, réponse publique du vendeur, visible sur la fiche produit.
+- **Mon argent** : disponible et bloqué, « Quand suis-je payé ? », mouvements (bloqué, libéré, versé).
+- **Ma boutique** : boutique ouverte ou **en congé** (produits retirés du catalogue, achat
+  refusé), préparation par défaut, infos et horaires, compte Mobile Money, vérification, avis.
+
+API : migration 0009 ; routes `PATCH /v1/seller/shop`, `GET /v1/seller/dashboard`,
+`GET /v1/seller/reviews`, `POST /v1/seller/reviews/{id}/reply`,
+`POST /v1/seller/orders/{id}/dispute-response` et `…/dispute-evidence` ; contrat et client à jour.
+
+Écarts volontaires avec les maquettes (décisions du §4) :
+
+- **Pas de bouton « Retirer »** : l'argent reste versé automatiquement (§4.3) ; l'écran le dit.
+- **Pas de code de retrait livreur → vendeur, ni de parcours « retour au vendeur »** : ils
+  dépendent du modèle livreur (§4.1).
+- **Délai d'acceptation inchangé (24 h)** en attendant le §4.4 ; l'écran affiche l'heure limite.
+- **Logo de boutique et villes livrées** : pas encore (stockage du logo et zones par boutique à
+  prévoir) ; les initiales servent de logo.
+- Le stock restant après la commande et la photo des articles ne sont pas encore dans la vue
+  vendeur d'une commande (icône à la place).

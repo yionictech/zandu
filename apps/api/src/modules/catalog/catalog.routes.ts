@@ -22,10 +22,10 @@ const ProductQuery = z.object({
 
 const PRODUCT_CARD = `
   p.id, p.title, p.price, p.compare_at_price AS "compareAtPrice", p.stock, p.city,
-  p.category_id AS "categoryId",
+  p.category_id AS "categoryId", p.condition,
   ${COVER_KEY_SQL} AS "coverImage",
   json_build_object('id', s.id, 'shopName', s.shop_name, 'slug', s.slug,
-                    'verified', s.verification_status = 'verified',
+                    'verified', s.verification_status = 'verified', 'open', s.is_open,
                     'ratingAvg', s.rating_avg::float, 'ratingCount', s.rating_count) AS seller`;
 
 /** Les clés de stockage deviennent des URL publiques (CDN) au moment de la réponse. */
@@ -36,7 +36,8 @@ function withImageUrl<T extends { coverImage: string | null }>(storage: ObjectSt
 /** Catalogue public (F4) : recherche plein texte française, tolérante aux accents et aux fautes. */
 async function searchProducts(db: Db, query: z.infer<typeof ProductQuery>) {
   const params: unknown[] = [];
-  const where = [`p.status = 'published'`, `p.stock > 0`];
+  // Boutique en congé : ses produits sortent du catalogue (la fiche reste visible par lien).
+  const where = [`p.status = 'published'`, `p.stock > 0`, `s.is_open`];
   const add = (sql: string, value: unknown) => {
     params.push(value);
     where.push(sql.replace('?', `$${params.length}`));
@@ -143,7 +144,8 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
         .parse(request.query);
       const { rows } = await ctx.pool.query(
         `SELECT r.id, r.rating, r.comment, r.tags, r.created_at AS "createdAt",
-                coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "authorName"
+                coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "authorName",
+                r.seller_reply AS "sellerReply"
          FROM reviews r JOIN users u ON u.id = r.buyer_id
          WHERE r.product_id = $1 AND NOT r.hidden
          ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,

@@ -36,6 +36,7 @@ export interface OrderRow {
   shipping_address: Record<string, unknown>;
   seller_accept_deadline: Date | null;
   dispute_window_ends_at: Date | null;
+  ready_promised_at: Date | null;
   paid_at: Date | null;
   delivered_at: Date | null;
   completed_at: Date | null;
@@ -337,6 +338,8 @@ export interface SellerOrderView extends Omit<OrderView, 'shippingAddress'> {
   /** Ce que le vendeur recevra : articles − commission (la livraison revient au livreur). */
   sellerNet: number;
   destination: { city: string; zone: string; pickupPoint: string | null };
+  /** Heure promise à l'acceptation (« Prêt dans 30 min »). */
+  readyPromisedAt: Date | null;
 }
 
 /**
@@ -355,6 +358,7 @@ export async function sellerOrderViews(
       ...view,
       commission: r.commission_total,
       sellerNet: r.items_subtotal - r.commission_total,
+      readyPromisedAt: r.ready_promised_at,
       destination: {
         city: r.zone_city,
         zone: r.zone_name,

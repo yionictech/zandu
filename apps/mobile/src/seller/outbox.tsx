@@ -162,6 +162,8 @@ async function send(item: QueuedProduct): Promise<void> {
           price: Number(form.price),
           stock: form.stock,
           categoryId: form.categoryId!,
+          condition: form.condition ?? 'new',
+          lowStockThreshold: form.lowStockThreshold ?? 2,
           publish: false,
         },
       }),

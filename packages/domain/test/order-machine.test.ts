@@ -91,6 +91,19 @@ describe('transitionOrder — annulations et remboursements', () => {
     expect(r.patch.refundedAmount).toBe(52_000);
   });
 
+  it('rembourse aussi une rupture de stock découverte en préparant, plus après « prête »', () => {
+    const r = run(order('preparing'), { type: 'seller_rejected', reason: 'rupture' }, 'seller');
+    expect(r.to).toBe('cancelled');
+    expect(r.effects).toContainEqual({
+      type: 'refund_buyer',
+      amount: 52_000,
+      reason: 'seller_rejected: rupture',
+    });
+    expect(() =>
+      run(order('ready_for_pickup'), { type: 'seller_rejected', reason: 'rupture' }, 'seller'),
+    ).toThrow(/impossible/);
+  });
+
   it('annule et rembourse si le vendeur ne répond pas dans les délais, pas avant', () => {
     const o = order('paid', { sellerAcceptDeadline: hours(24) });
     expect(() => run(o, { type: 'seller_acceptance_timeout' }, 'system', hours(23))).toThrow(

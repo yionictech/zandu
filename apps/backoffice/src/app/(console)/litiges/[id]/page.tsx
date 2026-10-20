@@ -7,6 +7,12 @@ import { Badge, Flash, PageHeader, readParams, type SearchParams } from '@/compo
 
 export const metadata = { title: 'Litige' };
 
+const SELLER_CHOICE = {
+  exchange: 'Propose d’échanger le produit',
+  take_back_refund: 'Reprend le produit et accepte le remboursement',
+  contest: 'Conteste avec preuves',
+} as const;
+
 const RESOLUTIONS = {
   release_to_seller: "Payer le vendeur (l'acheteur n'a pas raison)",
   refund_full: "Rembourser intégralement l'acheteur",
@@ -46,6 +52,8 @@ export default async function DisputePage({
   const o = d.order;
   const [orderLabel, orderTone] = ORDER_STATUS[o.status];
   const due = deadline(d.slaDueAt);
+  const buyerEvidence = d.evidence.filter((e) => e.from === 'buyer');
+  const sellerEvidence = d.evidence.filter((e) => e.from === 'seller');
   return (
     <>
       <PageHeader
@@ -69,14 +77,34 @@ export default async function DisputePage({
           <h2>Ce que dit l'acheteur</h2>
           <p style={{ whiteSpace: 'pre-wrap', marginTop: 0 }}>{d.description}</p>
           <div className="gallery large">
-            {d.evidence.map((e) => (
+            {buyerEvidence.map((e) => (
               <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={e.url} alt="Preuve envoyée par l'acheteur" />
               </a>
             ))}
-            {d.evidence.length === 0 ? <p className="muted">Aucune photo jointe.</p> : null}
+            {buyerEvidence.length === 0 ? <p className="muted">Aucune photo jointe.</p> : null}
           </div>
+          <h2>Réponse du vendeur</h2>
+          {d.sellerChoice ? (
+            <>
+              <p style={{ marginTop: 0 }}>
+                <Badge tone="waiting">{SELLER_CHOICE[d.sellerChoice]}</Badge> ·{' '}
+                {formatDateTime(d.sellerRespondedAt)}
+              </p>
+              {d.sellerMessage ? <p style={{ whiteSpace: 'pre-wrap' }}>{d.sellerMessage}</p> : null}
+              <div className="gallery large">
+                {sellerEvidence.map((e) => (
+                  <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={e.url} alt="Preuve envoyée par le vendeur" />
+                  </a>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="muted">Le vendeur n'a pas encore répondu.</p>
+          )}
         </div>
         <div className="card">
           <h2>Commande</h2>

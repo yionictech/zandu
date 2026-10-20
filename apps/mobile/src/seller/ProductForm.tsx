@@ -1,3 +1,4 @@
+import type { ProductCondition } from '@zandu/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../ui/Text';
@@ -17,6 +18,9 @@ export interface ProductFormValues {
   stock: number;
   categoryId: string | null;
   description: string;
+  /** Absents des brouillons enregistrés avant l'étape 3 : valeurs par défaut de l'API. */
+  condition?: ProductCondition;
+  lowStockThreshold?: number;
 }
 
 export const emptyProductForm: ProductFormValues = {
@@ -25,7 +29,11 @@ export const emptyProductForm: ProductFormValues = {
   stock: 1,
   categoryId: null,
   description: '',
+  condition: 'new',
+  lowStockThreshold: 2,
 };
+
+const CONDITIONS: ProductCondition[] = ['new', 'refurbished', 'used'];
 
 export const isProductFormValid = (v: ProductFormValues): boolean =>
   v.title.trim().length >= 3 && Number(v.price) > 0 && !!v.categoryId;
@@ -91,6 +99,18 @@ export function ProductForm({
           />
         ))}
       </View>
+      <Text style={styles.label}>{t.vendor.condition}</Text>
+      <View style={styles.wrap}>
+        {CONDITIONS.map((c) => (
+          <Chip
+            key={c}
+            label={t.vendor.conditions[c]}
+            selected={(values.condition ?? 'new') === c}
+            onPress={() => onChange({ condition: c })}
+            testID={`product-condition-${c}`}
+          />
+        ))}
+      </View>
       <Field
         label={t.seller.price}
         value={groupThousands(values.price)}
@@ -104,6 +124,14 @@ export function ProductForm({
         label={t.seller.stock}
         value={values.stock}
         onChange={(stock) => onChange({ stock })}
+        hint={t.vendor.stockAlert(values.lowStockThreshold ?? 2)}
+      />
+      <Stepper
+        label={t.vendor.alertThreshold}
+        value={values.lowStockThreshold ?? 2}
+        onChange={(lowStockThreshold) => onChange({ lowStockThreshold })}
+        max={1000}
+        hint={t.vendor.lowStock}
       />
       <Field
         label={t.seller.description}

@@ -4,19 +4,27 @@ import { countdown } from '../format';
 import { colors } from '../theme';
 import { Text } from './Text';
 
-/** Anneau de compte à rebours (maquette « Paiement en cours ») : le temps restant en grand. */
+/**
+ * Anneau de compte à rebours (maquettes « Paiement en cours », « Prête dans 18 min ») : le temps
+ * restant en grand, ou un libellé court (« 18' ») dans un petit anneau.
+ */
 export function CountdownRing({
   msLeft,
   totalMs,
   caption,
   size = 180,
+  color = colors.danger,
+  label,
 }: {
   msLeft: number;
   totalMs: number;
-  caption: string;
+  caption?: string;
   size?: number;
+  color?: string;
+  /** Remplace « 09:58 ». */
+  label?: string;
 }) {
-  const stroke = 10;
+  const stroke = size < 100 ? 5 : 10;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const fraction = Math.max(0, Math.min(1, msLeft / totalMs));
@@ -35,7 +43,7 @@ export function CountdownRing({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={colors.danger}
+          stroke={color}
           strokeWidth={stroke}
           fill="none"
           strokeLinecap="round"
@@ -45,8 +53,10 @@ export function CountdownRing({
         />
       </Svg>
       <View style={styles.center}>
-        <Text style={styles.time}>{countdown(msLeft)}</Text>
-        <Text style={styles.caption}>{caption}</Text>
+        <Text style={[styles.time, { color, fontSize: size < 100 ? size * 0.26 : 38 }]}>
+          {label ?? countdown(msLeft)}
+        </Text>
+        {caption ? <Text style={styles.caption}>{caption}</Text> : null}
       </View>
     </View>
   );
@@ -54,6 +64,6 @@ export function CountdownRing({
 
 const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  time: { fontSize: 38, fontWeight: '800', color: colors.danger },
+  time: { fontWeight: '800' },
   caption: { fontSize: 13, color: colors.muted },
 });

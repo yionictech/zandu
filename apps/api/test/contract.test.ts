@@ -10,6 +10,7 @@ import { congoDate } from '../src/modules/reconciliation/reconciliation.service.
 import {
   ZONES,
   approveAndNotify,
+  buyAndDeliver,
   checkout as checkoutVia,
   createTestEnv,
   idemKey,
@@ -308,6 +309,90 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     expectConforms('/v1/rider/deliveries/{id}', 'get', 200, mission);
     expect(mission.status).toBe('picked_up');
+  });
+
+  it('espace vendeur redessiné : boutique, tableau de bord, avis, litige, argent', async () => {
+    const seller = clientFor(m.seller.headers.authorization!.slice(7));
+    const shop = unwrap(
+      await seller.PATCH('/v1/seller/shop', {
+        body: { defaultPrepMinutes: 60, openingHours: 'Lun – Sam · 08:00 – 18:00' },
+      }),
+    );
+    expectConforms('/v1/seller/shop', 'patch', 200, shop);
+    expectConforms('/v1/seller/shop', 'get', 200, unwrap(await seller.GET('/v1/seller/shop')));
+    expectConforms(
+      '/v1/seller/dashboard',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/dashboard')),
+    );
+
+    const orderId = await buyAndDeliver(env, m);
+    const buyer = clientFor(m.buyer.headers.authorization!.slice(7));
+    const order = unwrap(await buyer.GET('/v1/orders/{id}', { params: { path: { id: orderId } } }));
+    await buyer.POST('/v1/order-items/{id}/review', {
+      params: { path: { id: order.items[0]!.itemId } },
+      body: { rating: 5, tags: ['conforme'] },
+    });
+    const reviews = unwrap(await seller.GET('/v1/seller/reviews'));
+    expectConforms('/v1/seller/reviews', 'get', 200, reviews);
+    const reply = unwrap(
+      await seller.POST('/v1/seller/reviews/{id}/reply', {
+        params: { path: { id: reviews.items[0]!.id } },
+        body: { text: 'Merci et à bientôt !' },
+      }),
+    );
+    expectConforms('/v1/seller/reviews/{id}/reply', 'post', 200, reply);
+    expectConforms(
+      '/v1/products/{id}/reviews',
+      'get',
+      200,
+      unwrap(
+        await buyer.GET('/v1/products/{id}/reviews', {
+          params: { path: { id: m.productId }, query: {} },
+        }),
+      ),
+    );
+
+    await buyer.POST('/v1/orders/{id}/disputes', {
+      params: { path: { id: orderId } },
+      body: { reason: 'damaged', description: 'Le ventilateur ne tourne pas.' },
+    });
+    const response = unwrap(
+      await seller.POST('/v1/seller/orders/{id}/dispute-response', {
+        params: { path: { id: orderId } },
+        body: { choice: 'exchange', message: 'Je vous en envoie un autre.' },
+      }),
+    );
+    expectConforms('/v1/seller/orders/{id}/dispute-response', 'post', 200, response);
+    const evidence = unwrap(
+      await seller.POST('/v1/seller/orders/{id}/dispute-evidence', {
+        params: { path: { id: orderId } },
+        body: { uploadId: await uploadFile(env, m.seller, 'dispute_evidence') },
+      }),
+    );
+    expectConforms('/v1/seller/orders/{id}/dispute-evidence', 'post', 201, evidence);
+    expectConforms(
+      '/v1/seller/orders/{id}',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/orders/{id}', { params: { path: { id: orderId } } })),
+    );
+    const admin = clientFor(m.admin.headers.authorization!.slice(7));
+    expectConforms(
+      '/v1/support/disputes/{id}',
+      'get',
+      200,
+      unwrap(
+        await admin.GET('/v1/support/disputes/{id}', { params: { path: { id: response.id } } }),
+      ),
+    );
+    expectConforms(
+      '/v1/seller/balance',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/balance')),
+    );
   });
 
   it('back-office : second facteur, files, recherche, dossier de commande, alertes', async () => {

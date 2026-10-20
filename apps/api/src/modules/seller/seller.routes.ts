@@ -20,6 +20,9 @@ import { consumeUpload } from '../uploads/uploads.service.js';
 
 const MAX_PHOTOS = 6;
 
+/** État du produit, affiché sur la fiche (« Reconditionné », « Occasion »). */
+const Condition = z.enum(['new', 'refurbished', 'used']);
+
 interface Shop {
   id: string;
   kind: 'individual' | 'business';
@@ -37,6 +40,25 @@ function slugify(name: string): string {
       .replace(/^-+|-+$/g, '')
       .slice(0, 40) || 'boutique'
   );
+}
+
+/** « Prêt dans 15 min / 30 min / 1 h / 2 h » (préparation par défaut et à l'acceptation). */
+export const PrepMinutes = z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)]);
+
+async function shopView(db: Db, userId: string | null) {
+  const { rows } = await db.query(
+    `SELECT s.id, s.shop_name AS "shopName", s.slug, s.kind, s.city, s.pickup_zone_id AS "pickupZoneId",
+            z.name AS "pickupZoneName", s.payout_msisdn AS "payoutPhone",
+            s.payout_operator AS "payoutOperator", s.payout_account_name AS "payoutAccountName",
+            s.verification_status AS "verificationStatus", s.rating_avg::float AS "ratingAvg",
+            s.rating_count AS "ratingCount", s.is_open AS "isOpen",
+            s.default_prep_minutes AS "defaultPrepMinutes", s.opening_hours AS "openingHours",
+            s.sold_category_ids AS "soldCategoryIds", s.terms_accepted_at IS NOT NULL AS "termsAccepted"
+     FROM seller_profiles s JOIN delivery_zones z ON z.id = s.pickup_zone_id
+     WHERE s.user_id = $1`,
+    [userId],
+  );
+  return rows[0] ?? null;
 }
 
 async function shopOf(db: Db, userId: string | null): Promise<Shop> {
@@ -129,28 +151,39 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
   return async (app) => {
     app.addHook('preHandler', requireAuth(ctx));
 
-    /** Ouvrir sa boutique : en quelques champs, sans attendre la vérification. */
+    /**
+     * Ouvrir sa boutique (étape 1 sur 3) : nom, ce qui est vendu, lieu de retrait, horaires.
+     * Le compte Mobile Money vient à l'étape 3 (PATCH) ; d'ici là, les ventes seraient
+     * reversées au numéro du gérant.
+     */
     app.post('/v1/seller/shop', async (request, reply) => {
       const body = z
         .object({
           shopName: z.string().trim().min(2).max(80),
           city: z.string().trim().min(2).max(60),
           pickupZoneId: z.uuid(),
-          payoutPhone: z.string(),
-          payoutOperator: z.enum(['mtn', 'airtel']),
+          soldCategoryIds: z.array(z.uuid()).max(10).default([]),
+          openingHours: z.string().trim().min(3).max(80).optional(),
+          payoutPhone: z.string().optional(),
+          payoutOperator: z.enum(['mtn', 'airtel']).optional(),
           kind: z.enum(['individual', 'business']).default('individual'),
         })
         .parse(request.body);
       const user = currentUser(request);
-      const payoutPhone = parseCongoMobile(body.payoutPhone).e164;
+      const payout = parseCongoMobile(body.payoutPhone ?? user.phone);
+      const payoutOperator = body.payoutOperator ?? payout.suggestedOperator;
+      if (!payoutOperator) {
+        throw new HttpError(400, 'operator_required', 'Choisissez MTN MoMo ou Airtel Money');
+      }
       const id = await withTx(ctx.pool, async (tx) => {
         const exists = await tx.query('SELECT 1 FROM seller_profiles WHERE user_id = $1', [
           user.id,
         ]);
         if (exists.rowCount) throw new HttpError(409, 'shop_exists', 'Vous avez déjà une boutique');
         const { rows } = await tx.query<{ id: string }>(
-          `INSERT INTO seller_profiles (user_id, shop_name, slug, kind, city, pickup_zone_id, payout_msisdn, payout_operator)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          `INSERT INTO seller_profiles (user_id, shop_name, slug, kind, city, pickup_zone_id, payout_msisdn,
+                                        payout_operator, sold_category_ids, opening_hours)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
           [
             user.id,
             body.shopName,
@@ -158,8 +191,10 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             body.kind,
             body.city,
             body.pickupZoneId,
-            payoutPhone,
-            body.payoutOperator,
+            payout.e164,
+            payoutOperator,
+            [...new Set(body.soldCategoryIds)],
+            body.openingHours ?? null,
           ],
         );
         await tx.query(
@@ -177,16 +212,128 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
 
     app.get('/v1/seller/shop', async (request) => {
       const a = actor(request, 'seller');
-      const { rows } = await ctx.pool.query(
-        `SELECT id, shop_name AS "shopName", slug, kind, city, pickup_zone_id AS "pickupZoneId",
-                payout_msisdn AS "payoutPhone", payout_operator AS "payoutOperator",
-                verification_status AS "verificationStatus", rating_avg::float AS "ratingAvg",
-                rating_count AS "ratingCount"
-         FROM seller_profiles WHERE user_id = $1`,
-        [a.userId],
+      const shop = await shopView(ctx.pool, a.userId);
+      if (!shop) throw notFound('Boutique');
+      return shop;
+    });
+
+    /**
+     * Ma boutique : congés, préparation par défaut, horaires, compte Mobile Money (étape 3 de
+     * l'ouverture), acceptation des conditions. Un numéro de reversement changé APRÈS la
+     * vérification déclenche le délai de carence anti-piratage des reversements.
+     */
+    app.patch('/v1/seller/shop', async (request) => {
+      const body = z
+        .object({
+          shopName: z.string().trim().min(2).max(80).optional(),
+          city: z.string().trim().min(2).max(60).optional(),
+          pickupZoneId: z.uuid().optional(),
+          soldCategoryIds: z.array(z.uuid()).max(10).optional(),
+          openingHours: z.string().trim().min(3).max(80).optional(),
+          isOpen: z.boolean().optional(),
+          defaultPrepMinutes: PrepMinutes.optional(),
+          payoutPhone: z.string().optional(),
+          payoutOperator: z.enum(['mtn', 'airtel']).optional(),
+          payoutAccountName: z.string().trim().min(2).max(80).optional(),
+          acceptTerms: z.literal(true).optional(),
+        })
+        .refine((b) => Object.keys(b).length > 0, 'Aucune modification')
+        .refine(
+          (b) => (b.payoutPhone === undefined) === (b.payoutOperator === undefined),
+          'Numéro et opérateur vont ensemble',
+        )
+        .parse(request.body);
+      const a = actor(request, 'seller');
+      await withTx(ctx.pool, async (tx) => {
+        const shop = await shopOf(tx, a.userId);
+        const { rows } = await tx.query<{ payout_msisdn: string }>(
+          'SELECT payout_msisdn FROM seller_profiles WHERE id = $1 FOR UPDATE',
+          [shop.id],
+        );
+        const payoutPhone =
+          body.payoutPhone === undefined ? null : parseCongoMobile(body.payoutPhone).e164;
+        const payoutChanged = payoutPhone !== null && payoutPhone !== rows[0]!.payout_msisdn;
+        await tx.query(
+          `UPDATE seller_profiles SET
+             shop_name = coalesce($2, shop_name),
+             sold_category_ids = coalesce($3, sold_category_ids),
+             opening_hours = coalesce($4, opening_hours),
+             is_open = coalesce($5, is_open),
+             default_prep_minutes = coalesce($6, default_prep_minutes),
+             payout_msisdn = coalesce($7, payout_msisdn),
+             payout_operator = coalesce($8::mobile_operator, payout_operator),
+             payout_account_name = coalesce($9, payout_account_name),
+             terms_accepted_at = CASE WHEN $10 THEN coalesce(terms_accepted_at, $11) ELSE terms_accepted_at END,
+             payout_msisdn_changed_at = CASE WHEN $12 THEN $11 ELSE payout_msisdn_changed_at END,
+             city = coalesce($13, city),
+             pickup_zone_id = coalesce($14, pickup_zone_id)
+           WHERE id = $1`,
+          [
+            shop.id,
+            body.shopName ?? null,
+            body.soldCategoryIds ? [...new Set(body.soldCategoryIds)] : null,
+            body.openingHours ?? null,
+            body.isOpen ?? null,
+            body.defaultPrepMinutes ?? null,
+            payoutPhone,
+            body.payoutOperator ?? null,
+            body.payoutAccountName ?? null,
+            body.acceptTerms === true,
+            ctx.clock.now(),
+            payoutChanged && shop.verification_status === 'verified',
+            body.city ?? null,
+            body.pickupZoneId ?? null,
+          ],
+        );
+        if (payoutChanged) {
+          await audit(tx, a, 'seller.payout_number_changed', { type: 'seller', id: shop.id });
+        }
+        if (body.isOpen !== undefined) {
+          await audit(tx, a, body.isOpen ? 'seller.shop_opened' : 'seller.shop_closed', {
+            type: 'seller',
+            id: shop.id,
+          });
+        }
+      });
+      return shopView(ctx.pool, a.userId);
+    });
+
+    /**
+     * Tableau de bord : ventes et commandes du jour (heure de Brazzaville), commandes à
+     * accepter avec la première échéance, produits sous leur seuil d'alerte.
+     */
+    app.get('/v1/seller/dashboard', async (request) => {
+      const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
+      const now = ctx.clock.now();
+      const { rows: today } = await ctx.pool.query<{ sales: string; orders: number }>(
+        `SELECT coalesce(sum(items_subtotal), 0) AS sales, count(*)::int AS orders FROM orders
+         WHERE seller_id = $1 AND paid_at IS NOT NULL
+           AND paid_at >= date_trunc('day', $2::timestamptz AT TIME ZONE 'Africa/Brazzaville') AT TIME ZONE 'Africa/Brazzaville'
+           AND status NOT IN ('cancelled', 'refunded')`,
+        [shop.id, now],
       );
-      if (!rows[0]) throw notFound('Boutique');
-      return rows[0];
+      const { rows: toAccept } = await ctx.pool.query<{ count: number; next: Date | null }>(
+        `SELECT count(*)::int AS count, min(seller_accept_deadline) AS next FROM orders
+         WHERE seller_id = $1 AND status = 'paid'`,
+        [shop.id],
+      );
+      const { rows: lowStock } = await ctx.pool.query(
+        `SELECT id, title, stock, low_stock_threshold AS "lowStockThreshold" FROM products
+         WHERE seller_id = $1 AND status = 'published' AND stock <= low_stock_threshold
+         ORDER BY stock, title LIMIT 5`,
+        [shop.id],
+      );
+      const { rows: products } = await ctx.pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM products WHERE seller_id = $1 AND status <> 'archived'`,
+        [shop.id],
+      );
+      return {
+        todaySales: Number(today[0]!.sales),
+        todayOrders: today[0]!.orders,
+        toAccept: { count: toAccept[0]!.count, nextDeadline: toAccept[0]!.next },
+        lowStock,
+        productCount: products[0]!.n,
+      };
     });
 
     /** « Vous recevrez : 45 000 FCFA » — affiché pendant la saisie du prix. */
@@ -220,6 +367,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       const { rows } = await ctx.pool.query<{ coverImage: string | null }>(
         `SELECT p.id, p.title, p.price, p.stock, p.status, p.category_id AS "categoryId",
+                p.condition, p.low_stock_threshold AS "lowStockThreshold",
                 p.rejection_reason AS "rejectionReason", p.updated_at AS "updatedAt",
                 ${COVER_KEY_SQL} AS "coverImage",
                 (SELECT count(*)::int FROM product_media m WHERE m.product_id = p.id AND ${DISPLAYABLE}) AS "photoCount"
@@ -241,6 +389,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       const { rows } = await ctx.pool.query(
         `SELECT id, title, description, price, stock, status, category_id AS "categoryId",
+                condition, low_stock_threshold AS "lowStockThreshold",
                 rejection_reason AS "rejectionReason", updated_at AS "updatedAt"
          FROM products WHERE id = $1 AND seller_id = $2`,
         [id, shop.id],
@@ -262,6 +411,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           description: z.string().trim().max(5000).default(''),
           price: z.int().positive().max(100_000_000),
           stock: z.int().min(0).max(100_000),
+          condition: Condition.default('new'),
+          lowStockThreshold: z.int().min(0).max(1000).default(2),
           publish: z.boolean().default(true),
         })
         .parse(request.body);
@@ -291,9 +442,10 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           }
         }
         const { rows } = await tx.query<{ id: string; status: string }>(
-          `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at)
+          `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at,
+                                 condition, low_stock_threshold)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::product_status,
-                   CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END)
+                   CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END, $10, $11)
            RETURNING id, status`,
           [
             shop.id,
@@ -305,6 +457,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             shop.city,
             status,
             ctx.clock.now(),
+            body.condition,
+            body.lowStockThreshold,
           ],
         );
         if (typeof key === 'string') await completeIdempotency(tx, userId, key, rows[0]!.id);
@@ -323,6 +477,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           description: z.string().trim().max(5000).optional(),
           price: z.int().positive().max(100_000_000).optional(),
           stock: z.int().min(0).max(100_000).optional(),
+          condition: Condition.optional(),
+          lowStockThreshold: z.int().min(0).max(1000).optional(),
           status: z.enum(['archived', 'published']).optional(),
         })
         .refine((b) => Object.keys(b).length > 0, 'Aucune modification')
@@ -335,7 +491,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         if (
           body.title !== undefined ||
           body.description !== undefined ||
-          body.categoryId !== undefined
+          body.categoryId !== undefined ||
+          body.condition !== undefined
         ) {
           status = statusAfterContentChange(shop, status);
         }
@@ -362,7 +519,9 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
              description = coalesce($4, description), price = coalesce($5, price),
              stock = coalesce($6, stock), status = $7::product_status,
              published_at = CASE WHEN $7::product_status = 'published' THEN coalesce(published_at, $8::timestamptz)
-                                 ELSE published_at END
+                                 ELSE published_at END,
+             condition = coalesce($9::product_condition, condition),
+             low_stock_threshold = coalesce($10, low_stock_threshold)
            WHERE id = $1
            RETURNING id, title, price, stock, status`,
           [
@@ -374,6 +533,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             body.stock ?? null,
             status,
             ctx.clock.now(),
+            body.condition ?? null,
+            body.lowStockThreshold ?? null,
           ],
         );
         return rows[0];
@@ -499,11 +660,86 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
          WHERE p.seller_id = $1 ORDER BY p.created_at DESC LIMIT 50`,
         [shop.id],
       );
+      // Mouvements lisibles par le vendeur : argent bloqué à la commande payée, libéré à la
+      // remise confirmée, reversé sur Mobile Money. Montants nets de commission.
+      const { rows: movements } = await ctx.pool.query(
+        `SELECT * FROM (
+           SELECT 'held' AS kind, o.public_ref AS "publicRef", o.items_subtotal - o.commission_total AS amount,
+                  o.paid_at AS at
+           FROM orders o WHERE o.seller_id = $1 AND o.paid_at IS NOT NULL
+             AND o.status IN ('paid', 'preparing', 'ready_for_pickup', 'in_delivery',
+                              'awaiting_collection', 'delivered', 'disputed')
+           UNION ALL
+           SELECT 'released', o.public_ref, o.items_subtotal - o.commission_total - o.refunded_amount, o.completed_at
+           FROM orders o WHERE o.seller_id = $1 AND o.status = 'completed'
+           UNION ALL
+           SELECT 'paid_out', o.public_ref, p.amount, coalesce(p.succeeded_at, p.created_at)
+           FROM payouts p LEFT JOIN orders o ON o.id = p.order_id
+           WHERE p.seller_id = $1 AND p.status = 'succeeded'
+         ) m WHERE amount > 0 ORDER BY at DESC LIMIT 30`,
+        [shop.id],
+      );
+      const { rows: account } = await ctx.pool.query(
+        `SELECT payout_operator AS operator, payout_msisdn AS phone FROM seller_profiles WHERE id = $1`,
+        [shop.id],
+      );
       return {
         available: await accountBalance(ctx.pool, sellerPayableAccount(shop.id)),
         inEscrow: await sellerEscrowBalance(ctx.pool, shop.id),
+        payoutAccount: account[0],
         payouts,
+        movements,
       };
+    });
+
+    // ---------------- Avis clients ----------------
+
+    /** Avis reçus, répartition des notes, réponses déjà publiées. */
+    app.get('/v1/seller/reviews', async (request) => {
+      const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
+      const { rows: items } = await ctx.pool.query(
+        `SELECT r.id, r.rating, r.comment, r.tags, r.created_at AS "createdAt",
+                coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "authorName",
+                p.title AS "productTitle", r.seller_reply AS reply, r.seller_replied_at AS "repliedAt"
+         FROM reviews r JOIN users u ON u.id = r.buyer_id JOIN products p ON p.id = r.product_id
+         WHERE r.seller_id = $1 AND NOT r.hidden
+         ORDER BY r.created_at DESC LIMIT 100`,
+        [shop.id],
+      );
+      const { rows: stats } = await ctx.pool.query<{ rating: number; n: number }>(
+        `SELECT rating, count(*)::int AS n FROM reviews WHERE seller_id = $1 AND NOT hidden GROUP BY rating`,
+        [shop.id],
+      );
+      const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<number, number>;
+      let total = 0;
+      let sum = 0;
+      for (const { rating, n } of stats) {
+        distribution[rating] = n;
+        total += n;
+        sum += rating * n;
+      }
+      return {
+        average: total ? Math.round((sum / total) * 10) / 10 : null,
+        count: total,
+        distribution,
+        items,
+      };
+    });
+
+    /** Réponse publique du vendeur, affichée sous l'avis ; modifiable. */
+    app.post('/v1/seller/reviews/:id/reply', async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { text } = z.object({ text: z.string().trim().min(2).max(1000) }).parse(request.body);
+      const a = actor(request, 'seller');
+      const shop = await shopOf(ctx.pool, a.userId);
+      const { rows } = await ctx.pool.query(
+        `UPDATE reviews SET seller_reply = $3, seller_replied_at = $4
+         WHERE id = $1 AND seller_id = $2 AND NOT hidden
+         RETURNING id, seller_reply AS reply, seller_replied_at AS "repliedAt"`,
+        [id, shop.id, text, ctx.clock.now()],
+      );
+      if (!rows[0]) throw notFound('Avis');
+      return rows[0];
     });
   };
 }

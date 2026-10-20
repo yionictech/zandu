@@ -126,7 +126,8 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderEventType, TransitionDef>> 
   // l'expiration du checkout les annule (sinon le paiement couvrirait une commande annulée).
   buyer_cancelled: { from: ['paid'], to: ['cancelled'], actors: ['buyer'] },
   seller_accepted: { from: ['paid'], to: ['preparing'], actors: ['seller'] },
-  seller_rejected: { from: ['paid'], to: ['cancelled'], actors: ['seller'] },
+  // Refus avant d'accepter, ou rupture de stock découverte en préparant : l'acheteur est remboursé.
+  seller_rejected: { from: ['paid', 'preparing'], to: ['cancelled'], actors: ['seller'] },
   seller_acceptance_timeout: { from: ['paid'], to: ['cancelled'], actors: ['system'] },
   seller_marked_ready: { from: ['preparing'], to: ['ready_for_pickup'], actors: ['seller'] },
   support_cancelled: {

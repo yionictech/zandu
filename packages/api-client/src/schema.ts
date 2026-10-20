@@ -295,10 +295,65 @@ export interface paths {
     get: operations['getMyShop'];
     put?: never;
     /**
-     * Ouvrir sa boutique
-     * @description Aucune pièce demandée à ce stade ; la vérification (KYC) conditionne les reversements.
+     * Ouvrir sa boutique (étape 1 sur 3)
+     * @description Nom, ce qui est vendu, lieu de retrait, horaires. Le compte Mobile Money vient à l'étape 3 (PATCH) ; par défaut, le numéro du gérant et l'opérateur deviné d'après lui.
      */
     post: operations['openShop'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Modifier ma boutique (congés, préparation, horaires, compte Mobile Money)
+     * @description Fermer la boutique (`isOpen: false`) retire ses produits du catalogue et bloque les achats. Un numéro de reversement changé après la vérification déclenche le délai de carence des reversements.
+     */
+    patch: operations['updateMyShop'];
+    trace?: never;
+  };
+  '/v1/seller/dashboard': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Tableau de bord (jour à l'heure de Brazzaville) */
+    get: operations['sellerDashboard'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/reviews': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Avis clients de ma boutique */
+    get: operations['sellerReviews'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/reviews/{id}/reply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Répondre publiquement à un avis (modifiable) */
+    post: operations['replyToReview'];
     delete?: never;
     options?: never;
     head?: never;
@@ -389,7 +444,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Accepter une commande payée (avant l'échéance de 24 h) */
+    /** Accepter une commande payée, en promettant l'heure où elle sera prête */
     post: operations['acceptOrder'];
     delete?: never;
     options?: never;
@@ -406,7 +461,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Refuser une commande (l'acheteur est remboursé) */
+    /** Refuser une commande, ou l'annuler en préparation (rupture de stock) ; l'acheteur est remboursé */
     post: operations['rejectOrder'];
     delete?: never;
     options?: never;
@@ -425,6 +480,40 @@ export interface paths {
     put?: never;
     /** Colis prêt pour le livreur */
     post: operations['markOrderReady'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/orders/{id}/dispute-response': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Répondre à un litige (lu par le support avant de trancher) */
+    post: operations['respondToDispute'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/orders/{id}/dispute-evidence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ajouter une photo à l'appui de sa réponse (6 au plus) */
+    post: operations['addSellerDisputeEvidence'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1573,6 +1662,77 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * @description « Prêt dans 15 min / 30 min / 1 h / 2 h »
+     * @enum {integer}
+     */
+    PrepMinutes: 15 | 30 | 60 | 120;
+    /**
+     * @description Neuf, reconditionné, occasion
+     * @enum {string}
+     */
+    ProductCondition: 'new' | 'refurbished' | 'used';
+    /**
+     * @description Échanger le produit, reprendre et rembourser, contester avec preuves
+     * @enum {string}
+     */
+    DisputeSellerChoice: 'exchange' | 'take_back_refund' | 'contest';
+    SellerDispute: {
+      /** Format: uuid */
+      id: string;
+      reason: string;
+      description: string;
+      /** @enum {string} */
+      status: 'open' | 'resolved';
+      resolution: string | null;
+      /** Format: date-time */
+      slaDueAt: string;
+      sellerChoice: null | components['schemas']['DisputeSellerChoice'];
+      sellerMessage: string | null;
+      /** Format: date-time */
+      sellerRespondedAt: string | null;
+      buyerName: string;
+      buyerEvidenceCount: number;
+      sellerEvidenceCount: number;
+    };
+    SellerShop: {
+      /** Format: uuid */
+      id: string;
+      shopName: string;
+      slug: string;
+      /** @enum {string} */
+      kind: 'individual' | 'business';
+      city: string;
+      /** Format: uuid */
+      pickupZoneId: string;
+      pickupZoneName: string;
+      payoutPhone: string;
+      payoutOperator: components['schemas']['Operator'];
+      payoutAccountName: string | null;
+      verificationStatus: components['schemas']['VerificationStatus'];
+      ratingAvg: number | null;
+      ratingCount: number;
+      /** @description Faux pendant les congés (produits masqués) */
+      isOpen: boolean;
+      defaultPrepMinutes: components['schemas']['PrepMinutes'];
+      openingHours: string | null;
+      soldCategoryIds: string[];
+      termsAccepted: boolean;
+    };
+    SellerReview: {
+      /** Format: uuid */
+      id: string;
+      rating: number;
+      comment: string | null;
+      tags: components['schemas']['ReviewTag'][];
+      /** Format: date-time */
+      createdAt: string;
+      authorName: string;
+      productTitle: string;
+      reply: string | null;
+      /** Format: date-time */
+      repliedAt: string | null;
+    };
+    /**
      * @description « Conforme à l'annonce », « Livreur ponctuel », « Bien emballé »
      * @enum {string}
      */
@@ -1777,6 +1937,7 @@ export interface components {
     ProductCard: {
       /** Format: uuid */
       id: string;
+      condition: components['schemas']['ProductCondition'];
       title: string;
       price: components['schemas']['Amount'];
       compareAtPrice: number | null;
@@ -1792,6 +1953,8 @@ export interface components {
         shopName: string;
         slug: string;
         verified: boolean;
+        /** @description Faux si la boutique est en congé (achat impossible) */
+        open: boolean;
         ratingAvg: number | null;
         ratingCount: number;
       };
@@ -1919,6 +2082,11 @@ export interface components {
     }[];
     /** @description Commande vue par le vendeur, sans les coordonnées de l'acheteur. */
     SellerOrder: components['schemas']['OrderCore'] & {
+      /**
+       * Format: date-time
+       * @description Heure promise à l'acceptation (« Prêt dans 30 min »)
+       */
+      readyPromisedAt: string | null;
       commission: components['schemas']['Amount'];
       /** @description Ce que le vendeur recevra (articles − commission) */
       sellerNet: components['schemas']['Amount'];
@@ -1938,6 +2106,8 @@ export interface components {
       status: components['schemas']['ProductStatus'];
       /** Format: uuid */
       categoryId: string;
+      condition: components['schemas']['ProductCondition'];
+      lowStockThreshold: number;
       rejectionReason: string | null;
       /** Format: date-time */
       updatedAt: string;
@@ -2660,22 +2830,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': {
-            /** Format: uuid */
-            id: string;
-            shopName: string;
-            slug: string;
-            /** @enum {string} */
-            kind: 'individual' | 'business';
-            city: string;
-            /** Format: uuid */
-            pickupZoneId: string;
-            payoutPhone: string;
-            payoutOperator: components['schemas']['Operator'];
-            verificationStatus: components['schemas']['VerificationStatus'];
-            ratingAvg: number | null;
-            ratingCount: number;
-          };
+          'application/json': components['schemas']['SellerShop'];
         };
       };
       404: components['responses']['Error'];
@@ -2695,8 +2850,11 @@ export interface operations {
           city: string;
           /** Format: uuid */
           pickupZoneId: string;
-          payoutPhone: string;
-          payoutOperator: components['schemas']['Operator'];
+          soldCategoryIds?: string[];
+          /** @example Lun – Sam · 08:00 – 18:00 */
+          openingHours?: string;
+          payoutPhone?: string;
+          payoutOperator?: components['schemas']['Operator'];
           /**
            * @default individual
            * @enum {string}
@@ -2707,7 +2865,155 @@ export interface operations {
     };
     responses: {
       201: components['responses']['Created'];
+      400: components['responses']['Error'];
       409: components['responses']['Error'];
+    };
+  };
+  updateMyShop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          shopName?: string;
+          city?: string;
+          /**
+           * Format: uuid
+           * @description Lieu de retrait des colis
+           */
+          pickupZoneId?: string;
+          soldCategoryIds?: string[];
+          openingHours?: string;
+          isOpen?: boolean;
+          defaultPrepMinutes?: components['schemas']['PrepMinutes'];
+          /** @description Avec payoutOperator */
+          payoutPhone?: string;
+          payoutOperator?: components['schemas']['Operator'];
+          payoutAccountName?: string;
+          /** @enum {boolean} */
+          acceptTerms?: true;
+        };
+      };
+    };
+    responses: {
+      /** @description Boutique à jour */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SellerShop'];
+        };
+      };
+      400: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  sellerDashboard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            todaySales: components['schemas']['Amount'];
+            todayOrders: number;
+            toAccept: {
+              count: number;
+              /** Format: date-time */
+              nextDeadline: string | null;
+            };
+            lowStock: {
+              /** Format: uuid */
+              id: string;
+              title: string;
+              stock: number;
+              lowStockThreshold: number;
+            }[];
+            /** @description Produits hors archives */
+            productCount: number;
+          };
+        };
+      };
+    };
+  };
+  sellerReviews: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            average: number | null;
+            count: number;
+            distribution: {
+              1: number;
+              2: number;
+              3: number;
+              4: number;
+              5: number;
+            };
+            items: components['schemas']['SellerReview'][];
+          };
+        };
+      };
+    };
+  };
+  replyToReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          text: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Réponse publiée */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            id: string;
+            reply: string;
+            /** Format: date-time */
+            repliedAt: string;
+          };
+        };
+      };
+      404: components['responses']['Error'];
     };
   };
   listMyProducts: {
@@ -2738,6 +3044,8 @@ export interface operations {
               status: components['schemas']['ProductStatus'];
               /** Format: uuid */
               categoryId: string;
+              condition: components['schemas']['ProductCondition'];
+              lowStockThreshold: number;
               rejectionReason: string | null;
               /** Format: date-time */
               updatedAt: string;
@@ -2769,6 +3077,12 @@ export interface operations {
           description?: string;
           price: components['schemas']['Amount'];
           stock: number;
+          condition?: components['schemas']['ProductCondition'];
+          /**
+           * @description Alerte « Stock bas »
+           * @default 2
+           */
+          lowStockThreshold?: number;
           /** @default true */
           publish?: boolean;
         };
@@ -2827,6 +3141,19 @@ export interface operations {
               /** Format: date-time */
               succeededAt: string | null;
             }[];
+            payoutAccount: {
+              operator: components['schemas']['Operator'];
+              phone: string;
+            };
+            /** @description Argent bloqué à la commande payée, libéré à la remise confirmée, versé sur Mobile Money ; montants nets de commission, les plus récents d'abord. */
+            movements: {
+              /** @enum {string} */
+              kind: 'held' | 'released' | 'paid_out';
+              publicRef: string | null;
+              amount: components['schemas']['Amount'];
+              /** Format: date-time */
+              at: string;
+            }[];
           };
         };
       };
@@ -2879,6 +3206,23 @@ export interface operations {
         content: {
           'application/json': components['schemas']['SellerOrder'] & {
             history: components['schemas']['OrderHistory'];
+            /** @description Livreur attribué (prénom et initiale) */
+            rider: {
+              /** @example Junior M. */
+              name: string;
+            } | null;
+            dispute: null | components['schemas']['SellerDispute'];
+            reviews: {
+              /** Format: uuid */
+              id: string;
+              rating: number;
+              comment: string | null;
+              tags: components['schemas']['ReviewTag'][];
+              /** Format: date-time */
+              createdAt: string;
+              authorName: string;
+              reply: string | null;
+            }[];
           };
         };
       };
@@ -2894,7 +3238,14 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody?: {
+      content: {
+        'application/json': {
+          /** @description Préparation par défaut de la boutique si absent */
+          readyInMinutes?: components['schemas']['PrepMinutes'];
+        };
+      };
+    };
     responses: {
       200: components['responses']['OrderStatusChange'];
       404: components['responses']['Error'];
@@ -2928,6 +3279,69 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: components['responses']['OrderStatusChange'];
+      409: components['responses']['Error'];
+    };
+  };
+  respondToDispute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          choice: components['schemas']['DisputeSellerChoice'];
+          message?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Réponse enregistrée */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SellerDispute'];
+        };
+      };
+      409: components['responses']['Error'];
+    };
+  };
+  addSellerDisputeEvidence: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: uuid */
+          uploadId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Ajoutée */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+          };
+        };
+      };
       409: components['responses']['Error'];
     };
   };
@@ -3564,6 +3978,8 @@ export interface operations {
               /** Format: date-time */
               createdAt: string;
               authorName: string;
+              /** @description Réponse publique du vendeur */
+              sellerReply: string | null;
             }[];
           };
         };
@@ -3690,6 +4106,8 @@ export interface operations {
           description?: string;
           price?: components['schemas']['Amount'];
           stock?: number;
+          condition?: components['schemas']['ProductCondition'];
+          lowStockThreshold?: number;
           /** @enum {string} */
           status?: 'archived' | 'published';
         };
@@ -3921,11 +4339,17 @@ export interface operations {
             slaDueAt: string;
             /** Format: date-time */
             createdAt: string;
+            sellerChoice: null | components['schemas']['DisputeSellerChoice'];
+            sellerMessage: string | null;
+            /** Format: date-time */
+            sellerRespondedAt: string | null;
             order: components['schemas']['Order'];
             evidence: {
               /** Format: uuid */
               id: string;
               kind: string;
+              /** @enum {string} */
+              from: 'buyer' | 'seller';
               /** Format: uri */
               url: string;
             }[];

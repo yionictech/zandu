@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '../api';
 
-/** Groupes de statuts des listes vendeur (« À traiter » en tête, comme un centre vendeur). */
+/** Groupes de statuts des listes vendeur (puces « Toutes, Nouvelles, À préparer, En livraison »). */
 export const ORDER_FILTERS = {
   todo: 'paid,preparing',
-  shipping: 'ready_for_pickup,in_delivery,awaiting_collection',
+  new: 'paid',
+  prepare: 'preparing,ready_for_pickup',
+  shipping: 'in_delivery,awaiting_collection',
   done: 'delivered,completed,disputed,refunded,cancelled',
   all: '',
 } as const;
@@ -12,6 +14,8 @@ export type OrderFilter = keyof typeof ORDER_FILTERS;
 
 export const sellerKeys = {
   shop: ['seller', 'shop'] as const,
+  dashboard: ['seller', 'dashboard'] as const,
+  reviews: ['seller', 'reviews'] as const,
   balance: ['seller', 'balance'] as const,
   kyc: ['seller', 'kyc'] as const,
   orders: (filter: OrderFilter) => ['seller', 'orders', filter] as const,
@@ -56,3 +60,43 @@ export function useLeafCategories() {
     select: (all) => all.filter((c) => !all.some((child) => child.parentId === c.id)),
   });
 }
+
+export function useDashboard() {
+  return useQuery({
+    queryKey: sellerKeys.dashboard,
+    queryFn: async () => unwrap(await api.GET('/v1/seller/dashboard')),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSellerReviews() {
+  return useQuery({
+    queryKey: sellerKeys.reviews,
+    queryFn: async () => unwrap(await api.GET('/v1/seller/reviews')),
+  });
+}
+
+/** Produits en vente et masqués (archivés), pour les filtres de « Mes produits ». */
+export function useSellerProducts(archived: boolean) {
+  return useQuery({
+    queryKey: sellerKeys.products(archived),
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/v1/seller/products', {
+          params: { query: archived ? { status: 'archived' } : {} },
+        }),
+      ).items,
+  });
+}
+
+/** Opérateur lisible : « Airtel Money ». */
+export const operatorName = (operator: 'mtn' | 'airtel'): string =>
+  operator === 'mtn' ? 'MTN MoMo' : 'Airtel Money';
+
+/** Heure seule : « 14:40 ». */
+export const timeOf = (iso: string): string =>
+  new Date(iso).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Africa/Brazzaville',
+  });

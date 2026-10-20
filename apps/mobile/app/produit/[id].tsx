@@ -72,7 +72,9 @@ export default function ProductScreen() {
     <Screen
       style={styles.screen}
       footer={
-        p.stock > 0 ? (
+        !p.seller.open ? (
+          <Text style={styles.outOfStock}>{t.product.shopClosed}</Text>
+        ) : p.stock > 0 ? (
           <View style={styles.actions}>
             <IconButton
               icon={ShoppingCart}
@@ -149,6 +151,9 @@ export default function ProductScreen() {
         <View style={styles.shopRow}>
           <Text style={styles.shop}>{p.seller.shopName}</Text>
           {p.seller.verified ? <Badge label={t.trust.verified} tone="brand" /> : null}
+          {p.condition !== 'new' ? (
+            <Badge label={t.vendor.conditions[p.condition]} tone="waiting" />
+          ) : null}
         </View>
         <Text style={styles.title}>{p.title}</Text>
         {p.reviews.count > 0 ? (
@@ -219,6 +224,11 @@ export default function ProductScreen() {
                 <Text style={styles.small}>
                   {r.authorName} · {formatDate(r.createdAt)}
                 </Text>
+                {r.sellerReply ? (
+                  <Text style={styles.small}>
+                    {t.product.sellerReply(p.seller.shopName)} {r.sellerReply}
+                  </Text>
+                ) : null}
               </View>
             ))
           ) : (

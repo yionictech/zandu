@@ -1,4 +1,4 @@
-import type { SellerProduct } from '@zandu/api-client';
+import type { ProductCondition, SellerProduct } from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -30,6 +30,8 @@ const toForm = (p: SellerProduct): ProductFormValues => ({
   stock: p.stock,
   categoryId: p.categoryId,
   description: p.description,
+  condition: p.condition,
+  lowStockThreshold: p.lowStockThreshold,
 });
 
 /** Champs réellement modifiés : seuls ceux-là sont envoyés (un vendeur non vérifié qui ne
@@ -41,6 +43,8 @@ function changes(before: ProductFormValues, after: ProductFormValues) {
     stock?: number;
     categoryId?: string;
     description?: string;
+    condition?: ProductCondition;
+    lowStockThreshold?: number;
   } = {};
   if (after.title.trim() !== before.title) patch.title = after.title.trim();
   if (after.price !== before.price) patch.price = Number(after.price);
@@ -48,6 +52,9 @@ function changes(before: ProductFormValues, after: ProductFormValues) {
   if (after.categoryId && after.categoryId !== before.categoryId)
     patch.categoryId = after.categoryId;
   if (after.description.trim() !== before.description) patch.description = after.description.trim();
+  if (after.condition && after.condition !== before.condition) patch.condition = after.condition;
+  if (after.lowStockThreshold !== undefined && after.lowStockThreshold !== before.lowStockThreshold)
+    patch.lowStockThreshold = after.lowStockThreshold;
   return patch;
 }
 

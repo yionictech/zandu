@@ -36,6 +36,7 @@ interface ProductRow {
   seller_id: string;
   seller_user_id: string;
   seller_status: string;
+  seller_open: boolean;
   pickup_zone_id: string;
 }
 
@@ -69,7 +70,8 @@ export async function createCheckout(
       quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
     const { rows: products } = await tx.query<ProductRow>(
       `SELECT p.id, p.title, p.price, p.stock, p.status, p.category_id, p.seller_id,
-              s.user_id AS seller_user_id, s.verification_status AS seller_status, s.pickup_zone_id
+              s.user_id AS seller_user_id, s.verification_status AS seller_status, s.pickup_zone_id,
+              s.is_open AS seller_open
        FROM products p JOIN seller_profiles s ON s.id = p.seller_id
        WHERE p.id = ANY($1::uuid[]) ORDER BY p.id FOR UPDATE OF p`,
       [[...quantities.keys()]],
@@ -84,6 +86,9 @@ export async function createCheckout(
           "Un produit du panier n'est plus disponible",
           { productId },
         );
+      }
+      if (!p.seller_open) {
+        throw new HttpError(409, 'shop_closed', 'Cette boutique est en congé', { productId });
       }
       if (p.seller_user_id === buyerId) {
         throw new HttpError(409, 'own_product', 'Vous ne pouvez pas acheter vos propres produits', {
