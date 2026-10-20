@@ -2602,7 +2602,7 @@ components:
     ReviewTag:
       type: string
       enum: [conforme, livreur_ponctuel, bien_emballe]
-      description: '« Conforme à l''annonce », « Livreur ponctuel », « Bien emballé »'
+      description: "« Conforme à l'annonce », « Livreur ponctuel », « Bien emballé »"
     StaffRole:
       type: string
       enum: [support, admin]
