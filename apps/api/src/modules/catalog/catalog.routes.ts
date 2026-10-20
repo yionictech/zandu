@@ -11,6 +11,8 @@ const ProductQuery = z.object({
   categoryId: z.uuid().optional(),
   sellerId: z.uuid().optional(),
   city: z.string().max(60).optional(),
+  /** Boutiques vérifiées seulement (filtre « Vendeur vérifié »). */
+  verified: z.stringbool().optional(),
   minPrice: z.coerce.number().int().nonnegative().optional(),
   maxPrice: z.coerce.number().int().positive().optional(),
   sort: z.enum(['relevance', 'newest', 'price_asc', 'price_desc']).default('relevance'),
@@ -60,6 +62,7 @@ async function searchProducts(db: Db, query: z.infer<typeof ProductQuery>) {
   }
   if (query.sellerId) add('p.seller_id = ?', query.sellerId);
   if (query.city) add('p.city = ?', query.city);
+  if (query.verified) where.push(`s.verification_status = 'verified'`);
   if (query.minPrice !== undefined) add('p.price >= ?', query.minPrice);
   if (query.maxPrice !== undefined) add('p.price <= ?', query.maxPrice);
 
@@ -139,7 +142,7 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
         })
         .parse(request.query);
       const { rows } = await ctx.pool.query(
-        `SELECT r.id, r.rating, r.comment, r.created_at AS "createdAt",
+        `SELECT r.id, r.rating, r.comment, r.tags, r.created_at AS "createdAt",
                 coalesce(split_part(u.full_name, ' ', 1), 'Acheteur') AS "authorName"
          FROM reviews r JOIN users u ON u.id = r.buyer_id
          WHERE r.product_id = $1 AND NOT r.hidden

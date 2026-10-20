@@ -49,6 +49,7 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="produit/[id]" options={{ title: '' }} />
+                <Stack.Screen name="notifications" options={{ title: t.inbox.title }} />
                 <Stack.Screen
                   name="connexion"
                   options={{ title: t.auth.title, presentation: 'modal' }}

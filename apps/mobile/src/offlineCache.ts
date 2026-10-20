@@ -18,7 +18,7 @@ const SAVE_DELAY_MS = 1_000;
 /** Données du catalogue, valables quel que soit le compte. */
 const PUBLIC = new Set(['categories', 'products', 'product', 'zones']);
 /** Données d'un compte : achats, missions, espace vendeur. */
-const PERSONAL = new Set(['orders', 'order', 'rider', 'seller']);
+const PERSONAL = new Set(['orders', 'order', 'rider', 'seller', 'inbox']);
 
 interface Saved {
   userId: string | null;

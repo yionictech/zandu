@@ -39,9 +39,12 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: t.tabs.home, headerTitle: 'zandu.', tabBarIcon: icon(House) }}
+        options={{ title: t.tabs.home, headerShown: false, tabBarIcon: icon(House) }}
       />
-      <Tabs.Screen name="recherche" options={{ title: t.tabs.search, tabBarIcon: icon(Search) }} />
+      <Tabs.Screen
+        name="recherche"
+        options={{ title: t.tabs.search, headerShown: false, tabBarIcon: icon(Search) }}
+      />
       <Tabs.Screen
         name="panier"
         options={{

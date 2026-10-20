@@ -58,6 +58,20 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   buyer_late_payment: { title: 'Paiement remboursé', fallback: true },
 };
 
+/**
+ * Centre de notifications de l'application : titres des messages montrés, et textes remplacés
+ * quand le message d'origine ne doit pas être relu dans l'application. Les codes de connexion et
+ * les messages du personnel n'y figurent pas.
+ */
+export const INBOX_HIDDEN = ['otp_code', 'staff_access', 'support_alert'];
+export const INBOX: Record<string, { title: string; body?: string }> = {
+  ...Object.fromEntries(Object.entries(PUSH).map(([k, v]) => [k, { title: v.title }])),
+  buyer_handover_code: {
+    title: 'Code de remise',
+    body: "Votre code est arrivé par SMS. Ne le donnez au livreur qu'une fois le colis en main.",
+  },
+};
+
 /** Texte d'une notification : sans le préfixe « Zandu : », le titre le remplace. */
 export const pushBody = (text: string): string => text.replace(/^Zandu : /, '');
 

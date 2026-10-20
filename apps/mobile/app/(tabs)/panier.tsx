@@ -1,14 +1,17 @@
 import { useRouter } from 'expo-router';
+import { Info, Minus, Plus, ShieldCheck } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../src/ui/Text';
 import { useCart, type CartLine } from '../../src/cart';
 import { formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
-import { colors, font, space } from '../../src/theme';
+import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
-import { Empty, Screen, Section } from '../../src/ui/Layout';
+import { Amount, Avatar, Card, Note } from '../../src/ui/kit';
+import { Empty, Screen } from '../../src/ui/Layout';
 import { ProductImage } from '../../src/ui/ProductImage';
+import { Text } from '../../src/ui/Text';
 
+/** Quantité en pilule « − 1 + » ; à zéro, l'article sort du panier. */
 function Stepper({ line }: { line: CartLine }) {
   const { setQuantity } = useCart();
   return (
@@ -16,9 +19,9 @@ function Stepper({ line }: { line: CartLine }) {
       <Pressable
         style={styles.step}
         onPress={() => setQuantity(line.productId, line.quantity - 1)}
-        accessibilityLabel="Moins"
+        accessibilityLabel={line.quantity === 1 ? t.cart.remove : 'Moins'}
       >
-        <Text style={styles.stepText}>−</Text>
+        <Minus color={colors.text} size={18} />
       </Pressable>
       <Text style={styles.qty}>{line.quantity}</Text>
       <Pressable
@@ -27,13 +30,13 @@ function Stepper({ line }: { line: CartLine }) {
         disabled={line.quantity >= line.stock}
         accessibilityLabel="Plus"
       >
-        <Text style={styles.stepText}>+</Text>
+        <Plus color={line.quantity >= line.stock ? colors.faint : colors.text} size={18} />
       </Pressable>
     </View>
   );
 }
 
-/** Panier multi-vendeurs : un seul paiement, une commande et un suivi par boutique. */
+/** Panier multi-vendeurs (maquette « Panier ») : un seul paiement, un colis par boutique. */
 export default function CartScreen() {
   const router = useRouter();
   const cart = useCart();
@@ -48,67 +51,88 @@ export default function CartScreen() {
     <Screen
       footer={
         <>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t.cart.itemsTotal}</Text>
-            <Text style={styles.total}>{formatXaf(cart.itemsTotal)}</Text>
+          <View style={styles.protected}>
+            <ShieldCheck color={colors.trust} size={15} />
+            <Text style={styles.protectedText}>{t.cart.protected}</Text>
           </View>
-          <Text style={styles.note}>{t.cart.deliveryNote}</Text>
           <Button
-            label={t.cart.checkout}
+            label={t.cart.checkoutWith(formatXaf(cart.itemsTotal))}
             onPress={() => router.push('/commande/livraison')}
             testID="cart-checkout"
           />
         </>
       }
     >
+      {shops.length > 1 ? (
+        <Note icon={Info} tone="waiting">
+          {t.cart.shops(shops.length)}
+        </Note>
+      ) : null}
       {shops.map((sellerId) => {
         const lines = cart.lines.filter((l) => l.sellerId === sellerId);
         return (
-          <Section key={sellerId} title={lines[0]!.shopName}>
+          <Card key={sellerId}>
+            <View style={styles.shopRow}>
+              <Avatar name={lines[0]!.shopName} size={36} />
+              <Text style={styles.shop} numberOfLines={1}>
+                {lines[0]!.shopName}
+              </Text>
+            </View>
             {lines.map((line) => (
               <View key={line.productId} style={styles.line}>
                 <ProductImage uri={line.coverImage} title={line.title} style={styles.thumb} />
                 <View style={styles.lineBody}>
-                  <Text style={styles.title} numberOfLines={2}>
+                  <Text style={styles.title} numberOfLines={1}>
                     {line.title}
                   </Text>
-                  <Text style={styles.price}>{formatXaf(line.price * line.quantity)}</Text>
-                  <View style={styles.lineActions}>
-                    <Stepper line={line} />
-                    <Pressable onPress={() => cart.remove(line.productId)}>
-                      <Text style={styles.remove}>{t.cart.remove}</Text>
-                    </Pressable>
-                  </View>
+                  <Amount value={line.price * line.quantity} size="sm" />
                 </View>
+                <Stepper line={line} />
               </View>
             ))}
-          </Section>
+          </Card>
         );
       })}
+      <Card>
+        <View style={styles.row}>
+          <Text style={styles.label}>{t.cart.itemsTotal}</Text>
+          <Text style={styles.value}>{formatXaf(cart.itemsTotal)}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>{t.cart.delivery}</Text>
+          <Text style={styles.value}>{t.cart.deliveryNext}</Text>
+        </View>
+        <View style={[styles.row, styles.totalRow]}>
+          <Text style={styles.totalLabel}>{t.cart.total}</Text>
+          <Amount value={cart.itemsTotal} size="md" />
+        </View>
+      </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  line: { flexDirection: 'row', gap: space.md, paddingVertical: space.xs },
-  thumb: { width: 72, height: 72, borderRadius: 8 },
-  lineBody: { flex: 1, gap: 4 },
+  shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: 4 },
+  shop: { flex: 1, color: colors.text, fontWeight: '700', fontSize: font.body },
+  line: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 4 },
+  thumb: { width: 56, height: 56, borderRadius: radius.md },
+  lineBody: { flex: 1, gap: 2 },
   title: { fontSize: font.small, color: colors.text },
-  price: { fontSize: font.body, fontWeight: '800', color: colors.text },
-  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
   },
-  step: { width: 40, height: 36, alignItems: 'center', justifyContent: 'center' },
-  stepText: { fontSize: 20, color: colors.brand, fontWeight: '700' },
-  qty: { minWidth: 28, textAlign: 'center', fontWeight: '700', color: colors.text },
-  remove: { color: colors.muted, textDecorationLine: 'underline', fontSize: font.small },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  totalLabel: { fontSize: font.body, color: colors.muted },
-  total: { fontSize: font.title, fontWeight: '900', color: colors.text },
-  note: { fontSize: 12, color: colors.muted },
+  step: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  qty: { minWidth: 20, textAlign: 'center', fontWeight: '700', color: colors.text },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  label: { color: colors.muted, fontSize: font.small },
+  value: { color: colors.text, fontSize: font.small },
+  totalRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.sm },
+  totalLabel: { color: colors.text, fontWeight: '700', fontSize: font.body },
+  protected: { flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
+  protectedText: { color: colors.muted, fontSize: 12 },
 });

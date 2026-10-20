@@ -21,3 +21,12 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   }
   return <>{children}</>;
 }
+
+/** Écran d'un compte (notifications…) : connexion d'abord, puis retour à l'écran. */
+export function RequireSignIn({ children }: { children: ReactNode }) {
+  const { ready, user } = useSession();
+  const pathname = usePathname();
+  if (!ready) return <Loading />;
+  if (!user) return <Redirect href={{ pathname: '/connexion', params: { next: pathname } }} />;
+  return <>{children}</>;
+}

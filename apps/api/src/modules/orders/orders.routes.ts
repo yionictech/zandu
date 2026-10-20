@@ -245,7 +245,14 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
     app.post('/v1/order-items/:id/review', async (request, reply) => {
       const { id } = IdParam.parse(request.params);
       const body = z
-        .object({ rating: z.int().min(1).max(5), comment: z.string().trim().max(2000).optional() })
+        .object({
+          rating: z.int().min(1).max(5),
+          comment: z.string().trim().max(2000).optional(),
+          tags: z
+            .array(z.enum(['conforme', 'livreur_ponctuel', 'bien_emballe']))
+            .max(3)
+            .default([]),
+        })
         .parse(request.body);
       const a = actor(request, 'buyer');
       const review = await withTx(ctx.pool, async (tx) => {
@@ -269,9 +276,18 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           );
         }
         const inserted = await tx.query<{ id: string }>(
-          `INSERT INTO reviews (order_item_id, product_id, seller_id, buyer_id, rating, comment, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (order_item_id) DO NOTHING RETURNING id`,
-          [id, item.product_id, item.seller_id, a.userId, body.rating, body.comment ?? null, now()],
+          `INSERT INTO reviews (order_item_id, product_id, seller_id, buyer_id, rating, comment, tags, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (order_item_id) DO NOTHING RETURNING id`,
+          [
+            id,
+            item.product_id,
+            item.seller_id,
+            a.userId,
+            body.rating,
+            body.comment ?? null,
+            [...new Set(body.tags)],
+            now(),
+          ],
         );
         if (!inserted.rows[0])
           throw new HttpError(409, 'already_reviewed', 'Vous avez déjà noté cet article');

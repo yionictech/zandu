@@ -465,6 +465,14 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     expectConforms('/v1/me/notifications/{id}/ack', 'post', 404, ack.error);
     const forgotten = await clientFor(null).POST('/v1/devices/unregister', { body: { token } });
     expect(forgotten.response.status).toBe(204);
+    expectConforms(
+      '/v1/me/notifications',
+      'get',
+      200,
+      unwrap(await api.GET('/v1/me/notifications')),
+    );
+    const seen = await api.POST('/v1/me/notifications/seen');
+    expect(seen.response.status).toBe(204);
   });
 
   it('les erreurs suivent le format documenté', async () => {

@@ -114,7 +114,7 @@ await page.reload();
 await page.getByText('Tout est conforme ?', { exact: true }).waitFor();
 await shot('10-remise-tout-est-conforme');
 await page.getByTestId('order-confirm').click();
-await page.getByText('Terminée').first().waitFor();
+await page.getByText('Notez votre achat').last().waitFor();
 await page.getByLabel('5 étoiles').first().click();
 await page.getByLabel('Votre avis (facultatif)').fill('Téléphone conforme, livré en 24 h. Merci !');
 await page.getByText('Publier mon avis').click();
@@ -133,6 +133,8 @@ console.log(
 );
 
 await page.goto(`${WEB}/commandes`);
+// La liste s'ouvre sur « En cours » quand d'autres commandes sont en route.
+await page.getByText(/^Terminées · /).click();
 await page.getByText('Terminée').first().waitFor();
 await shot('12-mes-commandes');
 await browser.close();

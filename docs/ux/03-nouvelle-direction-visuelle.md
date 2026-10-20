@@ -234,3 +234,43 @@ maquettes.
 - Restent pour les étapes suivantes : les émojis dans les écrans, les montants avec « FCFA » en
   petit, les couleurs propres à chaque écran (« Refuser » en corail…), et les petites fonctions
   listées au §3.
+
+## 7. Étape 2 — parcours acheteur dans l'application (✅ faite)
+
+![Parcours acheteur sombre](captures/acheteur-sombre.jpg)
+
+Tous les écrans acheteur de l'application suivent les maquettes ; les trois parcours de bout en
+bout de l'application (acheteur, vendeur et livreur, hors connexion) passent.
+
+- **Accueil** : logo, choix de la ville (Pointe-Noire ou Brazzaville, gardé sur le téléphone ;
+  l'accueil ne montre que les produits livrables dans cette ville), cloche avec point rouge,
+  catégories en tuiles à icônes.
+- **Recherche** : filtres « Livrable à … » et « Vendeur vérifié » (nouveau paramètre `verified`
+  de `GET /v1/products`).
+- **Fiche produit** : photo pleine largeur avec retour, partage et favori par-dessus, prix en
+  grand avec « FCFA » en petit, ancien prix barré s'il existe, étiquettes des avis, bouton panier
+  rond et « Acheter maintenant ». Les **favoris** restent sur le téléphone (rien n'est envoyé au
+  serveur) et sont visibles dans « Compte », même sans réseau.
+- **Connexion** : indicatif +242, code en 6 cases, compte à rebours avant de renvoyer le code.
+- **Livraison** : « Étape 1 / 2 », mode en cartes, quartier en puces, puces de repère
+  (« + École »…), case « Enregistrer cette adresse ».
+- **Paiement** : opérateur deviné d'après le numéro (« Détecté »), anneau de 10 min pendant la
+  validation du PIN, trois étapes expliquées, puis « Où est votre argent ? » en trois temps.
+- **Suivi, remise et avis** : grand encart d'état, frise à points citron, « Tout est conforme ? »,
+  avis avec étoiles et **étiquettes** (« Conforme à l'annonce », « Livreur ponctuel », « Bien
+  emballé » ; colonne `reviews.tags`, migration 0008).
+- **Commandes** : « En cours / Terminées », barre d'avancement, « Racheter » (remet les articles
+  au panier au prix du moment).
+- **Notifications** : nouveau centre (`GET /v1/me/notifications`, `POST /v1/me/notifications/seen`)
+  construit sur les messages déjà envoyés ; codes de connexion et alertes internes jamais montrés,
+  code de remise masqué. Gardé hors connexion avec les autres données du compte.
+- **Litige** : montant bloqué rappelé, motifs en boutons radio, photos ajoutées après l'ouverture.
+- **Compte** : favoris, accès vendeur et livreur avec icônes, « Se déconnecter ».
+
+Écarts volontaires avec les maquettes :
+
+- Délai de réponse au litige affiché « sous 72 h » (le délai réel), pas 48 h.
+- Pas de carte du livreur, ni de ventes flash, bannières, variantes ou onglet « Offres » : ils
+  attendent les décisions du §4.
+- Le **site** garde pour l'instant les couleurs de l'étape 1 ; ses écrans acheteur seront repris
+  sur le même modèle, en restant dans le budget 3G.

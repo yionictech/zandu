@@ -19,3 +19,6 @@ export const RECETTE_SMS_URL = process.env.EXPO_PUBLIC_RECETTE_SMS_URL || null;
  * passent par WhatsApp/SMS comme avant.
  */
 export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || null;
+
+/** Adresse du site, pour partager une fiche produit (ex. https://zandu.cg). Facultatif. */
+export const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || null;

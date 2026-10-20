@@ -1,4 +1,5 @@
 import type { OrderStatus } from '@zandu/api-client';
+import { Check } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { formatDateTime } from '../format';
@@ -17,6 +18,8 @@ const NOMINAL: Array<{ status: OrderStatus; label: string }> = [
 export function Timeline({ history }: { history: Array<{ status: OrderStatus; at: string }> }) {
   const reached = new Map(history.map((h) => [h.status, h.at]));
   const off = history.find((h) => ['cancelled', 'refunded', 'disputed'].includes(h.status));
+  // Étape en cours : la première non franchie (anneau citron), sauf commande arrêtée.
+  const current = off ? -1 : NOMINAL.findIndex((step) => !reached.has(step.status));
   return (
     <View style={styles.list}>
       {NOMINAL.map((step, index) => {
@@ -25,7 +28,11 @@ export function Timeline({ history }: { history: Array<{ status: OrderStatus; at
         return (
           <View key={step.status} style={styles.row}>
             <View style={styles.rail}>
-              <View style={[styles.dot, done && styles.dotDone]} />
+              <View
+                style={[styles.dot, done && styles.dotDone, index === current && styles.dotCurrent]}
+              >
+                {done ? <Check color={colors.onBrand} size={13} strokeWidth={3} /> : null}
+              </View>
               {index < NOMINAL.length - 1 ? (
                 <View style={[styles.line, done && styles.lineDone]} />
               ) : null}
@@ -53,21 +60,23 @@ export function Timeline({ history }: { history: Array<{ status: OrderStatus; at
 
 const styles = StyleSheet.create({
   list: { gap: 0 },
-  row: { flexDirection: 'row', minHeight: 44 },
-  rail: { width: 24, alignItems: 'center' },
+  row: { flexDirection: 'row', minHeight: 54 },
+  rail: { width: 26, alignItems: 'center' },
   dot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    marginTop: 3,
+    borderColor: colors.faint,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dotDone: { backgroundColor: colors.trust, borderColor: colors.trust },
-  line: { flex: 1, width: 2, backgroundColor: colors.border },
+  dotCurrent: { borderColor: colors.brand },
+  line: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 2 },
   lineDone: { backgroundColor: colors.trust },
-  text: { flex: 1, paddingLeft: space.sm, paddingBottom: space.sm },
+  text: { flex: 1, paddingLeft: space.md, paddingTop: 1, paddingBottom: space.sm },
   label: { fontSize: font.body, color: colors.text, fontWeight: '600' },
   pending: { color: colors.muted, fontWeight: '400' },
   at: { fontSize: 12, color: colors.muted },

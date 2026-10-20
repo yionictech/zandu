@@ -177,6 +177,48 @@ paths:
         '204': { description: Session révoquée }
         '401': { $ref: '#/components/responses/Error' }
 
+  /v1/me/notifications:
+    get:
+      tags: [Notifications]
+      summary: Centre de notifications (50 derniers messages)
+      description: >-
+        Un message parti par plusieurs canaux (notification, WhatsApp, SMS) n'apparaît qu'une
+        fois. Les codes de connexion n'y figurent pas ; le code de remise reste dans le SMS.
+      operationId: listNotifications
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, unread]
+                properties:
+                  unread: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, template, title, body, url, createdAt, unread]
+                      properties:
+                        id: { type: string, format: uuid }
+                        template: { type: string }
+                        title: { type: string }
+                        body: { type: string }
+                        url: { type: [string, 'null'], description: Écran ouvert au toucher }
+                        createdAt: { type: string, format: date-time }
+                        unread: { type: boolean }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/notifications/seen:
+    post:
+      tags: [Notifications]
+      summary: Tout lire
+      operationId: markNotificationsSeen
+      responses:
+        '204': { description: Notifications marquées comme lues }
+        '401': { $ref: '#/components/responses/Error' }
+
   /v1/me/devices:
     put:
       tags: [Notifications]
@@ -279,6 +321,12 @@ paths:
             schema: { type: string, format: uuid },
           }
         - { name: city, in: query, schema: { type: string } }
+        - {
+            name: verified,
+            in: query,
+            description: 'Boutiques vérifiées seulement',
+            schema: { type: boolean },
+          }
         - {
             name: sellerId,
             in: query,
@@ -1202,11 +1250,14 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, rating, comment, createdAt, authorName]
+                      required: [id, rating, comment, tags, createdAt, authorName]
                       properties:
                         id: { type: string, format: uuid }
                         rating: { type: integer, minimum: 1, maximum: 5 }
                         comment: { type: [string, 'null'] }
+                        tags:
+                          type: array
+                          items: { $ref: '#/components/schemas/ReviewTag' }
                         createdAt: { type: string, format: date-time }
                         authorName: { type: string }
         '400': { $ref: '#/components/responses/Error' }
@@ -1410,6 +1461,10 @@ paths:
               properties:
                 rating: { type: integer, minimum: 1, maximum: 5 }
                 comment: { type: string, maxLength: 2000 }
+                tags:
+                  type: array
+                  maxItems: 3
+                  items: { $ref: '#/components/schemas/ReviewTag' }
       responses:
         '201': { $ref: '#/components/responses/Created' }
         '404': { $ref: '#/components/responses/Error' }
@@ -2544,6 +2599,10 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    ReviewTag:
+      type: string
+      enum: [conforme, livreur_ponctuel, bien_emballe]
+      description: '« Conforme à l''annonce », « Livreur ponctuel », « Bien emballé »'
     StaffRole:
       type: string
       enum: [support, admin]

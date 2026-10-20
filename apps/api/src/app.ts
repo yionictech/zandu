@@ -12,6 +12,7 @@ import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
 import { deviceRoutes } from './modules/notifications/devices.routes.js';
+import { inboxRoutes } from './modules/notifications/inbox.routes.js';
 import {
   DevNotificationSender,
   RoutingNotificationSender,
@@ -84,6 +85,7 @@ export async function buildApp(
   await app.register(supportRoutes(ctx));
   await app.register(webhookRoutes(ctx));
   await app.register(deviceRoutes(ctx));
+  await app.register(inboxRoutes(ctx));
 
   const inbox =
     ctx.notifier instanceof RoutingNotificationSender ? ctx.notifier.messaging : ctx.notifier;

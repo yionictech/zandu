@@ -96,6 +96,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/me/notifications': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Centre de notifications (50 derniers messages)
+     * @description Un message parti par plusieurs canaux (notification, WhatsApp, SMS) n'apparaît qu'une fois. Les codes de connexion n'y figurent pas ; le code de remise reste dans le SMS.
+     */
+    get: operations['listNotifications'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/notifications/seen': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Tout lire */
+    post: operations['markNotificationsSeen'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/me/devices': {
     parameters: {
       query?: never;
@@ -1535,6 +1572,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * @description « Conforme à l'annonce », « Livreur ponctuel », « Bien emballé »
+     * @enum {string}
+     */
+    ReviewTag: 'conforme' | 'livreur_ponctuel' | 'bien_emballe';
     /** @enum {string} */
     StaffRole: 'support' | 'admin';
     StaffMember: {
@@ -2299,6 +2341,60 @@ export interface operations {
       401: components['responses']['Error'];
     };
   };
+  listNotifications: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            unread: number;
+            items: {
+              /** Format: uuid */
+              id: string;
+              template: string;
+              title: string;
+              body: string;
+              /** @description Écran ouvert au toucher */
+              url: string | null;
+              /** Format: date-time */
+              createdAt: string;
+              unread: boolean;
+            }[];
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  markNotificationsSeen: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notifications marquées comme lues */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Error'];
+    };
+  };
   registerDevice: {
     parameters: {
       query?: never;
@@ -2410,6 +2506,8 @@ export interface operations {
         /** @description Inclut les sous-catégories */
         categoryId?: string;
         city?: string;
+        /** @description Boutiques vérifiées seulement */
+        verified?: boolean;
         /** @description Produits d'une boutique */
         sellerId?: string;
         minPrice?: number;
@@ -3462,6 +3560,7 @@ export interface operations {
               id: string;
               rating: number;
               comment: string | null;
+              tags: components['schemas']['ReviewTag'][];
               /** Format: date-time */
               createdAt: string;
               authorName: string;
@@ -3707,6 +3806,7 @@ export interface operations {
         'application/json': {
           rating: number;
           comment?: string;
+          tags?: components['schemas']['ReviewTag'][];
         };
       };
     };

@@ -1,6 +1,7 @@
 import type { Order } from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Lock, Package as PackageIcon, Star } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/ui/Text';
@@ -9,8 +10,9 @@ import { displayPhone, formatDateTime, formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
-import { ErrorText, Field } from '../../src/ui/Form';
-import { Failure, Loading, Screen, Section } from '../../src/ui/Layout';
+import { Chip, ErrorText, Field } from '../../src/ui/Form';
+import { Amount, Card, Eyebrow, Note } from '../../src/ui/kit';
+import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { statusColor } from '../../src/status';
 import { Timeline } from '../../src/ui/Timeline';
 
@@ -22,24 +24,52 @@ const CODE_PENDING = [
   'awaiting_collection',
 ];
 
-function ReviewForm({ orderId, item }: { orderId: string; item: Order['items'][number] }) {
+type Tag = 'conforme' | 'livreur_ponctuel' | 'bien_emballe';
+const TAGS: Tag[] = ['conforme', 'livreur_ponctuel', 'bien_emballe'];
+
+/** « Notez votre achat » : étoiles, étiquettes et avis (maquette « Colis remis »). */
+function ReviewForm({
+  orderId,
+  item,
+  shop,
+}: {
+  orderId: string;
+  item: Order['items'][number];
+  shop: string;
+}) {
   const queryClient = useQueryClient();
   const [rating, setRating] = useState(0);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [comment, setComment] = useState('');
   const review = useMutation({
     mutationFn: async () =>
       unwrap(
         await api.POST('/v1/order-items/{id}/review', {
           params: { path: { id: item.itemId } },
-          body: { rating, ...(comment.trim() ? { comment: comment.trim() } : {}) },
+          body: { rating, tags, ...(comment.trim() ? { comment: comment.trim() } : {}) },
         }),
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', orderId] }),
   });
-  if (item.reviewed || review.isSuccess) return <Text style={styles.thanks}>{t.orders.rated}</Text>;
+  if (item.reviewed || review.isSuccess)
+    return (
+      <Card>
+        <Text style={styles.thanks}>{t.orders.rated}</Text>
+      </Card>
+    );
   return (
-    <View style={styles.reviewBox}>
-      <Text style={styles.label}>{t.orders.rate}</Text>
+    <Card>
+      <View style={styles.product}>
+        <View style={styles.productIcon}>
+          <PackageIcon color={colors.muted} size={22} strokeWidth={1.8} />
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.cardTitle}>{t.orders.rateTitle}</Text>
+          <Text style={styles.muted} numberOfLines={1}>
+            {item.title} · {shop}
+          </Text>
+        </View>
+      </View>
       <View style={styles.stars}>
         {[1, 2, 3, 4, 5].map((n) => (
           <Pressable
@@ -48,28 +78,44 @@ function ReviewForm({ orderId, item }: { orderId: string; item: Order['items'][n
             accessibilityLabel={`${n} étoiles`}
             style={styles.starTouch}
           >
-            <Text style={[styles.star, n <= rating && styles.starOn]}>★</Text>
+            <Star
+              size={32}
+              color={n <= rating ? colors.brand : colors.faint}
+              fill={n <= rating ? colors.brand : 'transparent'}
+            />
           </Pressable>
         ))}
       </View>
       {rating > 0 ? (
         <>
+          <View style={styles.tags}>
+            {TAGS.map((tag) => (
+              <Chip
+                key={tag}
+                label={t.reviewTags[tag]}
+                selected={tags.includes(tag)}
+                onPress={() =>
+                  setTags(tags.includes(tag) ? tags.filter((x) => x !== tag) : [...tags, tag])
+                }
+              />
+            ))}
+          </View>
           <Field
             label={t.orders.commentPlaceholder}
             value={comment}
             onChangeText={setComment}
+            placeholder="Qu’avez-vous pensé du produit et du vendeur ?"
             multiline
           />
           <ErrorText message={review.error ? errorMessage(review.error) : null} />
           <Button
             label={t.orders.sendReview}
-            variant="secondary"
             onPress={() => review.mutate()}
             loading={review.isPending}
           />
         </>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
@@ -111,79 +157,103 @@ export default function OrderScreen() {
   const o = order.data;
   const address = o.shippingAddress;
 
+  const count = o.items.reduce((n, i) => n + i.quantity, 0);
+  const summary =
+    o.items.length === 1 ? `${o.items[0]!.quantity} × ${o.items[0]!.title}` : t.common.items(count);
+  const done = o.status === 'delivered' || o.status === 'completed';
+
   return (
-    <Screen>
+    <Screen
+      footer={
+        <View style={styles.footerRow}>
+          <Text style={styles.footerText} numberOfLines={1}>
+            {t.orders.paidLine(summary)}
+          </Text>
+          <Text style={styles.footerAmount}>{formatXaf(o.total)}</Text>
+        </View>
+      }
+    >
       <Stack.Screen options={{ title: o.publicRef }} />
-      <View style={styles.header}>
-        <Text style={[styles.status, { color: statusColor(o.status) }]} testID="order-status">
-          {t.status[o.status]}
+      <Card style={styles.hero}>
+        <Text
+          style={[styles.eyebrow, { color: statusColor(o.status) }]}
+          testID="order-status"
+          accessibilityLabel={t.status[o.status]}
+        >
+          {t.statusShort[o.status].toUpperCase()}
         </Text>
+        <Text style={styles.headline}>{t.orders.headline(o.status, o.seller.shopName)}</Text>
         <Text style={styles.muted}>
           {o.seller.shopName} · {formatDateTime(o.createdAt)}
         </Text>
-      </View>
+      </Card>
 
       {o.status === 'delivered' && o.disputeWindowEndsAt ? (
-        <View style={styles.conform}>
+        <Card>
           <Text style={styles.conformTitle}>{t.orders.conformTitle}</Text>
           <Text style={styles.muted}>
-            {t.orders.conformBody(formatDateTime(o.disputeWindowEndsAt))}
+            {t.orders.deadline(formatDateTime(o.disputeWindowEndsAt))}
           </Text>
-          <Button
-            label={t.orders.allGood}
-            variant="trust"
-            onPress={() => action.mutate('confirm')}
-            loading={action.isPending}
-            testID="order-confirm"
-          />
-          <Button
-            label={t.orders.problem}
-            variant="secondary"
-            onPress={() => router.push(`/litige/${o.id}`)}
-          />
-        </View>
+          <View style={styles.twoButtons}>
+            <Button
+              label={t.orders.problemShort}
+              variant="secondary"
+              style={styles.flex}
+              onPress={() => router.push(`/litige/${o.id}`)}
+            />
+            <Button
+              label={t.orders.allGood}
+              style={styles.flex}
+              onPress={() => action.mutate('confirm')}
+              loading={action.isPending}
+              testID="order-confirm"
+            />
+          </View>
+        </Card>
       ) : null}
 
       <ErrorText message={action.error ? errorMessage(action.error) : null} />
-      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      {notice ? <Note icon={Lock}>{notice}</Note> : null}
 
-      <Section title={t.orders.history}>
+      {done
+        ? o.items.map((item) => (
+            <ReviewForm key={item.itemId} orderId={o.id} item={item} shop={o.seller.shopName} />
+          ))
+        : null}
+
+      <Card>
         <Timeline history={o.history} />
-      </Section>
+      </Card>
 
-      <Section>
+      <Card>
+        <Eyebrow>{t.orders.shippedTo}</Eyebrow>
+        <Text style={styles.body}>
+          {String(address.recipientName)} · {displayPhone(String(address.phone))}
+        </Text>
+        <Text style={styles.muted}>{String(address.landmark)}</Text>
+      </Card>
+
+      <Card>
         {o.items.map((item) => (
-          <View key={item.itemId} style={styles.item}>
-            <View style={styles.row}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
-                {item.quantity} × {item.title}
-              </Text>
-              <Text style={styles.value}>{formatXaf(item.lineTotal)}</Text>
-            </View>
-            {o.status === 'delivered' || o.status === 'completed' ? (
-              <ReviewForm orderId={o.id} item={item} />
-            ) : null}
+          <View key={item.itemId} style={styles.row}>
+            <Text style={styles.itemTitle} numberOfLines={2}>
+              {item.quantity} × {item.title}
+            </Text>
+            <Text style={styles.value}>{formatXaf(item.lineTotal)}</Text>
           </View>
         ))}
         <View style={styles.row}>
           <Text style={styles.muted}>{t.orders.deliveryFee}</Text>
           <Text style={styles.value}>{formatXaf(o.deliveryFee)}</Text>
         </View>
-        <View style={styles.row}>
+        <View style={[styles.row, styles.totalRow]}>
           <Text style={styles.totalLabel}>{t.orders.total}</Text>
-          <Text style={styles.total}>{formatXaf(o.total)}</Text>
+          <Amount value={o.total} size="md" />
         </View>
         {o.refundedAmount > 0 ? (
           <Text style={styles.refund}>Remboursé : {formatXaf(o.refundedAmount)}</Text>
         ) : null}
-      </Section>
-
-      <Section title={t.orders.shippedTo}>
-        <Text style={styles.body}>
-          {String(address.recipientName)} · {displayPhone(String(address.phone))}
-        </Text>
-        <Text style={styles.muted}>{String(address.landmark)}</Text>
-      </Section>
+      </Card>
 
       {CODE_PENDING.includes(o.status) ? (
         <Button label={t.orders.newCode} variant="ghost" onPress={() => action.mutate('code')} />
@@ -191,7 +261,7 @@ export default function OrderScreen() {
 
       {o.status === 'paid' ? (
         confirmCancel ? (
-          <View style={styles.confirmBox}>
+          <Card>
             <Text style={styles.body}>{t.orders.cancelConfirm}</Text>
             <Button
               label={t.common.confirm}
@@ -203,7 +273,7 @@ export default function OrderScreen() {
               variant="ghost"
               onPress={() => setConfirmCancel(false)}
             />
-          </View>
+          </Card>
         ) : (
           <Button label={t.orders.cancel} variant="ghost" onPress={() => setConfirmCancel(true)} />
         )
@@ -213,41 +283,40 @@ export default function OrderScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 4 },
-  status: { fontSize: font.headline, fontWeight: '800' },
+  flex: { flex: 1 },
+  hero: { gap: 6, borderColor: colors.brandBorder },
+  eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  headline: { fontSize: 22, fontWeight: '800', color: colors.text, lineHeight: 28 },
   muted: { color: colors.muted, fontSize: font.small, lineHeight: 19 },
-  conform: {
-    backgroundColor: colors.trustSoft,
-    borderRadius: radius.lg,
-    padding: space.md,
-    gap: space.sm,
-  },
-  conformTitle: { fontSize: font.title, fontWeight: '800', color: colors.trust },
-  notice: { color: colors.trust, fontWeight: '700' },
-  item: {
-    gap: space.sm,
-    paddingBottom: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
-  itemTitle: { flex: 1, color: colors.text, fontSize: font.body },
-  value: { color: colors.text, fontWeight: '700' },
-  totalLabel: { fontSize: font.title, fontWeight: '800', color: colors.text },
-  total: { fontSize: font.title, fontWeight: '900', color: colors.text },
-  refund: { color: colors.trust, fontWeight: '700' },
-  body: { color: colors.text, fontSize: font.body },
-  confirmBox: {
-    backgroundColor: colors.surface,
+  conformTitle: { fontSize: font.title, fontWeight: '800', color: colors.text },
+  twoButtons: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  cardTitle: { color: colors.text, fontWeight: '700', fontSize: font.body },
+  product: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  productIcon: {
+    width: 48,
+    height: 48,
     borderRadius: radius.md,
-    padding: space.md,
-    gap: space.sm,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reviewBox: { gap: space.sm },
-  label: { fontSize: font.small, fontWeight: '700', color: colors.text },
-  stars: { flexDirection: 'row' },
-  starTouch: { padding: 6 },
-  star: { fontSize: 30, color: colors.border },
-  starOn: { color: colors.waiting },
-  thanks: { color: colors.trust, fontSize: font.small, fontWeight: '600' },
+  stars: { flexDirection: 'row', justifyContent: 'center' },
+  starTouch: { padding: 8 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  thanks: { color: colors.trust, fontSize: font.body, fontWeight: '700' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  itemTitle: { flex: 1, color: colors.text, fontSize: font.small },
+  value: { color: colors.text, fontSize: font.small },
+  totalRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: space.sm,
+    alignItems: 'center',
+  },
+  totalLabel: { fontSize: font.body, fontWeight: '700', color: colors.text },
+  refund: { color: colors.trust, fontWeight: '700' },
+  body: { color: colors.text, fontSize: font.body, fontWeight: '600' },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  footerText: { flex: 1, color: colors.muted, fontSize: font.small },
+  footerAmount: { color: colors.text, fontWeight: '700', fontSize: font.small },
 });
