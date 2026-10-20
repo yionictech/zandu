@@ -327,7 +327,12 @@ describe('Vitrine publique d’une boutique', () => {
       verified: true,
       salesCount: 1,
     });
-    expect(JSON.stringify(page.body)).not.toContain('111');
+    // Le numéro du vendeur (06 111 11 11) n'apparaît sous aucune forme ; on cherche le numéro
+    // entier, pas « 111 », que peut contenir un identifiant tiré au hasard.
+    const shown = JSON.stringify(page.body).replace(/\s/g, '');
+    for (const form of ['061111111', '+242061111111']) expect(shown).not.toContain(form);
+    expect(page.body).not.toHaveProperty('phone');
+    expect(page.body).not.toHaveProperty('payoutPhone');
 
     await call(env, m.admin, {
       method: 'POST',
