@@ -15,7 +15,7 @@ import { postJournal } from '../ledger/ledger.repository.js';
 import { publish } from '../notifications/outbox.js';
 import { createRefund } from '../payments/refunds.service.js';
 import { schedulePayout } from '../payouts/payouts.service.js';
-import { orderPolicy } from '../settings/settings.js';
+import { acceptanceRules } from '../settings/settings.js';
 
 export interface OrderRow {
   id: string;
@@ -94,12 +94,15 @@ export async function applyOrderEvent(
 ): Promise<OrderRow> {
   const current = await lockOrder(tx, orderId);
   const now = ctx.clock.now();
+  // Seul le paiement fixe un délai réglable (acceptation du vendeur) : lu dans la base alors.
+  const rules =
+    event.type === 'payment_succeeded'
+      ? await acceptanceRules(ctx, tx, current.seller_id)
+      : { policy: ctx.config.orderPolicy, sellerHours: null };
   const result = transitionOrder(toSnapshot(current), event, {
     actor: actor.role,
     now,
-    // Seul le paiement fixe un délai réglable (acceptation du vendeur) : lu dans la base alors.
-    policy:
-      event.type === 'payment_succeeded' ? await orderPolicy(ctx, tx) : ctx.config.orderPolicy,
+    ...rules,
   });
 
   const params: unknown[] = [orderId, result.to];

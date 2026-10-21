@@ -360,26 +360,44 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
             .int()
             .refine((m) => (ACCEPTANCE_CHOICES as readonly number[]).includes(m), {
               message: `Valeurs possibles : ${ACCEPTANCE_CHOICES.join(', ')} minutes`,
-            }),
+            })
+            .optional(),
+          acceptanceOpenHoursOnly: z.boolean().optional(),
           reason: z.string().trim().min(5).max(300),
         })
+        .refine(
+          (b) => b.sellerAcceptanceMinutes !== undefined || b.acceptanceOpenHoursOnly !== undefined,
+          'Aucune modification',
+        )
         .parse(request.body);
       const a = staffActor(request);
       await withTx(ctx.pool, async (tx) => {
         const before = await acceptanceSetting(ctx, tx);
-        await tx.query(
-          `INSERT INTO platform_settings (key, value, updated_by, updated_at)
-           VALUES ('seller_acceptance_minutes', $1::jsonb, $2, $3)
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by,
-                                           updated_at = EXCLUDED.updated_at`,
-          [JSON.stringify(body.sellerAcceptanceMinutes), a.userId, now()],
-        );
+        const save = (key: string, value: unknown) =>
+          tx.query(
+            `INSERT INTO platform_settings (key, value, updated_by, updated_at)
+             VALUES ($1, $2::jsonb, $3, $4)
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by,
+                                             updated_at = EXCLUDED.updated_at`,
+            [key, JSON.stringify(value), a.userId, now()],
+          );
+        if (body.sellerAcceptanceMinutes !== undefined)
+          await save('seller_acceptance_minutes', body.sellerAcceptanceMinutes);
+        if (body.acceptanceOpenHoursOnly !== undefined)
+          await save('seller_acceptance_open_hours_only', body.acceptanceOpenHoursOnly);
         await audit(
           tx,
           a,
           'settings.seller_acceptance',
-          { type: 'setting', id: 'seller_acceptance_minutes' },
-          { from: before.minutes, to: body.sellerAcceptanceMinutes, reason: body.reason },
+          { type: 'setting', id: 'seller_acceptance' },
+          {
+            from: { minutes: before.minutes, openHoursOnly: before.openHoursOnly },
+            to: {
+              minutes: body.sellerAcceptanceMinutes ?? before.minutes,
+              openHoursOnly: body.acceptanceOpenHoursOnly ?? before.openHoursOnly,
+            },
+            reason: body.reason,
+          },
         );
       });
       return settings();

@@ -1,3 +1,4 @@
+import { addOpenMinutes, type WeeklyHours } from '@zandu/domain';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   approveAndNotify,
@@ -80,7 +81,10 @@ describe('Délai d’acceptation du vendeur réglable (docs/ux/03 §4.4)', () =>
     const { rows } = await env.pool.query<{ metadata: Record<string, unknown> }>(
       `SELECT metadata FROM audit_logs WHERE action = 'settings.seller_acceptance' ORDER BY id DESC LIMIT 1`,
     );
-    expect(rows[0]!.metadata).toMatchObject({ from: 1440, to: 120 });
+    expect(rows[0]!.metadata).toMatchObject({
+      from: { minutes: 1440, openHoursOnly: false },
+      to: { minutes: 120, openHoursOnly: false },
+    });
   });
 
   it('valeurs fixes, motif obligatoire, administrateurs seulement', async () => {
@@ -103,5 +107,52 @@ describe('Délai d’acceptation du vendeur réglable (docs/ux/03 §4.4)', () =>
       payload: { sellerAcceptanceMinutes: 60, reason: 'Le support essaie' },
     });
     expect(forbidden.status).toBe(403);
+  });
+
+  it('heures d’ouverture : la boutique les renseigne, le délai ne compte que celles-là', async () => {
+    const week: WeeklyHours = [
+      ...Array.from({ length: 6 }, () => ({ open: '08:00', close: '18:00' })),
+      null,
+    ];
+    const saved = await call(env, m.seller, {
+      method: 'PATCH',
+      url: '/v1/seller/shop',
+      payload: { weeklyHours: week },
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({
+      weeklyHours: week,
+      openingHours: 'Lun – Sam · 08:00 – 18:00',
+    });
+    const bad = await call(env, m.seller, {
+      method: 'PATCH',
+      url: '/v1/seller/shop',
+      payload: { weeklyHours: [{ open: '18:00', close: '08:00' }, ...week.slice(1)] },
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('invalid_hours');
+
+    // Option désactivée : le délai court jour et nuit.
+    await call(env, m.admin, {
+      method: 'PATCH',
+      url: '/v1/admin/settings',
+      payload: { sellerAcceptanceMinutes: 120, reason: 'Deux heures pour accepter' },
+    });
+    const plain = await paidOrder();
+    expect(hoursBetween(plain.paidAt, plain.deadline)).toBe(2);
+
+    const on = await call(env, m.admin, {
+      method: 'PATCH',
+      url: '/v1/admin/settings',
+      payload: { acceptanceOpenHoursOnly: true, reason: 'Seulement pendant l’ouverture' },
+    });
+    expect(on.body.delays.sellerAcceptance).toMatchObject({ minutes: 120, openHoursOnly: true });
+    const order = await paidOrder();
+    expect(new Date(order.deadline)).toEqual(addOpenMinutes(new Date(order.paidAt), 120, week));
+
+    // Une boutique sans horaires jour par jour garde le délai normal.
+    await env.pool.query('UPDATE seller_profiles SET weekly_hours = NULL');
+    const noHours = await paidOrder();
+    expect(hoursBetween(noHours.paidAt, noHours.deadline)).toBe(2);
   });
 });

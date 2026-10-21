@@ -34,6 +34,7 @@ async function saveAcceptance(form: FormData) {
     api.PATCH('/v1/admin/settings', {
       body: {
         sellerAcceptanceMinutes: Number(field(form, 'minutes')) as AcceptanceMinutes,
+        acceptanceOpenHoursOnly: form.get('openHours') === 'on',
         reason: field(form, 'reason'),
       },
     }),
@@ -119,6 +120,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
                 ))}
               </select>
             </div>
+            <label className="check">
+              <input type="checkbox" name="openHours" defaultChecked={acceptance.openHoursOnly} />
+              Ne compter que les heures d’ouverture de la boutique (si elle les a renseignées jour
+              par jour)
+            </label>
             <div className="small muted">
               {acceptance.source === 'custom' && acceptance.updatedAt
                 ? `Réglé le ${formatDateTime(acceptance.updatedAt)}${acceptance.updatedBy ? ` par ${displayPhone(acceptance.updatedBy)}` : ''}`

@@ -44,7 +44,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   complète sur un seul serveur avec HTTPS automatique, paiements simulés et SMS de test protégés par
   mot de passe, APK Android de recette construit par GitHub Actions. Guide :
   [mettre la recette en ligne](docs/exploitation/mise-en-ligne-recette.md).
-- **224 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+- **234 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
   contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
@@ -88,7 +88,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 224 tests
+pnpm test            # 234 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

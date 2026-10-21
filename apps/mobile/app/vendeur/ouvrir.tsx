@@ -21,6 +21,14 @@ const DAYS = ['mondayToSaturday', 'weekdays', 'everyDay'] as const;
 type Days = (typeof DAYS)[number];
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Jours ouverts de chaque choix rapide (lundi d'abord). */
+const OPEN_DAYS: Record<Days, number> = { weekdays: 5, mondayToSaturday: 6, everyDay: 7 };
+
+/** Choix rapide → semaine jour par jour, envoyée à l'API (« Heures d'ouverture » l'affine). */
+function presetWeek(days: Days, open: string, close: string) {
+  return Array.from({ length: 7 }, (_, i) => (i < OPEN_DAYS[days] ? { open, close } : null));
+}
+
 /** « Lun – Sam · 08:00 – 18:00 » ⇄ jours, ouverture, fermeture. */
 function parseHours(value: string | null | undefined): { days: Days; open: string; close: string } {
   const match = value?.match(/^(.+) · (\d\d:\d\d) – (\d\d:\d\d)$/);
@@ -132,8 +140,8 @@ export default function OpenShopScreen() {
   if (!editing && !started) return <Intro phone={user.phone} onStart={() => setStarted(true)} />;
 
   const hoursValid = TIME.test(open) && TIME.test(close) && open < close;
-  const valid = shopName.trim().length >= 2 && !!zoneId && hoursValid;
-  const openingHours = `${t.vendor.days[days]} · ${open} – ${close}`;
+  // En modification, les horaires se règlent jour par jour dans leur propre écran.
+  const valid = shopName.trim().length >= 2 && !!zoneId && (editing || hoursValid);
   const roots = (categories.data ?? []).filter((c) => !c.parentId);
 
   const submit = async () => {
@@ -145,7 +153,7 @@ export default function OpenShopScreen() {
       city,
       pickupZoneId: zoneId,
       soldCategoryIds: sold,
-      openingHours,
+      ...(editing ? {} : { weeklyHours: presetWeek(days, open, close) }),
     };
     try {
       if (editing) {
@@ -246,34 +254,43 @@ export default function OpenShopScreen() {
             />
           ))}
       </View>
-      <Text style={styles.label}>{t.vendor.openingHours}</Text>
-      <View style={styles.wrap}>
-        {DAYS.map((d) => (
-          <Chip key={d} label={t.vendor.days[d]} selected={days === d} onPress={() => setDays(d)} />
-        ))}
-      </View>
-      <View style={styles.hours}>
-        <View style={styles.flex}>
-          <Field
-            label="Ouverture"
-            value={open}
-            onChangeText={setOpen}
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-            testID="shop-open-time"
-          />
-        </View>
-        <View style={styles.flex}>
-          <Field
-            label="Fermeture"
-            value={close}
-            onChangeText={setClose}
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-            testID="shop-close-time"
-          />
-        </View>
-      </View>
+      {!editing ? (
+        <>
+          <Text style={styles.label}>{t.vendor.openingHours}</Text>
+          <View style={styles.wrap}>
+            {DAYS.map((d) => (
+              <Chip
+                key={d}
+                label={t.vendor.days[d]}
+                selected={days === d}
+                onPress={() => setDays(d)}
+              />
+            ))}
+          </View>
+          <View style={styles.hours}>
+            <View style={styles.flex}>
+              <Field
+                label="Ouverture"
+                value={open}
+                onChangeText={setOpen}
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+                testID="shop-open-time"
+              />
+            </View>
+            <View style={styles.flex}>
+              <Field
+                label="Fermeture"
+                value={close}
+                onChangeText={setClose}
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+                testID="shop-close-time"
+              />
+            </View>
+          </View>
+        </>
+      ) : null}
       {!editing ? (
         <View style={styles.later}>
           <Badge label={t.vendor.step(2)} />

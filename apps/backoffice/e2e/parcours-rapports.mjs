@@ -181,6 +181,7 @@ await shot('03-parametres');
 // Délai d'acceptation du vendeur réglé à 2 h (docs/ux/03 §4.4).
 const acceptance = page.getByTestId('settings-acceptance');
 await acceptance.getByLabel('Délai d’acceptation').selectOption('120');
+await acceptance.getByLabel('Ne compter que les heures d’ouverture', { exact: false }).check();
 await acceptance.getByLabel('Motif').fill('Essai de recette : 2 h pour accepter');
 await acceptance.getByRole('button', { name: 'Enregistrer' }).click();
 await page.getByText('Délai d’acceptation enregistré').waitFor();
@@ -209,6 +210,7 @@ await json('POST', '/v1/admin/commission-rules', admin, {
 });
 await json('PATCH', '/v1/admin/settings', admin, {
   sellerAcceptanceMinutes: 1440,
+  acceptanceOpenHoursOnly: false,
   reason: 'Fin de l’essai de recette',
 });
 await browser.close();

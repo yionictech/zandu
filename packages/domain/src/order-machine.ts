@@ -1,5 +1,6 @@
 import { DomainError } from './errors.js';
 import { assertPositiveAmount } from './money.js';
+import { addOpenMinutes, type WeeklyHours } from './opening-hours.js';
 
 /**
  * Cycle de vie d'une commande (une commande = un vendeur). Toute modification de statut
@@ -108,6 +109,11 @@ export interface TransitionContext {
   actor: ActorRole;
   now: Date;
   policy?: OrderPolicy;
+  /**
+   * Horaires de la boutique, quand le délai d'acceptation ne doit compter que le temps
+   * d'ouverture (réglage du back-office) ; absent = le délai court jour et nuit.
+   */
+  sellerHours?: WeeklyHours | null;
 }
 
 interface TransitionDef {
@@ -221,7 +227,9 @@ export function transitionOrder(
   switch (event.type) {
     case 'payment_succeeded':
       patch.paidAt = now;
-      patch.sellerAcceptDeadline = addHours(now, policy.sellerAcceptanceHours);
+      patch.sellerAcceptDeadline = ctx.sellerHours
+        ? addOpenMinutes(now, policy.sellerAcceptanceHours * 60, ctx.sellerHours)
+        : addHours(now, policy.sellerAcceptanceHours);
       effects.push({ type: 'create_delivery' });
       break;
 

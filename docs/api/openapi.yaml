@@ -523,6 +523,9 @@ paths:
                     maxLength: 80,
                     examples: [Lun – Sam · 08:00 – 18:00],
                   }
+                weeklyHours:
+                  description: Horaires jour par jour ; le texte openingHours en est tiré.
+                  allOf: [{ $ref: '#/components/schemas/WeeklyHours' }]
                 payoutPhone: { type: string }
                 payoutOperator: { $ref: '#/components/schemas/Operator' }
                 kind: { type: string, enum: [individual, business], default: individual }
@@ -554,6 +557,9 @@ paths:
                   maxItems: 10
                   items: { type: string, format: uuid }
                 openingHours: { type: string, minLength: 3, maxLength: 80 }
+                weeklyHours:
+                  description: Horaires jour par jour ; le texte openingHours en est tiré.
+                  allOf: [{ $ref: '#/components/schemas/WeeklyHours' }]
                 isOpen: { type: boolean }
                 defaultPrepMinutes: { $ref: '#/components/schemas/PrepMinutes' }
                 payoutPhone: { type: string, description: Avec payoutOperator }
@@ -2712,11 +2718,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [sellerAcceptanceMinutes, reason]
+              required: [reason]
               properties:
                 sellerAcceptanceMinutes:
                   type: integer
                   enum: [10, 30, 60, 120, 240, 720, 1440]
+                acceptanceOpenHoursOnly: { type: boolean }
                 reason: { type: string, minLength: 5, maxLength: 300 }
       responses:
         '200':
@@ -3621,6 +3628,7 @@ components:
           isOpen,
           defaultPrepMinutes,
           openingHours,
+          weeklyHours,
           soldCategoryIds,
           termsAccepted,
         ]
@@ -3641,6 +3649,10 @@ components:
         isOpen: { type: boolean, description: Faux pendant les congés (produits masqués) }
         defaultPrepMinutes: { $ref: '#/components/schemas/PrepMinutes' }
         openingHours: { type: [string, 'null'] }
+        weeklyHours:
+          oneOf:
+            - { $ref: '#/components/schemas/WeeklyHours' }
+            - { type: 'null' }
         soldCategoryIds: { type: array, items: { type: string, format: uuid } }
         termsAccepted: { type: boolean }
     SellerReview:
@@ -4271,6 +4283,19 @@ components:
             properties:
               kind: { type: string, enum: [call, sms] }
               at: { type: string, format: date-time }
+    WeeklyHours:
+      description: 7 jours, lundi d'abord ; null = fermé ce jour-là. Heure de Brazzaville.
+      type: array
+      minItems: 7
+      maxItems: 7
+      items:
+        oneOf:
+          - type: object
+            required: [open, close]
+            properties:
+              open: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', examples: ['08:00'] }
+              close: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', examples: ['18:00'] }
+          - type: 'null'
     PlatformSettings:
       type: object
       required: [money, delays]
@@ -4305,9 +4330,12 @@ components:
             sellerAcceptanceHours: { type: number }
             sellerAcceptance:
               type: object
-              required: [minutes, source, updatedAt, updatedBy, choices]
+              required: [minutes, openHoursOnly, source, updatedAt, updatedBy, choices]
               properties:
                 minutes: { type: integer }
+                openHoursOnly:
+                  type: boolean
+                  description: Le délai ne compte que les heures d'ouverture des boutiques qui les ont renseignées
                 source:
                   type: string
                   enum: [default, custom]

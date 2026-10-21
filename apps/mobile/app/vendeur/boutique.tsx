@@ -89,7 +89,8 @@ function MyShop() {
           icon={Clock3}
           title={t.vendor.hours}
           value={s.openingHours ?? t.vendor.hoursMissing}
-          onPress={() => router.push({ pathname: '/vendeur/ouvrir', params: { edit: '1' } })}
+          onPress={() => router.push('/vendeur/horaires')}
+          testID="shop-hours"
         />
         <SettingRow
           icon={CreditCard}

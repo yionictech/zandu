@@ -472,3 +472,19 @@ Le délai laissé au vendeur pour accepter une commande payée se règle mainten
 Ce qui n'est pas fait : un délai qui ne court que **pendant les heures d'ouverture** de la
 boutique. Les horaires sont aujourd'hui un texte libre (« Lun – Sam · 08:00 – 18:00 ») ; il
 faudrait des horaires structurés par jour.
+
+## 13. Horaires d'ouverture jour par jour (✅ faits)
+
+- **Application vendeur** : « Ma boutique → Heures d'ouverture » ouvre un écran jour par jour
+  (ouvert ou fermé, heure d'ouverture et de fermeture, « Mêmes horaires tous les jours
+  ouverts »). À l'ouverture de la boutique, le choix rapide (« Lun – Sam · 08:00 – 18:00 »)
+  enregistre déjà les 7 jours. Le texte montré aux acheteurs est tiré des horaires
+  (« Lun – Ven · 08:00 – 18:00 ; Sam · 08:00 – 13:00 »).
+- **Back-office, Paramètres** : case « Ne compter que les heures d'ouverture de la boutique ».
+  Exemple : 2 h pour accepter, boutique ouverte de 8 h à 18 h, commande payée à 20 h → à
+  accepter avant 10 h le lendemain ; payée le samedi à 17 h 30 → avant 9 h 30 le lundi si le
+  dimanche est fermé.
+- La case est **décochée** par défaut (rien ne change) ; une boutique qui n'a pas renseigné ses
+  horaires jour par jour garde le délai normal.
+- Calcul dans le domaine (`addOpenMinutes`, heure de Brazzaville, UTC+1 toute l'année),
+  9 tests ; migration 0012 (`seller_profiles.weekly_hours`).

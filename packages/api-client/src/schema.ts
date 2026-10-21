@@ -2037,6 +2037,7 @@ export interface components {
       isOpen: boolean;
       defaultPrepMinutes: components['schemas']['PrepMinutes'];
       openingHours: string | null;
+      weeklyHours: components['schemas']['WeeklyHours'] | null;
       soldCategoryIds: string[];
       termsAccepted: boolean;
     };
@@ -2507,6 +2508,13 @@ export interface components {
         at: string;
       }[];
     };
+    /** @description 7 jours, lundi d'abord ; null = fermé ce jour-là. Heure de Brazzaville. */
+    WeeklyHours: ({
+      /** @example 08:00 */
+      open: string;
+      /** @example 18:00 */
+      close: string;
+    } | null)[];
     PlatformSettings: {
       money: {
         defaultCommissionBps: number | null;
@@ -2523,6 +2531,8 @@ export interface components {
         sellerAcceptanceHours: number;
         sellerAcceptance: {
           minutes: number;
+          /** @description Le délai ne compte que les heures d'ouverture des boutiques qui les ont renseignées */
+          openHoursOnly: boolean;
           /**
            * @description `default` : SELLER_ACCEPT_HOURS ; `custom` : réglé dans le back-office
            * @enum {string}
@@ -3262,6 +3272,8 @@ export interface operations {
           soldCategoryIds?: string[];
           /** @example Lun – Sam · 08:00 – 18:00 */
           openingHours?: string;
+          /** @description Horaires jour par jour ; le texte openingHours en est tiré. */
+          weeklyHours?: components['schemas']['WeeklyHours'];
           payoutPhone?: string;
           payoutOperator?: components['schemas']['Operator'];
           /**
@@ -3297,6 +3309,8 @@ export interface operations {
           pickupZoneId?: string;
           soldCategoryIds?: string[];
           openingHours?: string;
+          /** @description Horaires jour par jour ; le texte openingHours en est tiré. */
+          weeklyHours?: components['schemas']['WeeklyHours'];
           isOpen?: boolean;
           defaultPrepMinutes?: components['schemas']['PrepMinutes'];
           /** @description Avec payoutOperator */
@@ -5653,7 +5667,8 @@ export interface operations {
       content: {
         'application/json': {
           /** @enum {integer} */
-          sellerAcceptanceMinutes: 10 | 30 | 60 | 120 | 240 | 720 | 1440;
+          sellerAcceptanceMinutes?: 10 | 30 | 60 | 120 | 240 | 720 | 1440;
+          acceptanceOpenHoursOnly?: boolean;
           reason: string;
         };
       };

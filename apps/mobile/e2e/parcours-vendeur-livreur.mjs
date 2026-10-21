@@ -328,6 +328,12 @@ await shot('27-avis-clients');
 await page.goto(`${WEB}/vendeur/boutique`);
 await page.getByTestId('shop-open-toggle').waitFor();
 await shot('28-ma-boutique');
+// Heures d'ouverture jour par jour : le samedi ferme à 13 h.
+await page.getByTestId('shop-hours').click();
+await page.getByTestId('hours-close-5').fill('13:00');
+await shot('29-heures-d-ouverture');
+await page.getByTestId('hours-save').click();
+await page.getByText('Lun – Ven · 08:00 – 18:00 ; Sam · 08:00 – 13:00').waitFor();
 
 const balance = await json('GET', '/v1/seller/balance', token);
 console.log(

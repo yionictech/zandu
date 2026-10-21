@@ -3,6 +3,10 @@ import {
   parseCongoMobile,
   resolveCommissionRate,
   sellerPayableAccount,
+  assertWeeklyHours,
+  DomainError,
+  weeklyHoursSummary,
+  type WeeklyHours,
 } from '@zandu/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
@@ -43,6 +47,24 @@ function slugify(name: string): string {
 }
 
 /** « Prêt dans 15 min / 30 min / 1 h / 2 h » (préparation par défaut et à l'acceptation). */
+/** « 08:00 » – « 18:00 » : la cohérence (fermeture après ouverture) est vérifiée par le domaine. */
+const DayHoursSchema = z.object({
+  open: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  close: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+});
+
+/** Vérifie la semaine et en tire le texte affiché (« Lun – Sam · 08:00 – 18:00 »). */
+function hoursText(week: WeeklyHours | undefined): string | null {
+  if (!week) return null;
+  try {
+    assertWeeklyHours(week);
+  } catch (error) {
+    if (error instanceof DomainError) throw new HttpError(400, error.code, error.message);
+    throw error;
+  }
+  return weeklyHoursSummary(week).slice(0, 80);
+}
+
 export const PrepMinutes = z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)]);
 
 async function shopView(db: Db, userId: string | null) {
@@ -52,7 +74,7 @@ async function shopView(db: Db, userId: string | null) {
             s.payout_operator AS "payoutOperator", s.payout_account_name AS "payoutAccountName",
             s.verification_status AS "verificationStatus", s.rating_avg::float AS "ratingAvg",
             s.rating_count AS "ratingCount", s.is_open AS "isOpen",
-            s.default_prep_minutes AS "defaultPrepMinutes", s.opening_hours AS "openingHours",
+            s.default_prep_minutes AS "defaultPrepMinutes", s.opening_hours AS "openingHours", s.weekly_hours AS "weeklyHours",
             s.sold_category_ids AS "soldCategoryIds", s.terms_accepted_at IS NOT NULL AS "termsAccepted"
      FROM seller_profiles s JOIN delivery_zones z ON z.id = s.pickup_zone_id
      WHERE s.user_id = $1`,
@@ -164,12 +186,14 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           pickupZoneId: z.uuid(),
           soldCategoryIds: z.array(z.uuid()).max(10).default([]),
           openingHours: z.string().trim().min(3).max(80).optional(),
+          weeklyHours: z.array(DayHoursSchema.nullable()).length(7).optional(),
           payoutPhone: z.string().optional(),
           payoutOperator: z.enum(['mtn', 'airtel']).optional(),
           kind: z.enum(['individual', 'business']).default('individual'),
         })
         .parse(request.body);
       const user = currentUser(request);
+      const openingHours = hoursText(body.weeklyHours) ?? body.openingHours ?? null;
       const payout = parseCongoMobile(body.payoutPhone ?? user.phone);
       const payoutOperator = body.payoutOperator ?? payout.suggestedOperator;
       if (!payoutOperator) {
@@ -182,8 +206,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         if (exists.rowCount) throw new HttpError(409, 'shop_exists', 'Vous avez déjà une boutique');
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO seller_profiles (user_id, shop_name, slug, kind, city, pickup_zone_id, payout_msisdn,
-                                        payout_operator, sold_category_ids, opening_hours)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+                                        payout_operator, sold_category_ids, opening_hours, weekly_hours)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
           [
             user.id,
             body.shopName,
@@ -194,7 +218,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             payout.e164,
             payoutOperator,
             [...new Set(body.soldCategoryIds)],
-            body.openingHours ?? null,
+            openingHours,
+            body.weeklyHours ? JSON.stringify(body.weeklyHours) : null,
           ],
         );
         await tx.query(
@@ -230,6 +255,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           pickupZoneId: z.uuid().optional(),
           soldCategoryIds: z.array(z.uuid()).max(10).optional(),
           openingHours: z.string().trim().min(3).max(80).optional(),
+          /** Lundi d'abord ; null = fermé ce jour-là. Remplace le texte des horaires. */
+          weeklyHours: z.array(DayHoursSchema.nullable()).length(7).optional(),
           isOpen: z.boolean().optional(),
           defaultPrepMinutes: PrepMinutes.optional(),
           payoutPhone: z.string().optional(),
@@ -244,6 +271,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         )
         .parse(request.body);
       const a = actor(request, 'seller');
+      const openingHours = hoursText(body.weeklyHours) ?? body.openingHours ?? null;
       await withTx(ctx.pool, async (tx) => {
         const shop = await shopOf(tx, a.userId);
         const { rows } = await tx.query<{ payout_msisdn: string }>(
@@ -266,13 +294,14 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
              terms_accepted_at = CASE WHEN $10 THEN coalesce(terms_accepted_at, $11) ELSE terms_accepted_at END,
              payout_msisdn_changed_at = CASE WHEN $12 THEN $11 ELSE payout_msisdn_changed_at END,
              city = coalesce($13, city),
-             pickup_zone_id = coalesce($14, pickup_zone_id)
+             pickup_zone_id = coalesce($14, pickup_zone_id),
+             weekly_hours = coalesce($15::jsonb, weekly_hours)
            WHERE id = $1`,
           [
             shop.id,
             body.shopName ?? null,
             body.soldCategoryIds ? [...new Set(body.soldCategoryIds)] : null,
-            body.openingHours ?? null,
+            openingHours,
             body.isOpen ?? null,
             body.defaultPrepMinutes ?? null,
             payoutPhone,
@@ -283,6 +312,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             payoutChanged && shop.verification_status === 'verified',
             body.city ?? null,
             body.pickupZoneId ?? null,
+            body.weeklyHours ? JSON.stringify(body.weeklyHours) : null,
           ],
         );
         if (payoutChanged) {
