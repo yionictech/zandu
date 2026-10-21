@@ -129,6 +129,8 @@ await page.getByLabel('Rechercher').fill('samsumg');
 await page.getByLabel('Lancer la recherche').click();
 await page.getByTestId('tile-Téléphone Samsung Galaxy A15 128 Go').waitFor();
 await sleep(400);
+await page.getByTestId('filter-verified').click();
+await page.getByTestId('tile-Téléphone Samsung Galaxy A15 128 Go').waitFor();
 await shot('02-recherche-faute-de-frappe');
 
 await page.getByTestId('tile-Téléphone Samsung Galaxy A15 128 Go').click();
@@ -144,27 +146,28 @@ const since = Date.now() - 1000;
 await page.getByTestId('login-send').click();
 const otp = await lastMessage(e164(BUYER), 'otp_code', since);
 await page.getByTestId('login-code').fill(otp.variables.code);
+await shot('05-code-sms');
 await page.getByTestId('login-verify').click();
 
-await page.getByTestId('zone').selectOption({ label: 'Tié-Tié' });
+await page.getByTestId('zone-Tié-Tié').click();
 await page.getByTestId('recipient').fill('Grâce Mabiala');
 await page.getByTestId('landmark').fill("Tié-Tié, derrière l'école Saint-Pierre, portail bleu");
-await shot('05-livraison');
+await shot('06-livraison');
 await page.getByTestId('checkout-continue').click();
 
 await page.getByTestId('payment-pay').waitFor();
-await shot('06-paiement');
+await shot('07-paiement');
 await page.getByTestId('payment-pay').click();
 await page.getByTestId('payment-waiting').waitFor();
 await sleep(1500);
-await shot('07-attente-validation-pin');
+await shot('08-attente-validation-pin');
 await page.getByTestId('payment-simulate').click();
 await page.getByTestId('payment-success').waitFor({ timeout: 15_000 });
-await shot('08-paiement-recu');
+await shot('09-paiement-recu');
 await page.getByTestId('payment-track').click();
 await page.getByTestId('order-status').waitFor();
 const orderId = page.url().split('/').pop();
-await shot('09-suivi');
+await shot('10-suivi');
 
 // 4. Vendeur, support et livreur font avancer la commande (API).
 const admin = await staffLogin('+242069000000');
@@ -192,17 +195,28 @@ await json('POST', `/v1/rider/deliveries/${orderId}/handover`, rider, {
 // 5. L'acheteur confirme la réception : le vendeur est payé.
 await page.reload();
 await page.getByText('Tout est conforme ?').waitFor();
-await shot('10-tout-est-conforme');
+await shot('11-tout-est-conforme');
 await page.getByTestId('order-confirm').click();
 await page.getByText('Le vendeur est payé').waitFor();
-await shot('11-terminee');
+await shot('12-terminee-noter');
 
-// 6. La vitrine de la boutique, à partager dans les groupes WhatsApp.
+// 6. L'avis (étoiles et étiquettes, sans script), puis « Mes commandes » : Terminées, Racheter.
+await page.locator('.stars label').first().click();
+await page.getByText('Livreur ponctuel').click();
+await page.getByText('Publier mon avis').click();
+await page.getByText('Merci pour votre avis').waitFor();
+await page.goto(`${SITE}/commandes?vue=terminees`);
+await page.getByText('Racheter').first().waitFor();
+await shot('13-mes-commandes');
+await page.getByText('Racheter').first().click();
+await page.getByTestId('cart-total').waitFor();
+
+// 7. La vitrine de la boutique, à partager dans les groupes WhatsApp.
 await page.goto(`${SITE}/produit/${product.id}`);
 await page.getByTestId('shop-link').click();
 await page.getByRole('heading', { name: 'Mama Grâce Électro' }).waitFor();
 await sleep(400);
-await shot('12-vitrine-boutique');
+await shot('14-vitrine-boutique');
 
 await browser.close();
 console.log('Parcours site web : OK');

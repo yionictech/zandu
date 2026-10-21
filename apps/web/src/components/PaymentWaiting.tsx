@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const pad = (n: number) => String(n).padStart(2, '0');
+/** Durée de validité d'une demande de paiement (PAYMENT_TTL_MINUTES, 10 min par défaut). */
+const RING_SECONDS = 600;
 
 /**
  * Attente de la validation du code PIN sur le téléphone : compte à rebours et interrogation
@@ -52,8 +54,14 @@ export function PaymentWaiting({
   const left = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
   return (
     <>
-      <div className="countdown" aria-label="Temps restant">
-        {pad(Math.floor(left / 60))}:{pad(left % 60)}
+      {/* Anneau de 10 minutes (maquette) : la part restante en corail. */}
+      <div className="ring" style={{ ['--left' as string]: Math.min(1, left / RING_SECONDS) }}>
+        <div className="ring-inner">
+          <div className="countdown" aria-label="Temps restant">
+            {pad(Math.floor(left / 60))}:{pad(left % 60)}
+          </div>
+          <span className="small muted">pour valider</span>
+        </div>
       </div>
       {simulator ? (
         <button

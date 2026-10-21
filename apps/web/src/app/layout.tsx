@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { ChevronDown, MapPin, Search, ShieldCheck, ShoppingCart, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense, type ReactNode } from 'react';
 import { RECETTE, SITE_URL } from '@/lib/api';
+import { CITIES, currentCity } from '@/lib/city';
 import { sessionToken } from '@/lib/session';
 import { CartCount } from '@/components/CartCount';
 import { LateFonts } from '@/components/LateFonts';
@@ -26,6 +28,7 @@ export const viewport: Viewport = { themeColor: '#0B0E15', width: 'device-width'
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const signedIn = (await sessionToken()) !== null;
+  const city = await currentCity();
   return (
     <html lang="fr">
       <body>
@@ -39,23 +42,47 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/" className="logo" aria-label="Zandu, accueil">
               zandu<span className="logo-dot">.</span>
             </Link>
+            <details className="city">
+              <summary aria-label={`Ville : ${city}`} data-testid="city">
+                <MapPin className="icon" aria-hidden />
+                {city}
+                <ChevronDown className="icon" aria-hidden />
+              </summary>
+              <div className="city-menu">
+                {CITIES.map((c) => (
+                  <a key={c} href={`/ville?v=${encodeURIComponent(c)}`} aria-current={c === city}>
+                    {c}
+                  </a>
+                ))}
+              </div>
+            </details>
             <form action="/recherche" className="search" role="search">
+              <Search className="icon" aria-hidden />
               <input
                 name="q"
                 type="search"
-                placeholder="Téléphone, pagne, ventilateur…"
+                placeholder="Téléphones, pagnes, ventilateurs…"
                 aria-label="Rechercher"
               />
               <button type="submit" aria-label="Lancer la recherche">
                 Chercher
               </button>
             </form>
-            <Link href="/panier" className="header-link" data-testid="header-cart">
-              Panier
+            <Link
+              href="/panier"
+              className="header-icon"
+              aria-label="Panier"
+              data-testid="header-cart"
+            >
+              <ShoppingCart className="icon" aria-hidden />
               <CartCount />
             </Link>
-            <Link href={signedIn ? '/commandes' : '/connexion'} className="header-link">
-              {signedIn ? 'Achats' : 'Connexion'}
+            <Link
+              href={signedIn ? '/commandes' : '/connexion'}
+              className="header-icon"
+              aria-label={signedIn ? 'Mes commandes' : 'Connexion'}
+            >
+              <UserRound className="icon" aria-hidden />
             </Link>
           </div>
         </header>
@@ -63,7 +90,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <OfflineSupport signedIn={signedIn} />
           <LateFonts />
         </Suspense>
-        <div className="trust-banner">🛡 Mobile Money protégé jusqu’à la livraison</div>
+        <div className="trust-banner">
+          <ShieldCheck className="icon" aria-hidden />
+          Mobile Money protégé jusqu’à la livraison
+        </div>
         {children}
         <footer className="footer">
           Zandu · Pointe-Noire et Brazzaville · Paiement MTN MoMo et Airtel Money ·{' '}

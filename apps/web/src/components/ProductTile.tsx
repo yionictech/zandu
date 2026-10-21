@@ -1,8 +1,8 @@
 import type { ProductCard } from '@zandu/api-client';
 import Link from 'next/link';
-import { formatXaf } from '@/lib/format';
+import { Price } from './Price';
 
-/** Vignette produit : photo, titre sur deux lignes, prix, boutique (vérifiée ou non). */
+/** Vignette produit : photo, titre sur deux lignes, prix, « ✓ Vérifié · boutique ». */
 export function ProductTile({ product, eager = false }: { product: ProductCard; eager?: boolean }) {
   return (
     <Link href={`/produit/${product.id}`} className="tile" data-testid={`tile-${product.title}`}>
@@ -21,9 +21,9 @@ export function ProductTile({ product, eager = false }: { product: ProductCard; 
       )}
       <div className="tile-body">
         <span className="tile-title">{product.title}</span>
-        <span className="tile-price">{formatXaf(product.price)}</span>
-        <span className="small muted">
-          {product.seller.verified ? <span className="verified">✓ </span> : null}
+        <Price value={product.price} size="sm" was={product.compareAtPrice} />
+        <span className="small muted verified-line">
+          {product.seller.verified ? <span className="verified">✓ Vérifié · </span> : null}
           {product.seller.shopName}
         </span>
       </div>

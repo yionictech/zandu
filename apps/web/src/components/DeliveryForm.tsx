@@ -22,6 +22,8 @@ interface Address {
 }
 
 const ADDRESS_KEY = 'zandu.lastAddress';
+/** Repères ajoutés d'un toucher (maquette « Livraison ») : le livreur cherche des lieux, pas des rues. */
+const LANDMARK_HINTS = ['École', 'Église', 'Pharmacie', 'Couleur du portail'];
 
 /**
  * Livraison par repères (pas de rue numérotée) : quartier, domicile ou point relais. La dernière
@@ -58,19 +60,22 @@ export function DeliveryForm({
       // pas d'adresse retenue
     }
   }, []);
+  const [remember, setRemember] = useState(true);
   const set = (patch: Partial<Address>) => setAddress((a) => ({ ...a, ...patch }));
   const zone = zones.find((z) => z.id === address.zoneId);
   const total = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
 
   if (lines.length === 0) return <p className="card muted">Votre panier est vide.</p>;
 
+  const cities = ['Pointe-Noire', 'Brazzaville'];
   return (
     <form
       action={action}
       className="stack"
       onSubmit={() => {
         try {
-          localStorage.setItem(ADDRESS_KEY, JSON.stringify(address));
+          if (remember) localStorage.setItem(ADDRESS_KEY, JSON.stringify(address));
+          else localStorage.removeItem(ADDRESS_KEY);
         } catch {
           // stockage indisponible
         }
@@ -82,72 +87,64 @@ export function DeliveryForm({
         name="items"
         value={JSON.stringify(lines.map((l) => ({ productId: l.productId, quantity: l.quantity })))}
       />
+      <p className="eyebrow">Mode de livraison</p>
+      <div className="choices" role="radiogroup" aria-label="Mode de livraison">
+        <label className="choice">
+          <input
+            type="radio"
+            name="mode"
+            value="home"
+            checked={address.mode === 'home'}
+            onChange={() => set({ mode: 'home' })}
+          />
+          <HomeIcon />À domicile
+          <small>Le livreur vous appelle en arrivant</small>
+        </label>
+        <label className="choice" aria-disabled={!zone?.pickupPoints.length}>
+          <input
+            type="radio"
+            name="mode"
+            value="pickup_point"
+            disabled={!!zone && !zone.pickupPoints.length}
+            checked={address.mode === 'pickup_point'}
+            onChange={() => set({ mode: 'pickup_point' })}
+          />
+          <StoreIcon />
+          Point relais
+          <small>Moins cher, vous passez le chercher</small>
+        </label>
+      </div>
       <section className="card stack">
-        <h2>Récapitulatif</h2>
-        {lines.map((l) => (
-          <div key={l.productId} className="row small">
-            <span>
-              {l.quantity} × {l.title}
-            </span>
-            <strong>{formatXaf(l.price * l.quantity)}</strong>
+        <p className="eyebrow">Quartier de livraison</p>
+        {cities.map((city) => (
+          <div key={city} className="stack" style={{ gap: 8 }}>
+            <span className="small muted">{city}</span>
+            <div className="pills" role="radiogroup" aria-label={`Quartiers de ${city}`}>
+              {zones
+                .filter((z) => z.city === city)
+                .map((z) => (
+                  <label key={z.id} className="pill" data-testid={`zone-${z.name}`}>
+                    <input
+                      type="radio"
+                      name="zoneId"
+                      value={z.id}
+                      required
+                      checked={address.zoneId === z.id}
+                      onChange={() =>
+                        set({
+                          zoneId: z.id,
+                          pickupPointId: '',
+                          ...(z.pickupPoints.length ? {} : { mode: 'home' as const }),
+                        })
+                      }
+                    />
+                    {z.name}
+                  </label>
+                ))}
+            </div>
           </div>
         ))}
-        <div className="row">
-          <strong>Articles</strong>
-          <strong>{formatXaf(total)}</strong>
-        </div>
-      </section>
-      <section className="card stack">
-        <label>
-          Quartier de livraison
-          <select
-            name="zoneId"
-            required
-            value={address.zoneId}
-            onChange={(e) => set({ zoneId: e.target.value, pickupPointId: '' })}
-            data-testid="zone"
-          >
-            <option value="" disabled>
-              Choisir un quartier
-            </option>
-            {['Pointe-Noire', 'Brazzaville'].map((city) => (
-              <optgroup key={city} label={city}>
-                {zones
-                  .filter((z) => z.city === city)
-                  .map((z) => (
-                    <option key={z.id} value={z.id}>
-                      {z.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-        <div className="options" role="radiogroup" aria-label="Mode de livraison">
-          <label className="option">
-            <input
-              type="radio"
-              name="mode"
-              value="home"
-              checked={address.mode === 'home'}
-              onChange={() => set({ mode: 'home' })}
-            />
-            À domicile
-          </label>
-          {zone?.pickupPoints.length ? (
-            <label className="option">
-              <input
-                type="radio"
-                name="mode"
-                value="pickup_point"
-                checked={address.mode === 'pickup_point'}
-                onChange={() => set({ mode: 'pickup_point' })}
-              />
-              En point relais (moins cher)
-            </label>
-          ) : null}
-        </div>
-        {address.mode === 'pickup_point' && zone ? (
+        {address.mode === 'pickup_point' && zone?.pickupPoints.length ? (
           <label>
             Point relais
             <select
@@ -206,8 +203,71 @@ export function DeliveryForm({
             data-testid="landmark"
           />
         </label>
+        <div className="pills" aria-label="Ajouter un repère">
+          {LANDMARK_HINTS.map((hint) => (
+            <button
+              key={hint}
+              type="button"
+              className="pill add"
+              onClick={() =>
+                set({
+                  landmark: `${address.landmark.trim()}${address.landmark.trim() ? ', ' : ''}${hint.toLowerCase()} `,
+                })
+              }
+            >
+              + {hint}
+            </button>
+          ))}
+        </div>
       </section>
+      <label className="card check-line">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+        Enregistrer cette adresse pour la prochaine fois
+      </label>
+      {lines.map((l) => (
+        <div key={l.productId} className="summary-line">
+          <span>
+            {l.quantity} × {l.title}
+          </span>
+          <span>{formatXaf(l.price * l.quantity)}</span>
+        </div>
+      ))}
+      <div className="summary-line">
+        <strong>Articles</strong>
+        <strong>{formatXaf(total)}</strong>
+      </div>
       <SubmitButton testId="checkout-continue">Continuer vers le paiement</SubmitButton>
     </form>
+  );
+}
+
+/** Icônes dessinées à la main : pas de bibliothèque d'icônes dans le JavaScript de la page. */
+function HomeIcon() {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden
+    >
+      <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+    </svg>
+  );
+}
+
+function StoreIcon() {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden
+    >
+      <path d="M3 9 4.5 4h15L21 9M3 9h18M3 9v11h18V9M9 20v-6h6v6" />
+    </svg>
   );
 }

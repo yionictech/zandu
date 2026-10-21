@@ -417,3 +417,38 @@ API : migration 0010 (statut `returning`, codes de retrait et de retour, arrivé
   « reprogrammer » à l'écran.
 - Pas de note du livreur ni de ponctualité : la note des livreurs n'existe pas encore ; la durée
   moyenne la remplace.
+
+## 11. Écrans acheteur du site web (✅ faits)
+
+![Site acheteur sombre](captures/site-acheteur-sombre.jpg)
+
+Le site suit maintenant les mêmes maquettes acheteur que l'application (§7), **sans JavaScript de
+plus sur les pages publiques** : tout est en HTML et en CSS, rendu par le serveur. La fiche
+produit en 3G passe de 163 à 169 Ko, avec 144 Ko de JavaScript (budget 170), et reste
+utilisable en 2,4 s (budget 2,5 s). Le parcours de bout en bout du site passe.
+
+- **En-tête** : logo, **choix de la ville** (Pointe-Noire ou Brazzaville, gardé un an dans un
+  cookie par un simple lien `/ville?v=…`), panier et compte en icônes, recherche dessous.
+- **Accueil** : catégories en tuiles à icônes (mêmes icônes que l'application), nouveautés
+  **livrables dans la ville choisie**.
+- **Recherche** : tri, filtres « Livrable à {ville} » et « Vendeur vérifié », nombre de résultats.
+- **Vignettes et prix** : « 95 000 FCFA » avec la devise en petit, ancien prix barré s'il existe,
+  « ✓ Vérifié · boutique ».
+- **Fiche produit** : photo pleine largeur avec retour et partage par-dessus, boutique et badge
+  « Vérifié », note et lien vers les avis, prix en grand, encart « Garantie Zandu », livraison,
+  **barre d'achat fixée en bas** (panier rond, « Acheter maintenant »), avis avec étiquettes et
+  réponse du vendeur.
+- **Connexion** : indicatif +242, code dessiné en 6 cases (un seul vrai champ : le remplissage
+  automatique du SMS marche toujours).
+- **Livraison** (« Étape 1 / 2 ») : mode en cartes, quartiers en puces par ville, repères ajoutés
+  d'un toucher (« + École »…), « Enregistrer cette adresse ».
+- **Paiement** (« Étape 2 / 2 ») : opérateurs en cartes avec « Détecté (05) », anneau de
+  10 minutes pendant la validation du PIN, trois étapes ; puis « Où est votre argent ? ».
+- **Suivi** : encart d'état (« Mama Grâce Électro doit accepter votre commande »), frise à points
+  citron, « Tout est conforme ? » avec « Un problème » / « Oui, tout va bien », **note de l'achat
+  avec étoiles et étiquettes** (nouveau sur le site).
+- **Mes commandes** : « En cours / Terminées », barre d'avancement, **« Racheter »** (remet les
+  articles au panier au prix du moment).
+
+Écarts volontaires : pas de cloche ni de centre de notifications sur le site (l'acheteur reçoit
+ses SMS et WhatsApp) ; pas de favoris sur le site (ils restent dans l'application).

@@ -68,7 +68,10 @@ export default async function OrderPage({
   const zones = await catalog((api) => api.GET('/v1/delivery/zones'));
   return (
     <main style={{ maxWidth: 640 }}>
-      <h1>Livraison</h1>
+      <div className="page-title">
+        <h1>Livraison</h1>
+        <span className="pill-badge">Étape 1 / 2</span>
+      </div>
       {params.erreur ? <p className="error">{params.erreur}</p> : null}
       <DeliveryForm
         zones={zones}

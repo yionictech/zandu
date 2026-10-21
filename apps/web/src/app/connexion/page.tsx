@@ -1,4 +1,5 @@
 import { ApiError, unwrap } from '@zandu/api-client';
+import { ShieldCheck, Smartphone } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { field, safePath, userClient, withParam } from '@/lib/api';
@@ -61,26 +62,30 @@ export default async function LoginPage({
   const challenge = await pendingChallenge();
   return (
     <main style={{ maxWidth: 460 }}>
-      <h1>Connexion</h1>
-      <p className="muted">Recevez un code par SMS. Pas de mot de passe à retenir.</p>
-      {params.erreur ? <p className="error">{params.erreur}</p> : null}
+      <span className="app-icon">
+        <Smartphone className="icon" aria-hidden />
+      </span>
       {challenge ? (
         <>
-          <form action={verifyCode} className="card stack">
+          <h1>Entrez le code reçu par SMS</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            Envoyé au {displayPhone(challenge.phone)}. Pas de mot de passe à retenir.
+          </p>
+          {params.erreur ? <p className="error">{params.erreur}</p> : null}
+          <form action={verifyCode} className="stack">
             <input type="hidden" name="suite" value={suite} />
-            <label>
-              Code à 6 chiffres envoyé au {displayPhone(challenge.phone)}
-              <input
-                name="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="\d{6}"
-                maxLength={6}
-                required
-                autoFocus
-                data-testid="login-code"
-              />
-            </label>
+            <input
+              name="code"
+              className="code-boxes"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\d{6}"
+              maxLength={6}
+              required
+              autoFocus
+              aria-label="Code à 6 chiffres"
+              data-testid="login-code"
+            />
             <SubmitButton testId="login-verify">Valider</SubmitButton>
           </form>
           <form action={changeNumber}>
@@ -91,23 +96,37 @@ export default async function LoginPage({
           </form>
         </>
       ) : (
-        <form action={requestCode} className="card stack">
-          <input type="hidden" name="suite" value={suite} />
-          <label>
-            Votre numéro de téléphone
-            <input
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="06 612 34 56"
-              required
-              data-testid="login-phone"
-            />
-          </label>
-          <SubmitButton testId="login-send">Recevoir le code</SubmitButton>
-        </form>
+        <>
+          <h1>Connexion</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            Recevez un code par SMS. Pas de mot de passe à retenir.
+          </p>
+          {params.erreur ? <p className="error">{params.erreur}</p> : null}
+          <form action={requestCode} className="stack">
+            <input type="hidden" name="suite" value={suite} />
+            <label>
+              Votre numéro de téléphone
+              <span className="phone-field">
+                <span className="prefix">+242</span>
+                <input
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="06 612 34 56"
+                  required
+                  data-testid="login-phone"
+                />
+              </span>
+            </label>
+            <SubmitButton testId="login-send">Recevoir le code</SubmitButton>
+          </form>
+        </>
       )}
+      <p className="note">
+        <ShieldCheck className="icon" aria-hidden />
+        Ce numéro sert aussi à payer par Mobile Money et à recevoir votre code de remise.
+      </p>
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { ApiError, unwrap } from '@zandu/api-client';
 import type { Metadata } from 'next';
+import { Check, Lock, Package, ShieldCheck, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
@@ -8,6 +9,7 @@ import { displayPhone, formatXaf, suggestOperator } from '@/lib/format';
 import { GUARANTEE, OPERATORS } from '@/lib/labels';
 import { ClearPurchased } from '@/components/ClearPurchased';
 import { PaymentWaiting } from '@/components/PaymentWaiting';
+import { Price } from '@/components/Price';
 import { SubmitButton } from '@/components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
@@ -73,26 +75,48 @@ export default async function PaymentPage({
     return (
       <main style={{ maxWidth: 560 }}>
         <ClearPurchased productIds={purchased} />
-        <section className="hero success" data-testid="payment-success">
-          <div style={{ fontSize: 44, color: 'var(--trust)' }}>✓</div>
+        <section className="hero" data-testid="payment-success">
+          <span className="success-mark">
+            <Check className="icon" aria-hidden strokeWidth={3} />
+          </span>
           <h1>Paiement reçu</h1>
-          <div className="amount">{formatXaf(checkout.grandTotal)}</div>
+          <Price value={checkout.grandTotal} size="xl" />
           {checkout.orders.map((o) => (
-            <div key={o.id} className="small">
+            <div key={o.id} className="small muted">
               {o.publicRef} · {o.seller.shopName}
             </div>
           ))}
         </section>
-        <section className="guarantee">
-          <strong>🛡 Garantie Zandu.</strong> {GUARANTEE}
+        <section className="card stack">
+          <h2 style={{ margin: 0 }}>Où est votre argent ?</h2>
+          <div className="money-steps">
+            {(
+              [
+                [Lock, 'Bloqué chez Zandu'],
+                [Package, 'Vous recevez le colis'],
+                [Wallet, 'Le vendeur est payé'],
+              ] as const
+            ).map(([Icon, label], i) => (
+              <div key={label} className={i === 0 ? 'on' : ''}>
+                <span className="icon-box">
+                  <Icon className="icon" aria-hidden />
+                </span>
+                {label}
+              </div>
+            ))}
+          </div>
+          <span className="small muted">
+            Le vendeur est payé seulement quand vous avez reçu votre colis.
+          </span>
         </section>
-        <p>
-          Le vendeur est prévenu. Votre <strong>code de remise</strong> arrive par SMS : ne le
-          donnez au livreur qu’une fois le colis en main.
+        <p className="note">
+          <Lock className="icon" aria-hidden />
+          Votre code de remise arrive par SMS : ne le donnez au livreur qu’une fois le colis en
+          main.
         </p>
         <Link
           href={checkout.orders.length === 1 && first ? `/commandes/${first.id}` : '/commandes'}
-          className="button trust block"
+          className="button block"
           data-testid="payment-track"
         >
           Suivre ma commande
@@ -121,26 +145,28 @@ export default async function PaymentPage({
       api.GET('/v1/payments/{id}', { params: { path: { id: query.p! } } }),
     );
     if (payment.status === 'pending' || payment.status === 'created') {
+      const operator = OPERATORS[payment.operator];
       return (
         <main style={{ maxWidth: 560 }}>
           <ClearPurchased productIds={purchased} />
-          <section className="hero waiting" data-testid="payment-waiting">
-            <h1>Validez sur votre téléphone</h1>
-            <div className="amount">{formatXaf(payment.amount)}</div>
-            <div>
-              {OPERATORS[payment.operator]} · {displayPhone(payment.msisdn)}
-            </div>
+          <section className="hero" data-testid="payment-waiting">
             <PaymentWaiting
               paymentId={payment.id}
               expiresAt={payment.expiresAt}
               retryHref={back}
               simulator={process.env.ZANDU_SIMULATOR === '1'}
             />
-            <p>Tapez votre code PIN dans la fenêtre qui s’est ouverte sur votre téléphone.</p>
+            <h1>Validez sur votre téléphone</h1>
+            <Price value={payment.amount} size="lg" />
+            <div className="small muted">
+              {operator} · {displayPhone(payment.msisdn)}
+            </div>
           </section>
-          <section className="guarantee">
-            <strong>🛡</strong> Votre argent reste bloqué jusqu’à la livraison.
-          </section>
+          <ol className="steps-list card">
+            <li>Une fenêtre {operator} s’ouvre sur votre téléphone</li>
+            <li>Tapez votre code PIN Mobile Money</li>
+            <li>Revenez ici : la confirmation s’affiche toute seule</li>
+          </ol>
           <p className="small muted">
             Pas de fenêtre ? Ouvrez le menu Mobile Money de votre opérateur et validez le paiement
             en attente.
@@ -156,43 +182,64 @@ export default async function PaymentPage({
   const me = await mine(back, (api) => api.GET('/v1/me'));
   const phone = displayPhone(me.phone);
   const suggested = suggestOperator(me.phone) ?? 'mtn';
+  const prefix = phone.slice(0, 2);
+  const lines = checkout.orders.flatMap((o) =>
+    o.items.map((i) => ({ ...i, shopName: o.seller.shopName })),
+  );
   return (
     <main style={{ maxWidth: 560 }}>
       <ClearPurchased productIds={purchased} />
-      <h1>Paiement</h1>
+      <div className="page-title">
+        <h1>Paiement</h1>
+        <span className="pill-badge">Étape 2 / 2</span>
+      </div>
       {failure ? (
         <p className="error" role="alert">
           {failure}
         </p>
       ) : null}
       <section className="card stack">
-        <h2>Récapitulatif</h2>
-        {checkout.orders.map((o) => (
-          <div key={o.id} className="row small">
-            <span>
-              {o.seller.shopName} ({o.items.reduce((n, i) => n + i.quantity, 0)} art.)
+        {lines.slice(0, 3).map((l) => (
+          <div key={l.itemId} className="info-row">
+            <span className="icon-box">
+              <Package className="icon" aria-hidden />
             </span>
-            <span>{formatXaf(o.itemsSubtotal)}</span>
+            <div style={{ minWidth: 0 }}>
+              <strong className="tile-title" style={{ minHeight: 0 }}>
+                {l.title}
+              </strong>
+              <div className="small muted">
+                {l.shopName} · {l.quantity} article{l.quantity > 1 ? 's' : ''}
+              </div>
+            </div>
           </div>
         ))}
         <div className="row small">
-          <span>Livraison</span>
+          <span className="muted">Articles</span>
+          <span>{formatXaf(checkout.itemsTotal)}</span>
+        </div>
+        <div className="row small">
+          <span className="muted">Livraison</span>
           <span>{formatXaf(checkout.deliveryTotal)}</span>
         </div>
-        <div className="row">
+        <div className="row" style={{ alignItems: 'baseline' }}>
           <strong>Total</strong>
-          <strong className="price" style={{ fontSize: 22 }}>
-            {formatXaf(checkout.grandTotal)}
-          </strong>
+          <Price value={checkout.grandTotal} size="md" />
         </div>
       </section>
-      <form action={pay.bind(null, id)} className="card stack">
+      <form action={pay.bind(null, id)} className="stack">
         <input type="hidden" name="idempotencyKey" value={randomUUID()} />
-        <div className="options" role="radiogroup" aria-label="Payer avec">
+        <p className="eyebrow">Payer avec</p>
+        <div className="choices" role="radiogroup" aria-label="Payer avec">
           {(['mtn', 'airtel'] as const).map((op) => (
-            <label key={op} className="option">
+            <label key={op} className="choice" data-testid={`operator-${op}`}>
               <input type="radio" name="operator" value={op} defaultChecked={op === suggested} />
               {OPERATORS[op]}
+              {op === suggested ? (
+                <small className="detected">Détecté ({prefix})</small>
+              ) : (
+                <small>{op === 'mtn' ? 'Numéros 06' : 'Numéros 04 et 05'}</small>
+              )}
             </label>
           ))}
         </div>
@@ -200,11 +247,15 @@ export default async function PaymentPage({
           Numéro Mobile Money
           <input name="phone" type="tel" defaultValue={phone} required autoComplete="tel" />
         </label>
+        <section className="guarantee-card">
+          <ShieldCheck className="icon" aria-hidden />
+          <div>
+            <strong>Garantie Zandu</strong>
+            <span>{GUARANTEE}</span>
+          </div>
+        </section>
         <SubmitButton testId="payment-pay">Payer {formatXaf(checkout.grandTotal)}</SubmitButton>
       </form>
-      <section className="guarantee">
-        <strong>🛡 Garantie Zandu.</strong> {GUARANTEE}
-      </section>
     </main>
   );
 }

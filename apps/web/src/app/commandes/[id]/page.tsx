@@ -1,10 +1,21 @@
 import { ApiError, unwrap, type DisputeReason } from '@zandu/api-client';
+import { Check, Package, Star } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { field, mine, userClient, withParam } from '@/lib/api';
 import { displayPhone, formatDateTime, formatXaf } from '@/lib/format';
-import { DISPUTE_REASONS, STATUS, STATUS_TONE, TIMELINE } from '@/lib/labels';
+import {
+  DISPUTE_REASONS,
+  headline,
+  REVIEW_TAGS,
+  STATUS_SHORT,
+  STATUS_TONE,
+  TIMELINE,
+} from '@/lib/labels';
+import { Price } from '@/components/Price';
 import { SubmitButton } from '@/components/SubmitButton';
+
+type ReviewTag = keyof typeof REVIEW_TAGS;
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Suivi de commande', robots: { index: false } };
@@ -17,7 +28,7 @@ const CODE_PENDING = [
   'awaiting_collection',
 ];
 
-type Action = 'confirm' | 'cancel' | 'code' | 'dispute';
+type Action = 'confirm' | 'cancel' | 'code' | 'dispute' | 'review';
 
 async function act(id: string, form: FormData) {
   'use server';
@@ -29,6 +40,7 @@ async function act(id: string, form: FormData) {
     cancel: 'Commande annulée : vous êtes remboursé intégralement.',
     code: 'Nouveau code envoyé par SMS.',
     dispute: 'Problème signalé : le support vous répond sous 72 h.',
+    review: 'Merci pour votre avis !',
   }[kind];
   try {
     const api = await userClient();
@@ -39,13 +51,25 @@ async function act(id: string, form: FormData) {
           ? await api.POST('/v1/orders/{id}/cancel', params)
           : kind === 'code'
             ? await api.POST('/v1/orders/{id}/handover-code', params)
-            : await api.POST('/v1/orders/{id}/disputes', {
-                ...params,
-                body: {
-                  reason: field(form, 'reason') as DisputeReason,
-                  description: field(form, 'description'),
-                },
-              });
+            : kind === 'review'
+              ? await api.POST('/v1/order-items/{id}/review', {
+                  params: { path: { id: field(form, 'itemId') } },
+                  body: {
+                    rating: Number(field(form, 'rating')),
+                    ...(field(form, 'comment') ? { comment: field(form, 'comment') } : {}),
+                    tags: form
+                      .getAll('tags')
+                      .map(String)
+                      .filter((t): t is ReviewTag => t in REVIEW_TAGS),
+                  },
+                })
+              : await api.POST('/v1/orders/{id}/disputes', {
+                  ...params,
+                  body: {
+                    reason: field(form, 'reason') as DisputeReason,
+                    description: field(form, 'description'),
+                  },
+                });
     unwrap<unknown>(result);
   } catch (error) {
     const message = error instanceof ApiError ? error.message : 'Pas de connexion, réessayez.';
@@ -69,69 +93,91 @@ export default async function OrderPage({
   );
   const reached = new Map(o.history.map((h) => [h.status, h.at]));
   const action = act.bind(null, id);
+  const tone =
+    o.status === 'disputed' ? 'danger' : STATUS_TONE[o.status] === 'trust' ? '' : 'waiting';
+  const lastAt = o.history.at(-1)?.at;
+  const toReview =
+    o.status === 'delivered' || o.status === 'completed' ? o.items.filter((i) => !i.reviewed) : [];
   return (
     <main style={{ maxWidth: 680 }}>
-      <div className="stack" style={{ gap: 4 }}>
+      <section className={`status-card ${tone}`}>
+        <p className="eyebrow">{STATUS_SHORT[o.status]}</p>
+        <h1 data-testid="order-status">{headline(o.status, o.seller.shopName)}</h1>
         <span className="small muted">
           {o.publicRef} · {o.seller.shopName}
+          {lastAt ? ` · ${formatDateTime(lastAt)}` : ''}
         </span>
-        <h1 className={`status ${STATUS_TONE[o.status] ?? ''}`} data-testid="order-status">
-          {STATUS[o.status]}
-        </h1>
-      </div>
+      </section>
       {query.ok ? <p className="notice">{query.ok}</p> : null}
       {query.erreur ? <p className="error">{query.erreur}</p> : null}
 
       {o.status === 'delivered' && o.disputeWindowEndsAt ? (
-        <section className="guarantee stack">
-          <strong>Tout est conforme ?</strong>
-          <span className="small">
+        <section className="card stack">
+          <h2 style={{ margin: 0 }}>Tout est conforme ?</h2>
+          <span className="small muted">
             Vous pouvez signaler un problème jusqu’au {formatDateTime(o.disputeWindowEndsAt)}.
           </span>
-          <form action={action}>
-            <input type="hidden" name="action" value="confirm" />
-            <SubmitButton variant="trust" testId="order-confirm">
-              Oui, tout va bien
-            </SubmitButton>
-          </form>
-          <details>
-            <summary className="button ghost block">Signaler un problème</summary>
-            <form action={action} className="stack" style={{ marginTop: 10 }}>
-              <input type="hidden" name="action" value="dispute" />
-              <label>
-                Que s’est-il passé ?
-                <select name="reason" required defaultValue="">
-                  <option value="" disabled>
-                    Choisir…
-                  </option>
-                  {Object.entries(DISPUTE_REASONS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Expliquez en quelques mots
-                <textarea name="description" minLength={10} maxLength={2000} required />
-              </label>
-              <SubmitButton>Envoyer au support</SubmitButton>
+          <div className="pair">
+            <a href="#probleme" className="button secondary">
+              Un problème
+            </a>
+            <form action={action}>
+              <input type="hidden" name="action" value="confirm" />
+              <SubmitButton testId="order-confirm">Oui, tout va bien</SubmitButton>
             </form>
-          </details>
+          </div>
         </section>
       ) : null}
 
+      {toReview.map((item) => (
+        <form key={item.itemId} action={action} className="card stack">
+          <input type="hidden" name="action" value="review" />
+          <input type="hidden" name="itemId" value={item.itemId} />
+          <div className="info-row">
+            <span className="icon-box">
+              <Package className="icon" aria-hidden />
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <strong>Notez votre achat</strong>
+              <div className="small muted tile-title" style={{ minHeight: 0 }}>
+                {item.title}
+              </div>
+            </div>
+          </div>
+          <fieldset className="stars" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="small muted">Votre note</legend>
+            {[5, 4, 3, 2, 1].map((n) => (
+              <label key={n} aria-label={`${n} étoile${n > 1 ? 's' : ''}`}>
+                <input type="radio" name="rating" value={n} required />
+                <Star className="icon" aria-hidden />
+              </label>
+            ))}
+          </fieldset>
+          <div className="pills">
+            {Object.entries(REVIEW_TAGS).map(([value, label]) => (
+              <label key={value} className="pill">
+                <input type="checkbox" name="tags" value={value} />
+                {label}
+              </label>
+            ))}
+          </div>
+          <textarea name="comment" maxLength={2000} placeholder="Votre avis (facultatif)" />
+          <SubmitButton variant="secondary">Publier mon avis</SubmitButton>
+        </form>
+      ))}
+
       <section className="card">
-        <h2>Suivi</h2>
-        <ol className="timeline">
+        <ol className="track">
           {TIMELINE.map(([status, label]) => {
             const at = reached.get(status);
             return (
-              <li key={status}>
-                <span className={`dot ${at ? 'done' : ''}`} />
-                <span className={at ? '' : 'muted'}>
-                  {label}
-                  {at ? <span className="small muted"> · {formatDateTime(at)}</span> : null}
+              <li key={status} className={at ? 'done' : ''}>
+                <span className="mark">
+                  {at ? <Check className="icon" aria-hidden strokeWidth={3} /> : null}
+                </span>
+                <span>
+                  <strong>{label}</strong>
+                  {at ? <span className="small muted">{formatDateTime(at)}</span> : null}
                 </span>
               </li>
             );
@@ -140,8 +186,16 @@ export default async function OrderPage({
       </section>
 
       <section className="card stack">
+        <p className="eyebrow">Livraison à</p>
+        <strong>
+          {o.shippingAddress.recipientName} · {displayPhone(o.shippingAddress.phone)}
+        </strong>
+        <span className="small muted">{o.shippingAddress.landmark}</span>
+      </section>
+
+      <section className="card stack">
         {o.items.map((item) => (
-          <div key={item.itemId} className="row">
+          <div key={item.itemId} className="row small">
             <span>
               {item.quantity} × {item.title}
             </span>
@@ -152,9 +206,9 @@ export default async function OrderPage({
           <span className="muted">Livraison</span>
           <span>{formatXaf(o.deliveryFee)}</span>
         </div>
-        <div className="row">
+        <div className="row" style={{ alignItems: 'baseline' }}>
           <strong>Total</strong>
-          <strong>{formatXaf(o.total)}</strong>
+          <Price value={o.total} size="md" />
         </div>
         {o.refundedAmount ? (
           <div className="row small verified">
@@ -164,13 +218,32 @@ export default async function OrderPage({
         ) : null}
       </section>
 
-      <section className="card stack">
-        <h2>Livraison à</h2>
-        <span>
-          {o.shippingAddress.recipientName} · {displayPhone(o.shippingAddress.phone)}
-        </span>
-        <span className="small muted">{o.shippingAddress.landmark}</span>
-      </section>
+      {o.status === 'delivered' && o.disputeWindowEndsAt ? (
+        <details className="card" id="probleme">
+          <summary className="button ghost block">Signaler un problème</summary>
+          <form action={action} className="stack" style={{ marginTop: 10 }}>
+            <input type="hidden" name="action" value="dispute" />
+            <label>
+              Que s’est-il passé ?
+              <select name="reason" required defaultValue="">
+                <option value="" disabled>
+                  Choisir…
+                </option>
+                {Object.entries(DISPUTE_REASONS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Expliquez en quelques mots
+              <textarea name="description" minLength={10} maxLength={2000} required />
+            </label>
+            <SubmitButton>Envoyer au support</SubmitButton>
+          </form>
+        </details>
+      ) : null}
 
       {CODE_PENDING.includes(o.status) ? (
         <form action={action}>

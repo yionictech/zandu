@@ -40,3 +40,7 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 }
+
+/** « 95 000 » : espace fine entre les milliers, sans la devise. */
+export const groupThousands = (value: number): string =>
+  String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
