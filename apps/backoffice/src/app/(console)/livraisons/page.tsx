@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { act, field, load } from '@/lib/api';
 import { displayPhone, formatDateTime } from '@/lib/format';
 import { ORDER_STATUS } from '@/lib/labels';
@@ -5,6 +6,25 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { Badge, Empty, Flash, PageHeader, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Livreurs' };
+
+const INCIDENT = {
+  breakdown: 'Panne de moto',
+  accident: 'Accident',
+  not_ready: 'Colis pas prêt',
+  damaged: 'Colis abîmé',
+  other: 'Autre problème',
+} as const;
+const EVENT = { incident: 'Incident', absent: 'Client absent', refused: 'Colis refusé' } as const;
+const DELIVERY = {
+  awaiting_assignment: 'À assigner',
+  assigned: 'À récupérer',
+  picked_up: 'En route',
+  at_pickup_point: 'Au point relais',
+  returning: 'Retour au vendeur',
+  delivered: 'Remise',
+  failed: 'Non livrée',
+  cancelled: 'Annulée',
+} as const;
 
 async function assign(form: FormData) {
   'use server';
@@ -20,15 +40,16 @@ async function assign(form: FormData) {
 /** Livraisons à assigner (D15) : colis prêts d'abord ; livreurs les moins chargés en tête. */
 export default async function DeliveriesPage({ searchParams }: { searchParams: SearchParams }) {
   const { ok, erreur } = await readParams(searchParams);
-  const [deliveries, riders] = await Promise.all([
+  const [deliveries, riders, events] = await Promise.all([
     load((api) => api.GET('/v1/support/deliveries')),
     load((api) => api.GET('/v1/support/riders')),
+    load((api) => api.GET('/v1/support/delivery-events')),
   ]);
   return (
     <>
       <PageHeader
         title="Livreurs"
-        subtitle="Le livreur reçoit la mission dans son application ; le client garde son code de remise. Inscription et activation des livreurs : avec le modèle livreur (docs/ux/03 §4.1)."
+        subtitle="Le livreur reçoit la course dans son application, montre son code de retrait au vendeur et remet le colis contre le code du client. Inscription et activation des livreurs : avec le modèle livreur (docs/ux/03 §4.1)."
       />
       <Flash ok={ok} erreur={erreur} />
       <section className="grid grid-4">
@@ -51,7 +72,75 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
             prêts
           </span>
         </div>
+        <div className="card kpi">
+          <span className="label dot" style={{ ['--dot' as string]: 'var(--waiting)' }}>
+            Incidents et retours · 7 j
+          </span>
+          <span className="value">{events.items.length}</span>
+          <span className="note">
+            dont {events.items.filter((e) => e.deliveryStatus === 'returning').length} colis en
+            retour
+          </span>
+        </div>
       </section>
+      {events.items.length ? (
+        <section className="card" data-testid="delivery-events">
+          <h2>Incidents et retours</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Quand</th>
+                <th>Commande</th>
+                <th>Ce qui se passe</th>
+                <th>Livreur</th>
+                <th>Course</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {events.items.map((e) => (
+                <tr key={e.id}>
+                  <td className="nowrap">{formatDateTime(e.at)}</td>
+                  <td>
+                    <Link href={`/commandes?id=${e.orderId}`} className="ref">
+                      {e.publicRef}
+                    </Link>
+                  </td>
+                  <td>
+                    <Badge tone={e.kind === 'incident' ? 'danger' : 'waiting'}>
+                      {e.incident ? INCIDENT[e.incident] : EVENT[e.kind]}
+                    </Badge>
+                    {e.note ? <div className="small muted">{e.note}</div> : null}
+                  </td>
+                  <td>
+                    {e.riderName ?? (e.riderPhone ? displayPhone(e.riderPhone) : '—')}
+                    {e.riderName && e.riderPhone ? (
+                      <div className="small muted">{displayPhone(e.riderPhone)}</div>
+                    ) : null}
+                  </td>
+                  <td>{DELIVERY[e.deliveryStatus]}</td>
+                  <td>
+                    {e.deliveryStatus === 'assigned' ? (
+                      <form action={assign} className="inline">
+                        <input type="hidden" name="orderId" value={e.orderId} />
+                        <input type="hidden" name="ref" value={e.publicRef} />
+                        <select name="riderId" required aria-label="Autre livreur">
+                          {riders.items.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name ?? displayPhone(r.phone)} · {r.activeMissions} en cours
+                            </option>
+                          ))}
+                        </select>
+                        <SubmitButton variant="secondary">Réassigner</SubmitButton>
+                      </form>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
       <h2 style={{ margin: 0 }}>Livraisons à assigner</h2>
       {deliveries.items.length === 0 ? (
         <Empty>Aucun colis en attente de livreur.</Empty>

@@ -486,6 +486,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/seller/orders/{id}/rider-pickup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirmer le code de retrait montré par le livreur
+     * @description Le livreur attribué montre un code à 4 chiffres ; le vendeur le saisit avant de donner le colis. Sans cette confirmation, le livreur ne peut pas prendre le colis en charge.
+     */
+    post: operations['sellerConfirmRiderPickup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/orders/{id}/rider-return': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirmer le code de retour (colis rapporté par le livreur) */
+    post: operations['sellerConfirmRiderReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/seller/orders/{id}/dispute-response': {
     parameters: {
       query?: never;
@@ -701,6 +738,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/rider/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Profil du livreur et courses du jour */
+    get: operations['riderMe'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Courses terminées (livrées, rapportées, échouées) */
+    get: operations['riderHistory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/rider/deliveries': {
     parameters: {
       query?: never;
@@ -746,6 +817,100 @@ export interface paths {
     put?: never;
     /** J'ai récupéré le colis */
     post: operations['riderPickup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/arrived': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Arrivé chez le client (livraison à domicile)
+     * @description Un SMS prévient le client et l'attente commence ; au bout de RIDER_ABSENT_WAIT_MINUTES (10 min par défaut), le livreur peut le déclarer absent.
+     */
+    post: operations['riderArrived'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/contact-attempt': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Noter un appel au client pendant l'attente */
+    post: operations['riderContactAttempt'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/return': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cliente absente ou colis refusé — rapporter le colis au vendeur
+     * @description « absent » seulement après l'attente. Un code de retour est créé ; l'argent de la cliente reste bloqué et le support est prévenu.
+     */
+    post: operations['riderReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/returned': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Colis rendu au vendeur (code de retour confirmé par le vendeur)
+     * @description La commande passe en litige ; le support décide de la suite.
+     */
+    post: operations['riderReturned'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/incident': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Signaler un incident (le support est prévenu) */
+    post: operations['riderIncident'];
     delete?: never;
     options?: never;
     head?: never;
@@ -814,6 +979,23 @@ export interface paths {
     put?: never;
     /** Annuler une commande payée non expédiée (remboursement intégral) */
     post: operations['supportCancelOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/delivery-events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Incidents, absences et refus des 7 derniers jours */
+    get: operations['supportDeliveryEvents'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2259,15 +2441,7 @@ export interface components {
     RiderMission: {
       /** Format: uuid */
       orderId: string;
-      /** @enum {string} */
-      status:
-        | 'awaiting_assignment'
-        | 'assigned'
-        | 'picked_up'
-        | 'at_pickup_point'
-        | 'delivered'
-        | 'failed'
-        | 'cancelled';
+      status: components['schemas']['DeliveryStatus'];
       orderStatus: components['schemas']['OrderStatus'];
       publicRef: string;
       /** @enum {string} */
@@ -2293,6 +2467,56 @@ export interface components {
       assignedAt: string | null;
       /** Format: date-time */
       pickedUpAt: string | null;
+      /** @description Ce que le livreur vérifie avant de prendre le colis */
+      items: {
+        title: string;
+        quantity: number;
+      }[];
+      /** @description Code de retrait à montrer au vendeur (tant que le colis n'est pas pris) */
+      pickupCode: string | null;
+      /** Format: date-time */
+      pickupConfirmedAt: string | null;
+      /**
+       * Format: date-time
+       * @description Arrivée chez le client (livraison à domicile)
+       */
+      arrivedAt: string | null;
+      /**
+       * Format: date-time
+       * @description À partir de quand le client peut être déclaré absent
+       */
+      absentAllowedAt: string | null;
+      /** @description Code de retour à montrer au vendeur (colis rapporté) */
+      returnCode: string | null;
+      /** Format: date-time */
+      returnConfirmedAt: string | null;
+      /** Format: date-time */
+      deliveredAt: string | null;
+      /** Format: date-time */
+      returnedAt: string | null;
+      failureReason: string | null;
+      /** @description Tentatives de contact pendant l'attente (appels du livreur, SMS automatique) */
+      contacts: {
+        /** @enum {string} */
+        kind: 'call' | 'sms';
+        /** Format: date-time */
+        at: string;
+      }[];
+    };
+    /** @enum {string} */
+    DeliveryStatus:
+      | 'awaiting_assignment'
+      | 'assigned'
+      | 'picked_up'
+      | 'at_pickup_point'
+      | 'returning'
+      | 'delivered'
+      | 'failed'
+      | 'cancelled';
+    /** @enum {string} */
+    DeliveryIncident: 'breakdown' | 'accident' | 'not_ready' | 'damaged' | 'other';
+    Code4: {
+      code: string;
     };
     /** @description Champs communs aux vues acheteur et vendeur d'une commande. */
     OrderCore: {
@@ -2457,6 +2681,18 @@ export interface components {
         'application/json': {
           /** Format: uuid */
           id?: string;
+        };
+      };
+    };
+    /** @description Enregistré */
+    Recorded: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': {
+          /** @constant */
+          recorded: true;
         };
       };
     };
@@ -3349,6 +3585,17 @@ export interface operations {
               /** @example Junior M. */
               name: string;
             } | null;
+            /** @description Où en est le livreur : code de retrait à confirmer (`assigned`), colis à reprendre avec son code de retour (`returning`). */
+            delivery: {
+              status: components['schemas']['DeliveryStatus'];
+              /** Format: date-time */
+              pickupConfirmedAt: string | null;
+              /** Format: date-time */
+              returnConfirmedAt: string | null;
+              /** Format: date-time */
+              returnedAt: string | null;
+              failureReason: string | null;
+            } | null;
             dispute: null | components['schemas']['SellerDispute'];
             reviews: {
               /** Format: uuid */
@@ -3418,6 +3665,72 @@ export interface operations {
     responses: {
       200: components['responses']['OrderStatusChange'];
       409: components['responses']['Error'];
+    };
+  };
+  sellerConfirmRiderPickup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Code confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            pickupConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  sellerConfirmRiderReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Retour confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            returnConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
     };
   };
   respondToDispute: {
@@ -3743,6 +4056,82 @@ export interface operations {
       409: components['responses']['Error'];
     };
   };
+  riderMe: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            fullName: string | null;
+            phone: string;
+            /** @description Société de livraison partenaire */
+            partnerName: string;
+            partnerPhone: string | null;
+            zone: string | null;
+            city: string | null;
+            deliveredTotal: number;
+            /** @description Depuis minuit, heure de Brazzaville */
+            deliveredToday: number;
+            inProgress: number;
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  riderHistory: {
+    parameters: {
+      query?: {
+        period?: '7d' | '30d';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            delivered: number;
+            /** @description Rapportées au vendeur ou échouées */
+            returned: number;
+            /** @description Durée moyenne entre la prise en charge et la remise */
+            averageMinutes: number | null;
+            items: {
+              /** Format: uuid */
+              orderId: string;
+              publicRef: string;
+              /** @description Quartier du vendeur */
+              from: string;
+              /** @description Quartier de livraison */
+              to: string;
+              /** @enum {string} */
+              outcome: 'delivered' | 'returned' | 'failed';
+              /** Format: date-time */
+              at: string;
+              minutes: number | null;
+              reason: string | null;
+            }[];
+          };
+        };
+      };
+    };
+  };
   riderDeliveries: {
     parameters: {
       query?: never;
@@ -3802,6 +4191,118 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: components['responses']['OrderStatusChange'];
+      409: components['responses']['Error'];
+    };
+  };
+  riderArrived: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: date-time */
+            arrivedAt: string;
+            /** Format: date-time */
+            absentAllowedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+    };
+  };
+  riderContactAttempt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: components['responses']['Recorded'];
+      409: components['responses']['Error'];
+      429: components['responses']['Error'];
+    };
+  };
+  riderReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          reason: 'absent' | 'refused';
+          note?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Mission mise à jour (avec le code de retour) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RiderMission'];
+        };
+      };
+      409: components['responses']['Error'];
+    };
+  };
+  riderReturned: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderStatusChange'];
+      409: components['responses']['Error'];
+    };
+  };
+  riderIncident: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          kind: components['schemas']['DeliveryIncident'];
+          note?: string;
+        };
+      };
+    };
+    responses: {
+      201: components['responses']['Recorded'];
       409: components['responses']['Error'];
     };
   };
@@ -3878,6 +4379,42 @@ export interface operations {
     responses: {
       200: components['responses']['OrderStatusChange'];
       403: components['responses']['Error'];
+    };
+  };
+  supportDeliveryEvents: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              id: string;
+              /** @enum {string} */
+              kind: 'incident' | 'absent' | 'refused';
+              incident: components['schemas']['DeliveryIncident'] | null;
+              note: string | null;
+              /** Format: date-time */
+              at: string;
+              /** Format: uuid */
+              orderId: string;
+              publicRef: string;
+              deliveryStatus: components['schemas']['DeliveryStatus'];
+              riderName: string | null;
+              riderPhone: string | null;
+            }[];
+          };
+        };
+      };
     };
   };
   assignRider: {

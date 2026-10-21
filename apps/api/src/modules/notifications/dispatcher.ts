@@ -122,6 +122,16 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
         return [toBuyer(o, 'buyer_order_accepted', { ref })];
       case 'order.in_delivery':
         return [toBuyer(o, 'buyer_in_delivery', { ref })];
+      case 'order.rider_arrived':
+        // SMS : le client doit être prévenu même sans données mobiles, le livreur l'attend.
+        return [toBuyer(o, 'buyer_rider_arrived', { ref }, 'sms')];
+      case 'order.delivery_returning':
+        return [
+          toBuyer(o, 'buyer_delivery_returning', { ref }),
+          ...support(
+            `Livraison manquée sur ${ref} (${String(p.reason)}) : colis rapporté au vendeur`,
+          ),
+        ];
       case 'order.awaiting_collection':
         return [toBuyer(o, 'buyer_awaiting_collection', { ref })];
       case 'order.delivered':

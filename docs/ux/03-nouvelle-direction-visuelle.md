@@ -362,3 +362,58 @@ ajoutés aux listes des commandes, litiges, vendeurs et produits ; contrat et cl
 - « Organiser un retour » remplacé par **« Remboursement partiel »** tant qu'il n'y a pas de
   parcours de retour (§4.1).
 - Comptabilité et Alertes restent des pages à part, accessibles depuis Paiements.
+
+## 10. Étape 5 — espace livreur dans l'application (✅ faite)
+
+![Espace livreur sombre](captures/livreur-sombre.jpg)
+
+Les écrans livreur suivent la maquette « Livreur », **dans le modèle actuel** (§4.1) : livreurs
+des sociétés partenaires, courses attribuées par le support. Le parcours de bout en bout vendeur
+et livreur passe par tous ces écrans : une livraison réussie, un client absent avec retour au
+vendeur, un incident. Les autres parcours (acheteur, hors connexion, site, back-office) passent
+toujours.
+
+- **Onglets** : Courses, Historique, Profil.
+- **Courses** : bonjour, société partenaire, livrées aujourd'hui, en cours, total ; chaque course
+  en carte « Récupérer → Livrer » avec le repère, le nombre d'articles et « Déjà payé » ; liste
+  « Avant de partir ».
+- **Une course en 4 étapes** (Récupérer, En route, Remise, Terminé) :
+  - **Récupérer** : boutique avec bouton d'appel, **code de retrait à 4 chiffres** à montrer au
+    vendeur, qui le saisit dans son application (écran « Prête ») ; le livreur coche les articles
+    et l'emballage, puis « J'ai récupéré le colis » (refusé tant que le vendeur n'a pas confirmé) ;
+  - **En route** : client avec bouton d'appel, repère en grand, « Je suis arrivé » (un SMS
+    prévient le client) ;
+  - **Remise** : « Demandez le code à Prisca », pavé géant, « Valider la remise » ;
+  - **Terminé** : livraison réussie, trajet, durée, courses du jour.
+- **Client injoignable** : attente chronométrée (10 min, `RIDER_ABSENT_WAIT_MINUTES`), tentatives
+  de contact (SMS automatique, appels du livreur), « Déclarer absent » une fois l'attente passée,
+  ou « Le client refuse le colis » avec un motif.
+- **Retour du colis** : code de retour à 4 chiffres, que le vendeur saisit en reprenant son colis
+  (écran « Le colis vous revient ») ; « Colis rendu au vendeur » ouvre un litige : l'argent reste
+  bloqué et le support décide de la suite.
+- **Signaler un incident** : panne, accident, colis pas prêt, colis abîmé, autre ; précisions ;
+  appel direct au responsable de la société. Le support est prévenu.
+- **Historique** : 7 ou 30 jours, livrées, retours, durée moyenne, courses par jour.
+- **Profil** : téléphone, zone, société de livraison, aide, déconnexion.
+- **Back-office, Livreurs** : « Incidents et retours » des 7 derniers jours, avec « Réassigner »
+  tant que le colis n'est pas pris.
+
+API : migration 0010 (statut `returning`, codes de retrait et de retour, arrivée, journal
+`delivery_events`) ; routes `GET /v1/rider/me`, `GET /v1/rider/history`,
+`POST /v1/rider/deliveries/{id}/arrived`, `…/contact-attempt`, `…/return`, `…/returned`,
+`…/incident`, `POST /v1/seller/orders/{id}/rider-pickup` et `…/rider-return`,
+`GET /v1/support/delivery-events` ; les routes du livreur sont regroupées dans
+`orders/rider.routes.ts` ; contrat et client à jour.
+
+Écarts volontaires avec la maquette (décisions du §4) :
+
+- **Pas d'inscription libre, de bouton « En ligne », de courses proposées en 25 s ni d'onglet
+  Gains** : le livreur est payé par sa société partenaire (D15, §4.1).
+- **Pas de carte ni d'itinéraire** (§4.2) : le repère écrit et le bouton d'appel restent la
+  référence.
+- **Pas de photo du colis** à la récupération : la liste de contrôle en tient lieu pour l'instant.
+- **« Appel par Zandu »** remplacé par l'appel au responsable de la société ; **nouvelle
+  livraison après un retour** : décidée par le support hors application, pas encore de
+  « reprogrammer » à l'écran.
+- Pas de note du livreur ni de ponctualité : la note des livreurs n'existe pas encore ; la durée
+  moyenne la remplace.

@@ -864,7 +864,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SellerOrder'
                   - type: object
-                    required: [history, rider, dispute, reviews]
+                    required: [history, rider, delivery, dispute, reviews]
                     properties:
                       history: { $ref: '#/components/schemas/OrderHistory' }
                       rider:
@@ -873,6 +873,19 @@ paths:
                         required: [name]
                         properties:
                           name: { type: string, examples: [Junior M.] }
+                      delivery:
+                        type: [object, 'null']
+                        description: >-
+                          Où en est le livreur : code de retrait à confirmer (`assigned`), colis
+                          à reprendre avec son code de retour (`returning`).
+                        required:
+                          [status, pickupConfirmedAt, returnConfirmedAt, returnedAt, failureReason]
+                        properties:
+                          status: { $ref: '#/components/schemas/DeliveryStatus' }
+                          pickupConfirmedAt: { type: [string, 'null'], format: date-time }
+                          returnConfirmedAt: { type: [string, 'null'], format: date-time }
+                          returnedAt: { type: [string, 'null'], format: date-time }
+                          failureReason: { type: [string, 'null'] }
                       dispute:
                         oneOf:
                           - type: 'null'
@@ -932,6 +945,59 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
         '409': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/rider-pickup:
+    post:
+      tags: [Vendeur]
+      summary: Confirmer le code de retrait montré par le livreur
+      description: >-
+        Le livreur attribué montre un code à 4 chiffres ; le vendeur le saisit avant de donner le
+        colis. Sans cette confirmation, le livreur ne peut pas prendre le colis en charge.
+      operationId: sellerConfirmRiderPickup
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Code confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, pickupConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  pickupConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/orders/{id}/rider-return:
+    post:
+      tags: [Vendeur]
+      summary: Confirmer le code de retour (colis rapporté par le livreur)
+      operationId: sellerConfirmRiderReturn
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Retour confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, returnConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  returnConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
   /v1/seller/orders/{id}/dispute-response:
     post:
@@ -1183,6 +1249,81 @@ paths:
         '202': { description: Code envoyé }
         '409': { $ref: '#/components/responses/Error' }
 
+  /v1/rider/me:
+    get:
+      tags: [Livreur]
+      summary: Profil du livreur et courses du jour
+      operationId: riderMe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    fullName,
+                    phone,
+                    partnerName,
+                    partnerPhone,
+                    zone,
+                    city,
+                    deliveredTotal,
+                    deliveredToday,
+                    inProgress,
+                  ]
+                properties:
+                  fullName: { type: [string, 'null'] }
+                  phone: { type: string }
+                  partnerName: { type: string, description: Société de livraison partenaire }
+                  partnerPhone: { type: [string, 'null'] }
+                  zone: { type: [string, 'null'] }
+                  city: { type: [string, 'null'] }
+                  deliveredTotal: { type: integer }
+                  deliveredToday:
+                    { type: integer, description: 'Depuis minuit, heure de Brazzaville' }
+                  inProgress: { type: integer }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/history:
+    get:
+      tags: [Livreur]
+      summary: Courses terminées (livrées, rapportées, échouées)
+      operationId: riderHistory
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: ['7d', '30d'], default: '7d' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [delivered, returned, averageMinutes, items]
+                properties:
+                  delivered: { type: integer }
+                  returned: { type: integer, description: Rapportées au vendeur ou échouées }
+                  averageMinutes:
+                    type: [integer, 'null']
+                    description: Durée moyenne entre la prise en charge et la remise
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [orderId, publicRef, from, to, outcome, at, minutes, reason]
+                      properties:
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        from: { type: string, description: Quartier du vendeur }
+                        to: { type: string, description: Quartier de livraison }
+                        outcome: { type: string, enum: [delivered, returned, failed] }
+                        at: { type: string, format: date-time }
+                        minutes: { type: [integer, 'null'] }
+                        reason: { type: [string, 'null'] }
+
   /v1/rider/deliveries:
     get:
       tags: [Livreur]
@@ -1224,6 +1365,97 @@ paths:
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/arrived:
+    post:
+      tags: [Livreur]
+      summary: Arrivé chez le client (livraison à domicile)
+      description: >-
+        Un SMS prévient le client et l'attente commence ; au bout de RIDER_ABSENT_WAIT_MINUTES
+        (10 min par défaut), le livreur peut le déclarer absent.
+      operationId: riderArrived
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [arrivedAt, absentAllowedAt]
+                properties:
+                  arrivedAt: { type: string, format: date-time }
+                  absentAllowedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/contact-attempt:
+    post:
+      tags: [Livreur]
+      summary: Noter un appel au client pendant l'attente
+      operationId: riderContactAttempt
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '201': { $ref: '#/components/responses/Recorded' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/return:
+    post:
+      tags: [Livreur]
+      summary: Cliente absente ou colis refusé — rapporter le colis au vendeur
+      description: >-
+        « absent » seulement après l'attente. Un code de retour est créé ; l'argent de la cliente
+        reste bloqué et le support est prévenu.
+      operationId: riderReturn
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [absent, refused] }
+                note: { type: string, minLength: 3, maxLength: 300 }
+      responses:
+        '200':
+          description: Mission mise à jour (avec le code de retour)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RiderMission' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/returned:
+    post:
+      tags: [Livreur]
+      summary: Colis rendu au vendeur (code de retour confirmé par le vendeur)
+      description: La commande passe en litige ; le support décide de la suite.
+      operationId: riderReturned
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/incident:
+    post:
+      tags: [Livreur]
+      summary: Signaler un incident (le support est prévenu)
+      operationId: riderIncident
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { $ref: '#/components/schemas/DeliveryIncident' }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '201': { $ref: '#/components/responses/Recorded' }
         '409': { $ref: '#/components/responses/Error' }
 
   /v1/rider/deliveries/{id}/arrived-at-pickup-point:
@@ -1281,6 +1513,52 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
         '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/delivery-events:
+    get:
+      tags: [Support]
+      summary: Incidents, absences et refus des 7 derniers jours
+      operationId: supportDeliveryEvents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          kind,
+                          incident,
+                          note,
+                          at,
+                          orderId,
+                          publicRef,
+                          deliveryStatus,
+                          riderName,
+                          riderPhone,
+                        ]
+                      properties:
+                        id: { type: string }
+                        kind: { type: string, enum: [incident, absent, refused] }
+                        incident:
+                          oneOf:
+                            - { $ref: '#/components/schemas/DeliveryIncident' }
+                            - { type: 'null' }
+                        note: { type: [string, 'null'] }
+                        at: { type: string, format: date-time }
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        deliveryStatus: { $ref: '#/components/schemas/DeliveryStatus' }
+                        riderName: { type: [string, 'null'] }
+                        riderPhone: { type: [string, 'null'] }
 
   /v1/support/deliveries/{id}/assign:
     post:
@@ -3238,6 +3516,15 @@ components:
             type: object
             properties:
               id: { type: string, format: uuid }
+    Recorded:
+      description: Enregistré
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [recorded]
+            properties:
+              recorded: { type: boolean, const: true }
     OrderStatusChange:
       description: Nouveau statut
       content:
@@ -3907,21 +4194,21 @@ components:
           handoverAttemptsLeft,
           assignedAt,
           pickedUpAt,
+          items,
+          pickupCode,
+          pickupConfirmedAt,
+          arrivedAt,
+          absentAllowedAt,
+          returnCode,
+          returnConfirmedAt,
+          deliveredAt,
+          returnedAt,
+          failureReason,
+          contacts,
         ]
       properties:
         orderId: { type: string, format: uuid }
-        status:
-          type: string
-          enum:
-            [
-              awaiting_assignment,
-              assigned,
-              picked_up,
-              at_pickup_point,
-              delivered,
-              failed,
-              cancelled,
-            ]
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
         orderStatus: { $ref: '#/components/schemas/OrderStatus' }
         publicRef: { type: string }
         deliveryMode: { type: string, enum: [home, pickup_point] }
@@ -3950,6 +4237,66 @@ components:
         handoverAttemptsLeft: { type: integer, minimum: 0 }
         assignedAt: { type: [string, 'null'], format: date-time }
         pickedUpAt: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          description: Ce que le livreur vérifie avant de prendre le colis
+          items:
+            type: object
+            required: [title, quantity]
+            properties:
+              title: { type: string }
+              quantity: { type: integer }
+        pickupCode:
+          type: [string, 'null']
+          pattern: '^\d{4}$'
+          description: Code de retrait à montrer au vendeur (tant que le colis n'est pas pris)
+        pickupConfirmedAt: { type: [string, 'null'], format: date-time }
+        arrivedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Arrivée chez le client (livraison à domicile)
+        absentAllowedAt:
+          type: [string, 'null']
+          format: date-time
+          description: À partir de quand le client peut être déclaré absent
+        returnCode:
+          type: [string, 'null']
+          pattern: '^\d{4}$'
+          description: Code de retour à montrer au vendeur (colis rapporté)
+        returnConfirmedAt: { type: [string, 'null'], format: date-time }
+        deliveredAt: { type: [string, 'null'], format: date-time }
+        returnedAt: { type: [string, 'null'], format: date-time }
+        failureReason: { type: [string, 'null'] }
+        contacts:
+          type: array
+          description: Tentatives de contact pendant l'attente (appels du livreur, SMS automatique)
+          items:
+            type: object
+            required: [kind, at]
+            properties:
+              kind: { type: string, enum: [call, sms] }
+              at: { type: string, format: date-time }
+    DeliveryStatus:
+      type: string
+      enum:
+        [
+          awaiting_assignment,
+          assigned,
+          picked_up,
+          at_pickup_point,
+          returning,
+          delivered,
+          failed,
+          cancelled,
+        ]
+    DeliveryIncident:
+      type: string
+      enum: [breakdown, accident, not_ready, damaged, other]
+    Code4:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^\d{4}$' }
     OrderCore:
       description: Champs communs aux vues acheteur et vendeur d'une commande.
       type: object

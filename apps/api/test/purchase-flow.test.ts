@@ -4,6 +4,7 @@ import {
   approveAndNotify,
   balance,
   call,
+  confirmPickupCode,
   checkout,
   createTestEnv,
   handoverCodeFor,
@@ -106,6 +107,7 @@ describe("Parcours d'achat de bout en bout (jalon « commande de bout en bout »
       url: `/v1/support/deliveries/${orderId}/assign`,
       payload: { riderId: m.rider.riderId },
     });
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
     expect(
       (await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` }))
         .body.status,

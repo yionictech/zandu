@@ -179,6 +179,10 @@ const riderId = execFileSync('psql', [
   .toString()
   .trim();
 await json('POST', `/v1/support/deliveries/${orderId}/assign`, admin, { riderId });
+// Le vendeur saisit le code de retrait que le livreur lui montre.
+await json('POST', `/v1/seller/orders/${orderId}/rider-pickup`, seller, {
+  code: (await json('GET', `/v1/rider/deliveries/${orderId}`, rider)).pickupCode,
+});
 await json('POST', `/v1/rider/deliveries/${orderId}/pickup`, rider);
 const handover = await lastMessage(e164(BUYER), 'buyer_handover_code');
 await json('POST', `/v1/rider/deliveries/${orderId}/handover`, rider, {

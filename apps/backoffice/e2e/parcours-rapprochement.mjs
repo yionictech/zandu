@@ -76,6 +76,10 @@ const riderId = psql(
 await json('POST', `/v1/seller/orders/${order.id}/accept`, seller);
 await json('POST', `/v1/seller/orders/${order.id}/ready`, seller);
 await json('POST', `/v1/support/deliveries/${order.id}/assign`, admin, { riderId });
+// Le vendeur saisit le code de retrait que le livreur lui montre.
+await json('POST', `/v1/seller/orders/${order.id}/rider-pickup`, seller, {
+  code: (await json('GET', `/v1/rider/deliveries/${order.id}`, rider)).pickupCode,
+});
 await json('POST', `/v1/rider/deliveries/${order.id}/pickup`, rider);
 let code = null;
 for (let i = 0; i < 40 && !code; i++) {

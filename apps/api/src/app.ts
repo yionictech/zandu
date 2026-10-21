@@ -19,6 +19,7 @@ import {
   RoutingNotificationSender,
 } from './modules/notifications/sender.js';
 import { orderRoutes } from './modules/orders/orders.routes.js';
+import { riderRoutes } from './modules/orders/rider.routes.js';
 import { reconciliationRoutes } from './modules/reconciliation/reconciliation.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { SimulatorProvider } from './modules/payments/simulator.js';
@@ -78,6 +79,7 @@ export async function buildApp(
   await app.register(uploadRoutes(ctx));
   await app.register(checkoutRoutes(ctx));
   await app.register(orderRoutes(ctx));
+  await app.register(riderRoutes(ctx));
   await app.register(adminRoutes(ctx));
   await app.register(commissionRuleRoutes(ctx));
   await app.register(staffRoutes(ctx));

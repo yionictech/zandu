@@ -5,6 +5,7 @@ import {
   approveAndNotify,
   balance,
   call,
+  confirmPickupCode,
   checkout,
   createTestEnv,
   handoverCodeFor,
@@ -43,6 +44,7 @@ async function deliver(orderId: string) {
     url: `/v1/support/deliveries/${orderId}/assign`,
     payload: { riderId: m.rider.riderId },
   });
+  await confirmPickupCode(env, m.rider, m.seller, orderId);
   await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
   const res = await call(env, m.rider, {
     method: 'POST',

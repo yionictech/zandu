@@ -5,6 +5,7 @@ import {
   approveAndNotify,
   balance,
   call,
+  confirmPickupCode,
   checkout,
   createTestEnv,
   handoverCodeFor,
@@ -47,6 +48,7 @@ async function shipAndDeliver(orderId: string, seller: Session = m.seller): Prom
     url: `/v1/support/deliveries/${orderId}/assign`,
     payload: { riderId: m.rider.riderId },
   });
+  await confirmPickupCode(env, m.rider, seller, orderId);
   await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
   await call(env, m.rider, {
     method: 'POST',
@@ -134,6 +136,7 @@ describe('Litiges (F12) et remboursements (F9)', () => {
       url: `/v1/support/deliveries/${orderId}/assign`,
       payload: { riderId: m.rider.riderId },
     });
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
     await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
     const failed = await call(env, m.rider, {
       method: 'POST',
@@ -272,6 +275,7 @@ describe('Sécurité', () => {
       url: `/v1/support/deliveries/${orderId}/assign`,
       payload: { riderId: m.rider.riderId },
     });
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
     await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
     const wrong = code === '000000' ? '111111' : '000000';
     for (let i = 0; i < 5; i++) {

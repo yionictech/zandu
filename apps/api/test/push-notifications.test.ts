@@ -3,6 +3,7 @@ import { ExpoPushSender, PushTokenInvalidError } from '../src/modules/notificati
 import {
   approveAndNotify,
   call,
+  confirmPickupCode,
   checkout,
   createTestEnv,
   login,
@@ -116,6 +117,7 @@ describe('Notifications sur le téléphone (ADR-0018)', () => {
       url: `/v1/support/deliveries/${orderId}/assign`,
       payload: { riderId: m.rider.riderId },
     });
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
     await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
     await sweep(env);
     expect(sentTo(BUYER_TOKEN, 'buyer_in_delivery')).toHaveLength(1);

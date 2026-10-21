@@ -16,6 +16,10 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
   buyer_order_accepted: (v) => `Zandu : le vendeur prépare votre commande ${v.ref}.`,
   buyer_in_delivery: (v) =>
     `Zandu : votre commande ${v.ref} est en route. Préparez votre code de remise.`,
+  buyer_rider_arrived: (v) =>
+    `Zandu : votre livreur est arrivé avec la commande ${v.ref}. Préparez votre code de remise.`,
+  buyer_delivery_returning: (v) =>
+    `Zandu : le livreur n'a pas pu vous remettre la commande ${v.ref}. Zandu vous contacte pour une nouvelle livraison ; votre argent reste bloqué en sécurité.`,
   buyer_awaiting_collection: (v) => `Zandu : votre commande ${v.ref} vous attend au point relais.`,
   buyer_delivered: (v) =>
     `Zandu : commande ${v.ref} remise. Un problème ? Signalez-le dans l'application avant ${v.deadline}.`,
@@ -54,6 +58,7 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   buyer_payment_confirmed: { title: 'Paiement reçu', fallback: false },
   buyer_order_accepted: { title: 'Commande en préparation', fallback: false },
   buyer_in_delivery: { title: 'Commande en route', fallback: true },
+  buyer_delivery_returning: { title: 'Livraison manquée', fallback: true },
   buyer_awaiting_collection: { title: 'Colis au point relais', fallback: true },
   buyer_delivered: { title: 'Commande remise', fallback: false },
   order_cancelled: { title: 'Commande annulée', fallback: true },
@@ -69,6 +74,7 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
 export const INBOX_HIDDEN = ['otp_code', 'staff_access', 'support_alert'];
 export const INBOX: Record<string, { title: string; body?: string }> = {
   ...Object.fromEntries(Object.entries(PUSH).map(([k, v]) => [k, { title: v.title }])),
+  buyer_rider_arrived: { title: 'Votre livreur est arrivé' },
   buyer_handover_code: {
     title: 'Code de remise',
     body: "Votre code est arrivé par SMS. Ne le donnez au livreur qu'une fois le colis en main.",

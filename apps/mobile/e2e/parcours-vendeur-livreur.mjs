@@ -6,7 +6,8 @@
  *     node e2e/parcours-vendeur-livreur.mjs
  *
  * Un nouveau vendeur ouvre sa boutique, envoie ses pièces, publie un produit « photo d'abord »,
- * accepte et prépare la commande ; le livreur récupère le colis et saisit le code de remise.
+ * accepte et prépare la commande ; le livreur montre son code de retrait au vendeur, livre et
+ * saisit le code de remise ; une deuxième course finit en retour au vendeur (cliente absente).
  * L'acheteur et le support agissent par l'API.
  */
 import { execFileSync } from 'node:child_process';
@@ -109,36 +110,41 @@ await json('POST', `/v1/admin/sellers/${shop.id}/verification`, admin, { decisio
 const { items: products } = await json('GET', '/v1/seller/products', token);
 const productId = products.find((p) => p.title === PRODUCT).id;
 await json('POST', `/v1/admin/products/${productId}/moderation`, admin, { decision: 'published' });
+// Trois exemplaires : une livraison réussie, une cliente absente, un incident.
+await json('PATCH', `/v1/seller/products/${productId}`, token, { stock: 3 });
 
 // 7. Un acheteur commande et paie (API + simulateur d'agrégateur)
 const buyer = await apiLogin(e164(BUYER));
 const once = () => ({ 'idempotency-key': randomUUID() });
-const checkout = await json(
-  'POST',
-  '/v1/checkouts',
-  buyer,
-  {
-    items: [{ productId, quantity: 1 }],
-    delivery: {
-      mode: 'home',
-      zoneId: '20000000-0000-4000-8000-000000000003',
-      recipientName: 'Prisca Nkounkou',
-      phone: BUYER,
-      landmark: 'Tié-Tié, rue Mbochi, maison jaune après la boulangerie',
+/** Une commande payée de ce produit, livrée à domicile à Tié-Tié. */
+async function buy() {
+  const checkout = await json(
+    'POST',
+    '/v1/checkouts',
+    buyer,
+    {
+      items: [{ productId, quantity: 1 }],
+      delivery: {
+        mode: 'home',
+        zoneId: '20000000-0000-4000-8000-000000000003',
+        recipientName: 'Prisca Nkounkou',
+        phone: BUYER,
+        landmark: 'Tié-Tié, rue Mbochi, maison jaune après la boulangerie',
+      },
     },
-  },
-  once(),
-);
-const payment = await json(
-  'POST',
-  `/v1/checkouts/${checkout.id}/payments`,
-  buyer,
-  { operator: 'airtel', phone: BUYER },
-  once(),
-);
-await json('POST', `/dev/simulator/collections/${payment.id}/approve`);
-const orderId = checkout.orders[0].id;
-const ref = checkout.orders[0].publicRef;
+    once(),
+  );
+  const payment = await json(
+    'POST',
+    `/v1/checkouts/${checkout.id}/payments`,
+    buyer,
+    { operator: 'airtel', phone: BUYER },
+    once(),
+  );
+  await json('POST', `/dev/simulator/collections/${payment.id}/approve`);
+  return { orderId: checkout.orders[0].id, ref: checkout.orders[0].publicRef };
+}
+const { orderId, ref } = await buy();
 
 // 8. Le vendeur : nouvelle commande au tableau de bord, l'accepte (« Prêt dans 1 h »), la prépare
 await page.goto(`${WEB}/vendeur`);
@@ -170,24 +176,110 @@ const riderId = execFileSync('psql', [
   .trim();
 await json('POST', `/v1/support/deliveries/${orderId}/assign`, admin, { riderId });
 
-// 10. Le livreur : missions, colis récupéré, code de remise sur le pavé géant
-const rider = await openPhone(browser, await apiLogin('+242068000000'));
+// 10. Le livreur : ses courses, la course à récupérer avec son code de retrait. Le vendeur
+// saisit ce code dans son application ; le livreur vérifie le colis et le prend.
+const riderToken = await apiLogin('+242068000000');
+const rider = await openPhone(browser, riderToken);
 await rider.page.goto(`${WEB}/livreur`);
 await rider.page.getByTestId(`mission-${ref}`).waitFor();
-await rider.shot('14-livreur-missions');
+await sleep(400);
+await rider.shot('14-livreur-courses');
 await rider.page.getByTestId(`mission-${ref}`).click();
-await rider.page.getByTestId('rider-pickup').waitFor();
-await rider.shot('15-livreur-a-recuperer');
+await rider.page.getByTestId('rider-pickup-code').waitFor();
+await sleep(400);
+await rider.shot('15-livreur-code-de-retrait');
+const mission = await json('GET', `/v1/rider/deliveries/${orderId}`, riderToken);
+await page.goto(`${WEB}/vendeur/commande/${orderId}`);
+await page.getByTestId('seller-pickup-code').fill(mission.pickupCode);
+await shot('15b-vendeur-code-du-livreur');
+await page.getByTestId('seller-pickup-confirm').click();
+await page.getByText('Code confirmé', { exact: false }).waitFor();
+await rider.page.getByText('Code confirmé par le vendeur', { exact: false }).waitFor();
+await rider.page.getByTestId('rider-check-0').click();
+await rider.page.getByTestId('rider-check-1').click();
 await rider.page.getByTestId('rider-pickup').click();
+
+// 11. En route, arrivé, remise contre le code du client sur le pavé géant
+await rider.page.getByTestId('rider-arrived').waitFor();
+await sleep(300);
+await rider.shot('16-livreur-en-route');
+await rider.page.getByTestId('rider-arrived').click();
 await rider.page.getByTestId('rider-handover').waitFor();
 const handover = await lastMessage(e164(BUYER), 'buyer_handover_code');
 for (const digit of handover.variables.code) await rider.page.getByTestId(`pad-${digit}`).click();
-await rider.shot('16-livreur-code-de-remise');
+await rider.shot('17-livreur-code-de-remise');
 await rider.page.getByTestId('rider-handover').click();
 await rider.page.getByTestId('handover-done').waitFor();
-await rider.shot('17-livreur-remis');
+await sleep(300);
+await rider.shot('18-livreur-livraison-reussie');
 
-// 11. L'acheteur signale un problème ; le vendeur répond dans l'application ; le support
+// 12. Deuxième course : cliente injoignable. Attente chronométrée, puis absence (l'attente est
+// raccourcie en base pour le parcours), retour au vendeur avec le code de retour.
+const second = await buy();
+await json('POST', `/v1/seller/orders/${second.orderId}/accept`, token, {});
+await json('POST', `/v1/seller/orders/${second.orderId}/ready`, token);
+await json('POST', `/v1/support/deliveries/${second.orderId}/assign`, admin, { riderId });
+const secondMission = await json('GET', `/v1/rider/deliveries/${second.orderId}`, riderToken);
+await json('POST', `/v1/seller/orders/${second.orderId}/rider-pickup`, token, {
+  code: secondMission.pickupCode,
+});
+await json('POST', `/v1/rider/deliveries/${second.orderId}/pickup`, riderToken);
+await json('POST', `/v1/rider/deliveries/${second.orderId}/arrived`, riderToken);
+await rider.page.goto(`${WEB}/livreur/${second.orderId}`);
+await rider.page.getByTestId('rider-absent-or-refused').click();
+await rider.page.getByTestId('rider-call-again').waitFor();
+await sleep(1500);
+await rider.shot('19-livreur-cliente-injoignable');
+execFileSync('psql', [
+  process.env.DATABASE_URL,
+  '-tAc',
+  `UPDATE deliveries SET arrived_at = arrived_at - interval '15 minutes' WHERE order_id = '${second.orderId}'`,
+]);
+await rider.page.reload();
+await rider.page.getByTestId('rider-absent-or-refused').click();
+await rider.page.getByText('Déclarer absent', { exact: true }).waitFor();
+await rider.page.getByTestId('rider-absent').click();
+await rider.page.getByTestId('rider-return-code').waitFor();
+await sleep(300);
+await rider.shot('20-livreur-retour-du-colis');
+const back = await json('GET', `/v1/rider/deliveries/${second.orderId}`, riderToken);
+await page.goto(`${WEB}/vendeur/commande/${second.orderId}`);
+await page.getByTestId('seller-return-code').fill(back.returnCode);
+await shot('20b-vendeur-code-de-retour');
+await page.getByTestId('seller-return-confirm').click();
+await page.getByText('Retour confirmé', { exact: false }).waitFor();
+await rider.page.getByText('Retour confirmé par le vendeur', { exact: false }).waitFor();
+await rider.page.getByTestId('rider-intact').click();
+await rider.page.getByTestId('rider-returned').click();
+await rider.page.getByText('Colis rendu au vendeur. Le support', { exact: false }).waitFor();
+
+// 13. Incident sur une course, historique et profil du livreur
+const third = await buy();
+await json('POST', `/v1/seller/orders/${third.orderId}/accept`, token, {});
+await json('POST', `/v1/seller/orders/${third.orderId}/ready`, token);
+await json('POST', `/v1/support/deliveries/${third.orderId}/assign`, admin, { riderId });
+await rider.page.goto(`${WEB}/livreur/incident/${third.orderId}`);
+await rider.page.getByTestId('incident-breakdown').click();
+await rider.page.getByLabel('Précisions (facultatif)').fill('Pneu crevé avenue de l’Indépendance');
+await rider.shot('21-livreur-incident');
+await rider.page.getByTestId('incident-send').click();
+await rider.page.getByTestId('incident-sent').waitFor();
+const events = await json('GET', '/v1/support/delivery-events', admin);
+if (!events.items.some((e) => e.orderId === third.orderId && e.incident === 'breakdown'))
+  throw new Error('Incident absent côté support');
+await rider.page.goto(`${WEB}/livreur/historique`);
+await rider.page.getByTestId(`history-${ref}`).waitFor();
+await sleep(300);
+await rider.shot('22-livreur-historique');
+await rider.page.goto(`${WEB}/livreur/profil`);
+await rider.page.getByText('Société de livraison').waitFor();
+await rider.shot('23-livreur-profil');
+await rider.page.goto(`${WEB}/livreur`);
+await rider.page.getByTestId(`mission-${third.ref}`).waitFor();
+await sleep(300);
+await rider.shot('14b-livreur-accueil-en-cours');
+
+// 14. L'acheteur signale un problème ; le vendeur répond dans l'application ; le support
 // tranche en sa faveur : le vendeur est payé automatiquement. Puis l'acheteur laisse un avis.
 const dispute = await json('POST', `/v1/orders/${orderId}/disputes`, buyer, {
   reason: 'not_as_described',
@@ -198,7 +290,7 @@ await page.getByTestId('dispute-choice-contest').click();
 await page
   .getByTestId('dispute-message')
   .fill('Photos prises avant la remise : couleur identique.');
-await shot('18-litige-votre-reponse');
+await shot('24-litige-votre-reponse');
 await page.getByTestId('dispute-send').click();
 await page.getByText('Réponse envoyée', { exact: false }).waitFor();
 const seen = await json('GET', `/v1/support/disputes/${dispute.id}`, admin);
@@ -221,21 +313,21 @@ for (let i = 0; i < 30; i++) {
 await page.goto(`${WEB}/vendeur/commande/${orderId}`);
 await page.getByText('La cliente a reçu son colis').waitFor();
 await sleep(400);
-await shot('19-commande-livree');
+await shot('25-commande-livree');
 await page.goto(`${WEB}/vendeur/argent`);
 await page.getByTestId('payout-row').waitFor();
-await shot('20-mon-argent');
+await shot('26-mon-argent');
 
-// 12. Avis clients : réponse publique ; Ma boutique
+// 15. Avis clients : réponse publique ; Ma boutique
 await page.goto(`${WEB}/vendeur/avis`);
 await page.locator('[data-testid^="review-reply-"]').first().click();
 await page.getByLabel('Votre réponse').fill('Merci Prisca, à bientôt à l’atelier !');
 await page.getByText('Envoyer', { exact: true }).click();
 await page.getByText('Merci Prisca, à bientôt', { exact: false }).waitFor();
-await shot('21-avis-clients');
+await shot('27-avis-clients');
 await page.goto(`${WEB}/vendeur/boutique`);
 await page.getByTestId('shop-open-toggle').waitFor();
-await shot('22-ma-boutique');
+await shot('28-ma-boutique');
 
 const balance = await json('GET', '/v1/seller/balance', token);
 console.log(

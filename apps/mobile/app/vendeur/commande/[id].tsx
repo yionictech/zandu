@@ -1,4 +1,9 @@
-import type { DisputeSellerChoice, PrepMinutes, SellerOrder } from '@zandu/api-client';
+import type {
+  DeliveryStatus,
+  DisputeSellerChoice,
+  PrepMinutes,
+  SellerOrder,
+} from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -25,6 +30,7 @@ import { useNow } from '../../../src/useNow';
 import { Button } from '../../../src/ui/Button';
 import { CountdownRing } from '../../../src/ui/CountdownRing';
 import { Chip, ErrorText, Field } from '../../../src/ui/Form';
+import { CodeInput } from '../../../src/ui/CodeInput';
 import { Amount, Avatar, Card, Eyebrow, Note } from '../../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../../src/ui/Layout';
 import { RequireRole } from '../../../src/ui/RequireRole';
@@ -33,6 +39,12 @@ import { Text } from '../../../src/ui/Text';
 type Detail = SellerOrder & {
   history: Array<{ status: string; at: string }>;
   rider: { name: string } | null;
+  delivery: {
+    status: DeliveryStatus;
+    pickupConfirmedAt: string | null;
+    returnConfirmedAt: string | null;
+    failureReason: string | null;
+  } | null;
   dispute: {
     id: string;
     reason: string;
@@ -214,12 +226,69 @@ function Preparing({ order }: { order: Detail }) {
   );
 }
 
+/**
+ * Code à 4 chiffres montré par le livreur : retrait (avant de lui donner le colis) ou retour
+ * (quand il rapporte un colis non livré).
+ */
+function RiderCode({ orderId, kind }: { orderId: string; kind: 'pickup' | 'return' }) {
+  const queryClient = useQueryClient();
+  const [code, setCode] = useState('');
+  const confirm = useMutation({
+    mutationFn: async () => {
+      const params = { params: { path: { id: orderId } }, body: { code } };
+      return kind === 'pickup'
+        ? unwrap(await api.POST('/v1/seller/orders/{id}/rider-pickup', params))
+        : unwrap(await api.POST('/v1/seller/orders/{id}/rider-return', params));
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['seller'] }),
+    onError: () => setCode(''),
+  });
+  return (
+    <Card highlight>
+      <Eyebrow color={colors.brand}>
+        {kind === 'pickup' ? t.vendor.riderCodeTitle : t.vendor.returnCodeTitle}
+      </Eyebrow>
+      {kind === 'pickup' ? <Text style={styles.small}>{t.vendor.riderCodeHint}</Text> : null}
+      <CodeInput
+        value={code}
+        onChange={setCode}
+        length={4}
+        label={kind === 'pickup' ? t.vendor.riderCodeTitle : t.vendor.returnCodeTitle}
+        testID={`seller-${kind}-code`}
+      />
+      <ErrorText message={confirm.error ? errorMessage(confirm.error) : null} />
+      <Button
+        label={kind === 'pickup' ? t.vendor.riderCodeConfirm : t.vendor.returnConfirm}
+        onPress={() => confirm.mutate()}
+        disabled={code.length !== 4}
+        loading={confirm.isPending}
+        testID={`seller-${kind}-confirm`}
+      />
+    </Card>
+  );
+}
+
 /** Prête : le livreur attribué, ce qu'on vérifie devant lui. */
-function Ready({ order, rider }: { order: SellerOrder; rider: Detail['rider'] }) {
+function Ready({
+  order,
+  rider,
+  delivery,
+}: {
+  order: SellerOrder;
+  rider: Detail['rider'];
+  delivery: Detail['delivery'];
+}) {
   const [checked, setChecked] = useState<number[]>([]);
+  const expected = rider && delivery?.status === 'assigned';
   return (
     <>
       <OrderSteps status={order.status} />
+      {expected && !delivery.pickupConfirmedAt ? (
+        <RiderCode orderId={order.id} kind="pickup" />
+      ) : null}
+      {expected && delivery.pickupConfirmedAt ? (
+        <Note icon={Check}>{t.vendor.riderCodeOk(rider.name)}</Note>
+      ) : null}
       <Card>
         <View style={styles.between}>
           <Eyebrow>{t.vendor.yourRider}</Eyebrow>
@@ -620,7 +689,19 @@ function SellerOrderDetail({ id }: { id: string }) {
       ) : o.status === 'preparing' ? (
         <Preparing order={o} />
       ) : o.status === 'ready_for_pickup' ? (
-        <Ready order={o} rider={o.rider} />
+        <Ready order={o} rider={o.rider} delivery={o.delivery} />
+      ) : o.delivery?.status === 'returning' ? (
+        <>
+          <Card style={styles.returning}>
+            <Text style={styles.cardTitle}>{t.vendor.returnTitle}</Text>
+            <Text style={styles.muted}>{t.vendor.returnBody(o.delivery.failureReason ?? '—')}</Text>
+          </Card>
+          {o.delivery.returnConfirmedAt ? (
+            <Note icon={Check}>{t.vendor.returnOk}</Note>
+          ) : (
+            <RiderCode orderId={o.id} kind="return" />
+          )}
+        </>
       ) : o.status === 'in_delivery' || o.status === 'awaiting_collection' ? (
         <>
           <OrderSteps status={o.status} />
@@ -678,6 +759,7 @@ export default function SellerOrderScreen() {
 
 const styles = StyleSheet.create({
   headerBadge: { marginRight: space.md, justifyContent: 'center' },
+  returning: { borderColor: colors.danger, backgroundColor: colors.dangerSoft, gap: 4 },
   flex: { flex: 1, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },

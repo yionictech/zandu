@@ -321,6 +321,24 @@ export async function handoverCodeFor(env: TestEnv, buyerPhone: string): Promise
   return env.notifier.lastTo(buyerPhone, 'buyer_handover_code')!.variables.code!;
 }
 
+/** Le vendeur saisit le code de retrait que le livreur lui montre (avant la prise en charge). */
+export async function confirmPickupCode(
+  env: TestEnv,
+  rider: Session,
+  seller: Session,
+  orderId: string,
+): Promise<string> {
+  const mission = await call(env, rider, { method: 'GET', url: `/v1/rider/deliveries/${orderId}` });
+  const code = String(mission.body.pickupCode);
+  const confirmed = await call(env, seller, {
+    method: 'POST',
+    url: `/v1/seller/orders/${orderId}/rider-pickup`,
+    payload: { code },
+  });
+  if (confirmed.status !== 200) throw new Error(JSON.stringify(confirmed.body));
+  return code;
+}
+
 /** Paie puis livre une commande d'un article (vendeur et livreur du marché de test). */
 export async function buyAndDeliver(
   env: TestEnv,
@@ -339,6 +357,7 @@ export async function buyAndDeliver(
     url: `/v1/support/deliveries/${orderId}/assign`,
     payload: { riderId: m.rider.riderId },
   });
+  await confirmPickupCode(env, m.rider, m.seller, orderId);
   await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
   await call(env, m.rider, {
     method: 'POST',

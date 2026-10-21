@@ -20,7 +20,9 @@ const CACHE_PREFIX = `${tmpdir()}/zandu-e2e-${new URL(API).host.replace(/[^a-z0-
  */
 export function freshPhone(prefix) {
   const n = String(Date.now());
-  return `${prefix}${n.slice(-6, -4)} ${n.slice(-4, -2)} ${n.slice(-2)}`;
+  // Jamais « …99 » : le simulateur d'agrégateur refuse ces numéros (cas d'échec voulu).
+  const last = n.slice(-2) === '99' ? '98' : n.slice(-2);
+  return `${prefix}${n.slice(-6, -4)} ${n.slice(-4, -2)} ${last}`;
 }
 export const e164 = (phone) => `+242${phone.replace(/\s/g, '')}`;
 

@@ -67,6 +67,8 @@ const EnvSchema = z.object({
   EXPO_ACCESS_TOKEN: z.string().optional(),
   /** Délai avant de doubler par WhatsApp/SMS une notification importante restée sans suite. */
   PUSH_FALLBACK_MINUTES: z.coerce.number().int().positive().default(15),
+  /** Attente chez le client (après « Je suis arrivé ») avant de pouvoir la déclarer absente. */
+  RIDER_ABSENT_WAIT_MINUTES: z.coerce.number().int().min(0).default(10),
   /** Second facteur (TOTP) du personnel. Toujours exigé en production ; désactivé par défaut en test. */
   STAFF_MFA_REQUIRED: z.stringbool().optional(),
 });
@@ -133,6 +135,7 @@ export interface Config {
   payoutPolicy: PayoutPolicy;
   disputeSlaHours: number;
   handoverMaxAttempts: number;
+  riderAbsentWaitMinutes: number;
   publicApiUrl: string;
   /** null = toute origine (développement uniquement). */
   corsOrigins: string[] | null;
@@ -218,6 +221,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     payoutPolicy: { ...DEFAULT_PAYOUT_POLICY, newSellerCapAmount: env.NEW_SELLER_PAYOUT_CAP },
     disputeSlaHours: 72,
     handoverMaxAttempts: 5,
+    riderAbsentWaitMinutes: env.RIDER_ABSENT_WAIT_MINUTES,
     publicApiUrl: env.PUBLIC_API_URL.replace(/\/$/, ''),
     corsOrigins: corsOrigins.length ? corsOrigins : null,
     storage:

@@ -28,6 +28,8 @@ export type SellerDispute = Schemas['SellerDispute'];
 export type ProductCondition = Schemas['ProductCondition'];
 export type PrepMinutes = Schemas['PrepMinutes'];
 export type DisputeSellerChoice = Schemas['DisputeSellerChoice'];
+export type DeliveryStatus = Schemas['DeliveryStatus'];
+export type DeliveryIncident = Schemas['DeliveryIncident'];
 /** Ligne de « Mes produits ». */
 export type SellerProductSummary =
   paths['/v1/seller/products']['get']['responses']['200']['content']['application/json']['items'][number];

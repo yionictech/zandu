@@ -76,8 +76,12 @@ export default function RootLayout() {
                   name="vendeur/verification"
                   options={{ title: t.seller.verificationTitle }}
                 />
-                <Stack.Screen name="livreur/index" options={{ title: t.rider.title }} />
-                <Stack.Screen name="livreur/[orderId]" options={{ title: t.rider.codeTitle }} />
+                <Stack.Screen name="livreur/(onglets)" options={{ headerShown: false }} />
+                <Stack.Screen name="livreur/[orderId]" options={{ title: t.rider.title }} />
+                <Stack.Screen
+                  name="livreur/incident/[orderId]"
+                  options={{ title: t.rider.incidentTitle }}
+                />
               </Stack>
             </OfflineBar>
           </CartProvider>

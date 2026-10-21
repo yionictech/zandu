@@ -300,6 +300,21 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       200,
       unwrap(await rider.GET('/v1/rider/deliveries')),
     );
+    const pending = unwrap(
+      await rider.GET('/v1/rider/deliveries/{id}', { params: { path: { id: orderId } } }),
+    );
+    expectConforms('/v1/rider/deliveries/{id}', 'get', 200, pending);
+    expectConforms(
+      '/v1/seller/orders/{id}/rider-pickup',
+      'post',
+      200,
+      unwrap(
+        await seller.POST('/v1/seller/orders/{id}/rider-pickup', {
+          params: { path: { id: orderId } },
+          body: { code: pending.pickupCode! },
+        }),
+      ),
+    );
     const picked = unwrap(
       await rider.POST('/v1/rider/deliveries/{id}/pickup', { params: { path: { id: orderId } } }),
     );
@@ -309,6 +324,75 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     expectConforms('/v1/rider/deliveries/{id}', 'get', 200, mission);
     expect(mission.status).toBe('picked_up');
+
+    // Arrivée, appel, incident, retour au vendeur, puis profil, historique et journal du support.
+    const path = { params: { path: { id: orderId } } };
+    expectConforms(
+      '/v1/rider/deliveries/{id}/arrived',
+      'post',
+      200,
+      unwrap(await rider.POST('/v1/rider/deliveries/{id}/arrived', path)),
+    );
+    expectConforms(
+      '/v1/rider/deliveries/{id}/contact-attempt',
+      'post',
+      201,
+      unwrap(await rider.POST('/v1/rider/deliveries/{id}/contact-attempt', path)),
+    );
+    expectConforms(
+      '/v1/rider/deliveries/{id}/incident',
+      'post',
+      201,
+      unwrap(
+        await rider.POST('/v1/rider/deliveries/{id}/incident', {
+          ...path,
+          body: { kind: 'damaged', note: 'Carton mouillé' },
+        }),
+      ),
+    );
+    const returning = unwrap(
+      await rider.POST('/v1/rider/deliveries/{id}/return', {
+        ...path,
+        body: { reason: 'refused', note: 'Mauvaise taille' },
+      }),
+    );
+    expectConforms('/v1/rider/deliveries/{id}/return', 'post', 200, returning);
+    expectConforms(
+      '/v1/seller/orders/{id}/rider-return',
+      'post',
+      200,
+      unwrap(
+        await seller.POST('/v1/seller/orders/{id}/rider-return', {
+          ...path,
+          body: { code: returning.returnCode! },
+        }),
+      ),
+    );
+    expectConforms(
+      '/v1/seller/orders/{id}',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/orders/{id}', path)),
+    );
+    expectConforms(
+      '/v1/rider/deliveries/{id}/returned',
+      'post',
+      200,
+      unwrap(await rider.POST('/v1/rider/deliveries/{id}/returned', path)),
+    );
+    expectConforms('/v1/rider/me', 'get', 200, unwrap(await rider.GET('/v1/rider/me')));
+    expectConforms(
+      '/v1/rider/history',
+      'get',
+      200,
+      unwrap(await rider.GET('/v1/rider/history', { params: { query: { period: '30d' } } })),
+    );
+    expectConforms(
+      '/v1/support/delivery-events',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/delivery-events')),
+    );
   });
 
   it('espace vendeur redessiné : boutique, tableau de bord, avis, litige, argent', async () => {

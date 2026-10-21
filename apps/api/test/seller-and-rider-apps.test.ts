@@ -4,6 +4,7 @@ import {
   approveAndNotify,
   buyAndDeliver,
   call,
+  confirmPickupCode,
   checkout,
   createTestEnv,
   handoverCodeFor,
@@ -253,6 +254,7 @@ describe('Missions du livreur', () => {
       recipient: { recipientName: 'Grâce M.', phone: '+242055555555' },
     });
 
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
     await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
     await call(env, m.rider, {
       method: 'POST',

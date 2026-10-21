@@ -4,7 +4,7 @@ import { formatXaf } from '@zandu/domain';
 import type { Actor, AppContext } from '../../context.js';
 import { withTx, type Db, type Tx } from '../../db/pool.js';
 import { addHours } from '../../lib/clock.js';
-import { randomDigits, safeEqualHex } from '../../lib/crypto.js';
+import { randomDigits } from '../../lib/crypto.js';
 import { HttpError, notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import {
@@ -39,6 +39,13 @@ async function sellerOrderExtras(db: Db, orderId: string) {
      JOIN users u ON u.id = r.user_id WHERE d.order_id = $1`,
     [orderId],
   );
+  // Où en est le livreur : à confirmer avec son code de retrait, ou colis à reprendre (retour).
+  const { rows: deliveries } = await db.query(
+    `SELECT status, pickup_confirmed_at AS "pickupConfirmedAt", return_confirmed_at AS "returnConfirmedAt",
+            returned_at AS "returnedAt", failure_reason AS "failureReason"
+     FROM deliveries WHERE order_id = $1`,
+    [orderId],
+  );
   const { rows: disputes } = await db.query(
     `SELECT d.id, d.reason, d.description, d.status, d.resolution, d.sla_due_at AS "slaDueAt",
             d.seller_choice AS "sellerChoice", d.seller_message AS "sellerMessage",
@@ -60,6 +67,7 @@ async function sellerOrderExtras(db: Db, orderId: string) {
   const name = riders[0]?.name?.trim();
   return {
     rider: riders[0] ? { name: name ? shortName(name) : 'Livreur Zandu' } : null,
+    delivery: deliveries[0] ?? null,
     dispute: disputes[0] ?? null,
     reviews,
   };
@@ -79,18 +87,6 @@ async function sellerIdOf(db: Db, userId: string | null): Promise<string> {
   );
   if (!rows[0]) throw new HttpError(403, 'no_shop', "Vous n'avez pas de boutique");
   return rows[0].id;
-}
-
-async function riderOf(
-  db: Db,
-  userId: string | null,
-): Promise<{ id: string; courier_partner_id: string }> {
-  const { rows } = await db.query<{ id: string; courier_partner_id: string }>(
-    'SELECT id, courier_partner_id FROM riders WHERE user_id = $1 AND active',
-    [userId],
-  );
-  if (!rows[0]) throw new HttpError(403, 'not_a_rider', "Vous n'êtes pas livreur partenaire");
-  return rows[0];
 }
 
 /** Vérifie que l'acteur a le droit d'agir sur CETTE commande (protection contre les IDOR). */
@@ -133,54 +129,6 @@ const StatusFilter = z.object({
     .pipe(z.array(z.enum(ORDER_STATUSES)).min(1))
     .optional(),
 });
-
-/**
- * Mission vue par le livreur : où enlever (boutique, téléphone pour s'annoncer), où livrer
- * (repère, téléphone du destinataire), combien de codes erronés restent permis.
- * Le paiement est déjà fait : le livreur n'encaisse jamais d'argent.
- */
-async function riderMissions(
-  ctx: AppContext,
-  where: string,
-  params: unknown[],
-): Promise<Array<Record<string, unknown>>> {
-  const { rows } = await ctx.pool.query<{ handoverAttempts: number } & Record<string, unknown>>(
-    `SELECT d.order_id AS "orderId", d.status, o.status AS "orderStatus", o.public_ref AS "publicRef",
-            o.delivery_mode AS "deliveryMode", o.shipping_address AS "recipient",
-            json_build_object('shopName', s.shop_name, 'phone', su.phone, 'city', s.city, 'zone', pz.name) AS "pickup",
-            json_build_object('city', dz.city, 'zone', dz.name,
-                              'pickupPoint', CASE WHEN pp.id IS NULL THEN NULL
-                                                  ELSE json_build_object('name', pp.name, 'landmark', pp.landmark) END) AS "destination",
-            (SELECT coalesce(sum(oi.quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS "itemCount",
-            d.handover_attempts AS "handoverAttempts", d.assigned_at AS "assignedAt", d.picked_up_at AS "pickedUpAt"
-     FROM deliveries d JOIN orders o ON o.id = d.order_id
-     JOIN seller_profiles s ON s.id = o.seller_id JOIN users su ON su.id = s.user_id
-     JOIN delivery_zones pz ON pz.id = s.pickup_zone_id JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
-     LEFT JOIN pickup_points pp ON pp.id = o.pickup_point_id
-     WHERE ${where}
-     ORDER BY d.assigned_at`,
-    params,
-  );
-  return rows.map(({ handoverAttempts, ...mission }) => ({
-    ...mission,
-    handoverAttemptsLeft: Math.max(0, ctx.config.handoverMaxAttempts - handoverAttempts),
-  }));
-}
-
-async function riderDelivery(tx: Tx, orderId: string, a: Actor) {
-  const rider = await riderOf(tx, a.userId);
-  const { rows } = await tx.query<{
-    id: string;
-    status: string;
-    handover_code_hash: string;
-    handover_attempts: number;
-  }>(
-    'SELECT id, status, handover_code_hash, handover_attempts FROM deliveries WHERE order_id = $1 AND rider_id = $2 FOR UPDATE',
-    [orderId, rider.id],
-  );
-  if (!rows[0]) throw notFound('Livraison');
-  return rows[0];
-}
 
 export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
   return async (app) => {
@@ -511,119 +459,6 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       });
     });
 
-    // ---------------- Livreur partenaire ----------------
-    app.register(async (rider) => {
-      rider.addHook('preHandler', requireRole('rider'));
-
-      rider.get('/v1/rider/deliveries', async (request) => {
-        const r = await riderOf(ctx.pool, currentUser(request).id);
-        return {
-          items: await riderMissions(
-            ctx,
-            `d.rider_id = $1 AND d.status IN ('assigned', 'picked_up', 'at_pickup_point')`,
-            [r.id],
-          ),
-        };
-      });
-
-      rider.get('/v1/rider/deliveries/:id', async (request) => {
-        const { id } = IdParam.parse(request.params);
-        const r = await riderOf(ctx.pool, currentUser(request).id);
-        const [mission] = await riderMissions(ctx, 'd.order_id = $1 AND d.rider_id = $2', [
-          id,
-          r.id,
-        ]);
-        if (!mission) throw notFound('Livraison');
-        return mission;
-      });
-
-      rider.post('/v1/rider/deliveries/:id/pickup', async (request) => {
-        const { id } = IdParam.parse(request.params);
-        const a = actor(request, 'rider');
-        const o = await withTx(ctx.pool, async (tx) => {
-          const d = await riderDelivery(tx, id, a);
-          if (d.status !== 'assigned')
-            throw new HttpError(409, 'invalid_delivery_status', 'Colis déjà récupéré');
-          await tx.query(
-            `UPDATE deliveries SET status = 'picked_up', picked_up_at = $2 WHERE id = $1`,
-            [d.id, now()],
-          );
-          return applyOrderEvent(ctx, tx, id, { type: 'rider_picked_up' }, a);
-        });
-        return { id: o.id, status: o.status };
-      });
-
-      rider.post('/v1/rider/deliveries/:id/arrived-at-pickup-point', async (request) => {
-        const { id } = IdParam.parse(request.params);
-        const a = actor(request, 'rider');
-        const o = await withTx(ctx.pool, async (tx) => {
-          const d = await riderDelivery(tx, id, a);
-          await tx.query(`UPDATE deliveries SET status = 'at_pickup_point' WHERE id = $1`, [d.id]);
-          return applyOrderEvent(ctx, tx, id, { type: 'arrived_at_pickup_point' }, a);
-        });
-        return { id: o.id, status: o.status };
-      });
-
-      /** Remise en main propre : le livreur saisit le code que l'acheteur lui donne. */
-      rider.post('/v1/rider/deliveries/:id/handover', async (request) => {
-        const { id } = IdParam.parse(request.params);
-        const { code } = z.object({ code: z.string().regex(/^\d{6}$/) }).parse(request.body);
-        const a = actor(request, 'rider');
-        const result = await withTx(ctx.pool, async (tx) => {
-          const d = await riderDelivery(tx, id, a);
-          if (d.handover_attempts >= ctx.config.handoverMaxAttempts)
-            return { error: 'handover_locked' as const };
-          if (!safeEqualHex(d.handover_code_hash, handoverHash(ctx, id, code))) {
-            await tx.query(
-              'UPDATE deliveries SET handover_attempts = handover_attempts + 1 WHERE id = $1',
-              [d.id],
-            );
-            return { error: 'invalid_handover_code' as const };
-          }
-          await tx.query(
-            `UPDATE deliveries SET status = 'delivered', delivered_at = $2 WHERE id = $1`,
-            [d.id, now()],
-          );
-          return applyOrderEvent(ctx, tx, id, { type: 'handover_confirmed' }, a);
-        });
-        if ('error' in result) {
-          throw result.error === 'handover_locked'
-            ? new HttpError(423, 'handover_locked', 'Trop de codes erronés : contactez le support')
-            : new HttpError(422, 'invalid_handover_code', 'Code de remise incorrect');
-        }
-        return { id: result.id, status: result.status };
-      });
-
-      rider.post('/v1/rider/deliveries/:id/failed', async (request) => {
-        const { id } = IdParam.parse(request.params);
-        const { reason } = z
-          .object({ reason: z.string().trim().min(5).max(300) })
-          .parse(request.body);
-        const a = actor(request, 'rider');
-        const o = await withTx(ctx.pool, async (tx) => {
-          const d = await riderDelivery(tx, id, a);
-          await tx.query(
-            `UPDATE deliveries SET status = 'failed', failure_reason = $2 WHERE id = $1`,
-            [d.id, reason],
-          );
-          const order = await applyOrderEvent(ctx, tx, id, { type: 'delivery_failed', reason }, a);
-          await tx.query(
-            `INSERT INTO disputes (order_id, opened_by, reason, description, sla_due_at, created_at)
-             VALUES ($1, $2, 'not_received', $3, $4, $5)`,
-            [
-              id,
-              a.userId,
-              `Livraison impossible : ${reason}`,
-              addHours(now(), ctx.config.disputeSlaHours),
-              now(),
-            ],
-          );
-          return order;
-        });
-        return { id: o.id, status: o.status };
-      });
-    });
-
     // ---------------- Support / administration ----------------
     app.register(async (staff) => {
       staff.addHook('preHandler', requireStaff(ctx));
@@ -650,9 +485,11 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
           );
           if (!rows[0]) throw notFound('Livreur');
           const { rowCount } = await tx.query(
-            `UPDATE deliveries SET rider_id = $2, courier_partner_id = $3, status = 'assigned', assigned_at = $4
+            // Nouveau livreur, nouveau code de retrait : l'ancien ne permet plus de prendre le colis.
+            `UPDATE deliveries SET rider_id = $2, courier_partner_id = $3, status = 'assigned', assigned_at = $4,
+                    pickup_code = $5, pickup_confirmed_at = NULL
              WHERE order_id = $1 AND status IN ('awaiting_assignment', 'assigned')`,
-            [id, riderId, rows[0].courier_partner_id, now()],
+            [id, riderId, rows[0].courier_partner_id, now(), randomDigits(4)],
           );
           if (!rowCount)
             throw new HttpError(

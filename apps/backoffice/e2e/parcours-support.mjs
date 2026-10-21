@@ -139,6 +139,10 @@ const riderId = psql(
   `SELECT r.id FROM riders r JOIN users u ON u.id = r.user_id WHERE u.phone = '+242068000000'`,
 );
 await json('POST', `/v1/support/deliveries/${toDispute.id}/assign`, admin, { riderId });
+// Le vendeur saisit le code de retrait que le livreur lui montre.
+await json('POST', `/v1/seller/orders/${toDispute.id}/rider-pickup`, seller, {
+  code: (await json('GET', `/v1/rider/deliveries/${toDispute.id}`, rider)).pickupCode,
+});
 await json('POST', `/v1/rider/deliveries/${toDispute.id}/pickup`, rider);
 // Le code de remise part par SMS (via le worker) : on attend celui de cette commande.
 let handoverCode = null;
