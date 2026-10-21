@@ -452,3 +452,23 @@ utilisable en 2,4 s (budget 2,5 s). Le parcours de bout en bout du site passe.
 
 Écarts volontaires : pas de cloche ni de centre de notifications sur le site (l'acheteur reçoit
 ses SMS et WhatsApp) ; pas de favoris sur le site (ils restent dans l'application).
+
+## 12. Délai d'acceptation réglable (✅ fait, valeur à décider — §4.4)
+
+Le délai laissé au vendeur pour accepter une commande payée se règle maintenant dans
+**Paramètres** du back-office (administrateurs), parmi des valeurs fixes : 10 min, 30 min, 1 h,
+2 h, 4 h, 12 h, 24 h. Chaque changement demande un motif et va au journal d'audit.
+
+- Il s'applique aux **commandes payées après le changement** : les délais déjà donnés aux
+  vendeurs ne bougent pas. Passé le délai, la commande est annulée et l'acheteur remboursé,
+  comme avant.
+- Tant que personne ne l'a réglé, c'est la valeur du serveur (`SELLER_ACCEPT_HOURS`, 24 h).
+  **Rien n'a été changé** : le choix de la valeur reste au fondateur (recommandation : 2 h).
+- Le vendeur voit déjà l'heure limite partout (notification, tableau de bord, écran « À
+  accepter ») : rien à changer dans l'application.
+- API : `PATCH /v1/admin/settings` ; la table `platform_settings` (créée en 0001, jamais
+  utilisée jusqu'ici) n'accepte que les clés connues (migration 0011).
+
+Ce qui n'est pas fait : un délai qui ne court que **pendant les heures d'ouverture** de la
+boutique. Les horaires sont aujourd'hui un texte libre (« Lun – Sam · 08:00 – 18:00 ») ; il
+faudrait des horaires structurés par jour.

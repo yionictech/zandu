@@ -6,6 +6,7 @@ import { HttpError, notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import { currentUser, requireAuth, requireStaff, staffActor } from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
+import { ACCEPTANCE_CHOICES, acceptanceSetting } from '../settings/settings.js';
 
 const IdParam = z.object({ id: z.uuid() });
 const Period = z.object({ period: z.enum(['today', '7d', '30d']).default('today') });
@@ -299,8 +300,7 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
      * changent aujourd'hui par la configuration et les règles de commission ; le réglage à
      * l'écran viendra avec le délai d'acceptation (docs/ux/03 §4.4).
      */
-    app.get('/v1/admin/settings', async (request) => {
-      if (!isAdmin(request)) throw new HttpError(403, 'forbidden', 'Réservé aux administrateurs');
+    const settings = async () => {
       const { rows: rule } = await ctx.pool.query<{ rate_bps: number }>(
         `SELECT rate_bps FROM commission_rules
          WHERE scope = 'default' AND valid_from <= $1 AND (valid_to IS NULL OR valid_to > $1)
@@ -318,6 +318,7 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
          WHERE r.active GROUP BY z.city, r.mode ORDER BY z.city, r.mode`,
       );
       const policy = ctx.config.orderPolicy;
+      const acceptance = await acceptanceSetting(ctx, ctx.pool);
       return {
         money: {
           defaultCommissionBps: rule[0]?.rate_bps ?? null,
@@ -330,12 +331,58 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
           newSellerPayoutCap: ctx.config.payoutPolicy.newSellerCapAmount,
         },
         delays: {
-          sellerAcceptanceHours: policy.sellerAcceptanceHours,
+          sellerAcceptanceHours: acceptance.minutes / 60,
+          sellerAcceptance: { ...acceptance, choices: [...ACCEPTANCE_CHOICES] },
           disputeWindowHours: policy.disputeWindowHours,
           disputeSlaHours: ctx.config.disputeSlaHours,
           pushFallbackMinutes: ctx.config.pushFallbackMinutes,
         },
       };
+    };
+
+    /** Réglages en vigueur (administrateurs). */
+    app.get('/v1/admin/settings', async (request) => {
+      if (!isAdmin(request)) throw new HttpError(403, 'forbidden', 'Réservé aux administrateurs');
+      return settings();
+    });
+
+    /**
+     * Délai d'acceptation du vendeur (docs/ux/03 §4.4) : choisi parmi des valeurs fixes, avec un
+     * motif, journalisé. Il s'applique aux commandes payées après le changement ; les délais
+     * déjà donnés aux vendeurs ne bougent pas.
+     */
+    app.patch('/v1/admin/settings', async (request) => {
+      if (!isAdmin(request)) throw new HttpError(403, 'forbidden', 'Réservé aux administrateurs');
+      const body = z
+        .object({
+          sellerAcceptanceMinutes: z
+            .number()
+            .int()
+            .refine((m) => (ACCEPTANCE_CHOICES as readonly number[]).includes(m), {
+              message: `Valeurs possibles : ${ACCEPTANCE_CHOICES.join(', ')} minutes`,
+            }),
+          reason: z.string().trim().min(5).max(300),
+        })
+        .parse(request.body);
+      const a = staffActor(request);
+      await withTx(ctx.pool, async (tx) => {
+        const before = await acceptanceSetting(ctx, tx);
+        await tx.query(
+          `INSERT INTO platform_settings (key, value, updated_by, updated_at)
+           VALUES ('seller_acceptance_minutes', $1::jsonb, $2, $3)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by,
+                                           updated_at = EXCLUDED.updated_at`,
+          [JSON.stringify(body.sellerAcceptanceMinutes), a.userId, now()],
+        );
+        await audit(
+          tx,
+          a,
+          'settings.seller_acceptance',
+          { type: 'setting', id: 'seller_acceptance_minutes' },
+          { from: before.minutes, to: body.sellerAcceptanceMinutes, reason: body.reason },
+        );
+      });
+      return settings();
     });
   };
 }

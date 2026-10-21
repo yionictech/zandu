@@ -178,6 +178,13 @@ await shot('02-commissions');
 await page.getByRole('link', { name: 'Paramètres' }).click();
 await page.getByTestId('settings-delays').waitFor();
 await shot('03-parametres');
+// Délai d'acceptation du vendeur réglé à 2 h (docs/ux/03 §4.4).
+const acceptance = page.getByTestId('settings-acceptance');
+await acceptance.getByLabel('Délai d’acceptation').selectOption('120');
+await acceptance.getByLabel('Motif').fill('Essai de recette : 2 h pour accepter');
+await acceptance.getByRole('button', { name: 'Enregistrer' }).click();
+await page.getByText('Délai d’acceptation enregistré').waitFor();
+await shot('03b-delai-d-acceptation');
 
 const pagnes = shops[1];
 const fashion = pagnes.products.find((p) => p.categoryId === MODE);
@@ -187,6 +194,11 @@ const rate = psql(
 );
 if (rate !== '15') throw new Error(`Commission appliquée : ${rate} % au lieu de 15 %`);
 console.log('Nouvelle commande Mode : commission de 15 % appliquée');
+const delay = psql(
+  `SELECT round(extract(epoch FROM seller_accept_deadline - paid_at) / 60) FROM orders WHERE id = '${order.id}'`,
+);
+if (delay !== '120') throw new Error(`Délai d'acceptation : ${delay} min au lieu de 120`);
+console.log('Nouvelle commande : 2 h pour accepter');
 
 // Retour au taux habituel, pour les parcours suivants.
 await json('POST', '/v1/admin/commission-rules', admin, {
@@ -194,6 +206,10 @@ await json('POST', '/v1/admin/commission-rules', admin, {
   categoryId: MODE,
   rateBps: 1200,
   note: 'Fin de l’essai de recette',
+});
+await json('PATCH', '/v1/admin/settings', admin, {
+  sellerAcceptanceMinutes: 1440,
+  reason: 'Fin de l’essai de recette',
 });
 await browser.close();
 console.log('Parcours rapports : OK');

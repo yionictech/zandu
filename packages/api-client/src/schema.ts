@@ -1598,14 +1598,18 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Réglages en vigueur (lecture) — commission par défaut, livraison, délais */
+    /** Réglages en vigueur — commission par défaut, livraison, délais */
     get: operations['adminSettings'];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    /**
+     * Régler le délai d'acceptation du vendeur (administrateurs)
+     * @description Valeur choisie parmi `delays.sellerAcceptance.choices`, avec un motif (journal d'audit). Elle s'applique aux commandes payées après le changement ; les délais déjà donnés ne bougent pas.
+     */
+    patch: operations['updateAdminSettings'];
     trace?: never;
   };
   '/v1/support/overview': {
@@ -2502,6 +2506,37 @@ export interface components {
         /** Format: date-time */
         at: string;
       }[];
+    };
+    PlatformSettings: {
+      money: {
+        defaultCommissionBps: number | null;
+        deliveryRates: {
+          city: string;
+          /** @enum {string} */
+          mode: 'home' | 'pickup_point';
+          min: components['schemas']['Amount'];
+          max: components['schemas']['Amount'];
+        }[];
+        newSellerPayoutCap: components['schemas']['Amount'];
+      };
+      delays: {
+        sellerAcceptanceHours: number;
+        sellerAcceptance: {
+          minutes: number;
+          /**
+           * @description `default` : SELLER_ACCEPT_HOURS ; `custom` : réglé dans le back-office
+           * @enum {string}
+           */
+          source: 'default' | 'custom';
+          /** Format: date-time */
+          updatedAt: string | null;
+          updatedBy: string | null;
+          choices: number[];
+        };
+        disputeWindowHours: number;
+        disputeSlaHours: number;
+        pushFallbackMinutes: number;
+      };
     };
     /** @enum {string} */
     DeliveryStatus:
@@ -5601,27 +5636,39 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': {
-            money: {
-              defaultCommissionBps: number | null;
-              deliveryRates: {
-                city: string;
-                /** @enum {string} */
-                mode: 'home' | 'pickup_point';
-                min: components['schemas']['Amount'];
-                max: components['schemas']['Amount'];
-              }[];
-              newSellerPayoutCap: components['schemas']['Amount'];
-            };
-            delays: {
-              sellerAcceptanceHours: number;
-              disputeWindowHours: number;
-              disputeSlaHours: number;
-              pushFallbackMinutes: number;
-            };
-          };
+          'application/json': components['schemas']['PlatformSettings'];
         };
       };
+      403: components['responses']['Error'];
+    };
+  };
+  updateAdminSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {integer} */
+          sellerAcceptanceMinutes: 10 | 30 | 60 | 120 | 240 | 720 | 1440;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Réglages mis à jour */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PlatformSettings'];
+        };
+      };
+      400: components['responses']['Error'];
       403: components['responses']['Error'];
     };
   };

@@ -1,8 +1,10 @@
+import type { paths } from '@zandu/api-client';
 import Link from 'next/link';
-import { load } from '@/lib/api';
+import { act, field, load } from '@/lib/api';
 import { displayPhone, formatDateTime, formatXaf } from '@/lib/format';
 import { STAFF_ROLE } from '@/lib/labels';
-import { Badge } from '@/components/ui';
+import { SubmitButton } from '@/components/SubmitButton';
+import { Badge, Flash, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Paramètres' };
 
@@ -21,34 +23,53 @@ function Row({ label, hint, value }: { label: string; hint?: string; value: stri
 }
 
 const hours = (h: number) => (h < 1 ? `${Math.round(h * 60)} min` : `${h} h`);
+const minutes = (m: number) => hours(m / 60);
+
+type AcceptanceMinutes =
+  paths['/v1/admin/settings']['patch']['requestBody']['content']['application/json']['sellerAcceptanceMinutes'];
+
+async function saveAcceptance(form: FormData) {
+  'use server';
+  await act('/parametres', 'Délai d’acceptation enregistré', (api) =>
+    api.PATCH('/v1/admin/settings', {
+      body: {
+        sellerAcceptanceMinutes: Number(field(form, 'minutes')) as AcceptanceMinutes,
+        reason: field(form, 'reason'),
+      },
+    }),
+  );
+}
 const range = (min: number, max: number) =>
   min === max ? formatXaf(min) : `${formatXaf(min)} – ${formatXaf(max)}`;
 
 /**
- * Paramètres (maquette) : réglages en vigueur et équipe. Ils se lisent ici ; ils se changent
- * aujourd'hui par la configuration du serveur (délais), les règles de commission et les tarifs
- * de livraison. Le réglage à l'écran viendra avec le délai d'acceptation (docs/ux/03 §4.4).
+ * Paramètres (maquette) : réglages en vigueur et équipe. Le délai d'acceptation du vendeur se
+ * règle ici (docs/ux/03 §4.4) ; les autres délais viennent de la configuration du serveur, les
+ * commissions de leur page.
  */
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: SearchParams }) {
+  const { ok, erreur } = await readParams(searchParams);
   const [settings, staff] = await Promise.all([
     load((api) => api.GET('/v1/admin/settings')),
     load((api) => api.GET('/v1/admin/staff')),
   ]);
   const { money, delays } = settings;
+  const acceptance = delays.sellerAcceptance;
   return (
     <>
       <header className="page-header">
         <div>
           <h1>Paramètres</h1>
           <div className="subtitle">
-            Réglages en vigueur, en lecture. Les délais se changent dans la configuration du serveur
-            ; les commissions, dans leur page.
+            Le délai d’acceptation se règle ici. Les autres délais viennent de la configuration du
+            serveur ; les commissions se changent dans leur page.
           </div>
         </div>
         <Link className="button" href="/commissions">
           Modifier les commissions
         </Link>
       </header>
+      <Flash ok={ok} erreur={erreur} />
       <section className="grid grid-2">
         <div className="card grid" data-testid="settings-money">
           <h2>Argent</h2>
@@ -76,11 +97,45 @@ export default async function SettingsPage() {
         </div>
         <div className="card grid" data-testid="settings-delays">
           <h2>Délais</h2>
-          <Row
-            label="Acceptation par le vendeur"
-            hint="Sinon la commande est annulée et remboursée"
-            value={hours(delays.sellerAcceptanceHours)}
-          />
+          <form action={saveAcceptance} className="stack" data-testid="settings-acceptance">
+            <div className="panel-head" style={{ alignItems: 'center' }}>
+              <div>
+                <div>Acceptation par le vendeur</div>
+                <div className="small muted">
+                  Sinon la commande est annulée et remboursée. S’applique aux commandes payées
+                  ensuite.
+                </div>
+              </div>
+              <select
+                name="minutes"
+                defaultValue={acceptance.minutes}
+                aria-label="Délai d’acceptation"
+                style={{ minWidth: 120 }}
+              >
+                {acceptance.choices.map((m) => (
+                  <option key={m} value={m}>
+                    {minutes(m)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="small muted">
+              {acceptance.source === 'custom' && acceptance.updatedAt
+                ? `Réglé le ${formatDateTime(acceptance.updatedAt)}${acceptance.updatedBy ? ` par ${displayPhone(acceptance.updatedBy)}` : ''}`
+                : 'Valeur du serveur (SELLER_ACCEPT_HOURS). Recommandation : 2 h pour commencer.'}
+            </div>
+            <div className="inline">
+              <input
+                name="reason"
+                required
+                minLength={5}
+                maxLength={300}
+                placeholder="Motif (journal d’audit)"
+                aria-label="Motif"
+              />
+              <SubmitButton variant="secondary">Enregistrer</SubmitButton>
+            </div>
+          </form>
           <Row
             label="Réclamation de l'acheteur"
             hint="Après la remise du colis ; ensuite, libération automatique au vendeur"

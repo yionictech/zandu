@@ -697,6 +697,18 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
       ),
     );
     expectConforms('/v1/admin/settings', 'get', 200, unwrap(await admin.GET('/v1/admin/settings')));
+    expectConforms(
+      '/v1/admin/settings',
+      'patch',
+      200,
+      unwrap(
+        await admin.PATCH('/v1/admin/settings', {
+          body: { sellerAcceptanceMinutes: 120, reason: 'Test du contrat' },
+        }),
+      ),
+    );
+    // Base partagée entre les fichiers de test : retour à la valeur du serveur.
+    await env.pool.query('DELETE FROM platform_settings');
   });
 
   it('les erreurs suivent le format documenté', async () => {

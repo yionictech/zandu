@@ -104,7 +104,7 @@ export function refundReason(reason: string): string {
   const labels: Record<string, string> = {
     buyer_cancelled: "Annulée par l'acheteur",
     seller_rejected: 'Refusée par le vendeur',
-    seller_acceptance_timeout: 'Vendeur sans réponse sous 24 h',
+    seller_acceptance_timeout: 'Vendeur sans réponse dans le délai',
     support: 'Annulée par le support',
     dispute_refund_full: 'Litige : remboursement intégral',
     dispute_refund_partial: 'Litige : remboursement partiel',

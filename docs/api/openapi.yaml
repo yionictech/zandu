@@ -2689,47 +2689,42 @@ paths:
   /v1/admin/settings:
     get:
       tags: [Support]
-      summary: Réglages en vigueur (lecture) — commission par défaut, livraison, délais
+      summary: Réglages en vigueur — commission par défaut, livraison, délais
       operationId: adminSettings
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema:
-                type: object
-                required: [money, delays]
-                properties:
-                  money:
-                    type: object
-                    required: [defaultCommissionBps, deliveryRates, newSellerPayoutCap]
-                    properties:
-                      defaultCommissionBps: { type: [integer, 'null'] }
-                      deliveryRates:
-                        type: array
-                        items:
-                          type: object
-                          required: [city, mode, min, max]
-                          properties:
-                            city: { type: string }
-                            mode: { type: string, enum: [home, pickup_point] }
-                            min: { $ref: '#/components/schemas/Amount' }
-                            max: { $ref: '#/components/schemas/Amount' }
-                      newSellerPayoutCap: { $ref: '#/components/schemas/Amount' }
-                  delays:
-                    type: object
-                    required:
-                      [
-                        sellerAcceptanceHours,
-                        disputeWindowHours,
-                        disputeSlaHours,
-                        pushFallbackMinutes,
-                      ]
-                    properties:
-                      sellerAcceptanceHours: { type: number }
-                      disputeWindowHours: { type: number }
-                      disputeSlaHours: { type: number }
-                      pushFallbackMinutes: { type: number }
+              schema: { $ref: '#/components/schemas/PlatformSettings' }
+        '403': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Support]
+      summary: Régler le délai d'acceptation du vendeur (administrateurs)
+      description: >-
+        Valeur choisie parmi `delays.sellerAcceptance.choices`, avec un motif (journal d'audit).
+        Elle s'applique aux commandes payées après le changement ; les délais déjà donnés ne
+        bougent pas.
+      operationId: updateAdminSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sellerAcceptanceMinutes, reason]
+              properties:
+                sellerAcceptanceMinutes:
+                  type: integer
+                  enum: [10, 30, 60, 120, 240, 720, 1440]
+                reason: { type: string, minLength: 5, maxLength: 300 }
+      responses:
+        '200':
+          description: Réglages mis à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformSettings' }
+        '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
 
   /v1/support/overview:
@@ -4276,6 +4271,53 @@ components:
             properties:
               kind: { type: string, enum: [call, sms] }
               at: { type: string, format: date-time }
+    PlatformSettings:
+      type: object
+      required: [money, delays]
+      properties:
+        money:
+          type: object
+          required: [defaultCommissionBps, deliveryRates, newSellerPayoutCap]
+          properties:
+            defaultCommissionBps: { type: [integer, 'null'] }
+            deliveryRates:
+              type: array
+              items:
+                type: object
+                required: [city, mode, min, max]
+                properties:
+                  city: { type: string }
+                  mode: { type: string, enum: [home, pickup_point] }
+                  min: { $ref: '#/components/schemas/Amount' }
+                  max: { $ref: '#/components/schemas/Amount' }
+            newSellerPayoutCap: { $ref: '#/components/schemas/Amount' }
+        delays:
+          type: object
+          required:
+            [
+              sellerAcceptanceHours,
+              sellerAcceptance,
+              disputeWindowHours,
+              disputeSlaHours,
+              pushFallbackMinutes,
+            ]
+          properties:
+            sellerAcceptanceHours: { type: number }
+            sellerAcceptance:
+              type: object
+              required: [minutes, source, updatedAt, updatedBy, choices]
+              properties:
+                minutes: { type: integer }
+                source:
+                  type: string
+                  enum: [default, custom]
+                  description: '`default` : SELLER_ACCEPT_HOURS ; `custom` : réglé dans le back-office'
+                updatedAt: { type: [string, 'null'], format: date-time }
+                updatedBy: { type: [string, 'null'] }
+                choices: { type: array, items: { type: integer } }
+            disputeWindowHours: { type: number }
+            disputeSlaHours: { type: number }
+            pushFallbackMinutes: { type: number }
     DeliveryStatus:
       type: string
       enum:
