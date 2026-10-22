@@ -65,6 +65,7 @@ export const DISPUTE_REASON: Record<DisputeReason, string> = {
 
 export const MONEY_STATUS: Record<string, [string, Tone]> = {
   created: ['Créé', 'neutral'],
+  awaiting_review: ['À contrôler', 'danger'],
   pending: ['En attente', 'waiting'],
   processing: ['En cours', 'waiting'],
   succeeded: ['Réussi', 'trust'],

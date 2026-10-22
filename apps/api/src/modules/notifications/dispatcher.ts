@@ -217,6 +217,24 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
         ),
       ];
     }
+    case 'payout.rejected': {
+      const { rows } = await db.query<{ id: string; phone: string }>(
+        'SELECT id, phone FROM users WHERE id = $1',
+        [p.userId],
+      );
+      return rows[0]
+        ? [
+            {
+              userId: rows[0].id,
+              recipient: rows[0].phone,
+              channel: 'whatsapp' as const,
+              template: 'seller_withdrawal_rejected',
+              variables: { amount: formatXaf(Number(p.amount)), reason: String(p.reason) },
+              url: '/vendeur/argent',
+            },
+          ]
+        : [];
+    }
     case 'alert.support':
       return support(String(p.message));
     case 'staff.access': {

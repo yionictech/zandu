@@ -800,6 +800,38 @@ export const fr = {
     // Argent
     availableToPayout: 'Disponible',
     autoPayout: (operator: string) => `Versé automatiquement sur ${operator}`,
+    withdrawTo: (operator: string) => `Retirer vers ${operator}`,
+    withdrawTitle: 'Retirer mon argent',
+    withdrawable: 'Vous pouvez retirer',
+    withdrawAmount: 'Montant à retirer (FCFA)',
+    withdrawAll: 'Tout retirer',
+    withdrawMin: (amount: string) => `Minimum ${amount}`,
+    withdrawReview: (amount: string) =>
+      `Au-delà de ${amount}, Zandu contrôle le retrait avant l’envoi (en général dans la journée).`,
+    withdrawSendCode: 'Recevoir le code par SMS',
+    withdrawCodeTitle: 'Code reçu par SMS',
+    withdrawCodeHint: (phone: string) => `Envoyé au ${phone}. Ne le donnez à personne.`,
+    withdrawConfirm: 'Confirmer le retrait',
+    withdrawSent: 'Retrait envoyé',
+    withdrawSentBody: (amount: string, operator: string) =>
+      `${amount} partent vers votre compte ${operator}. Vous les recevez en quelques minutes.`,
+    withdrawInReview: 'Retrait en contrôle',
+    withdrawInReviewBody: (amount: string) =>
+      `Zandu vérifie le retrait de ${amount} avant l’envoi. Vous recevez un message dès qu’il part.`,
+    withdrawBlocked: {
+      not_verified: 'Votre boutique doit être vérifiée pour retirer.',
+      payout_number_cooldown: 'Numéro Mobile Money changé récemment : retrait possible sous 48 h.',
+      cap_reached: 'Plafond des nouveaux vendeurs atteint pour 24 h.',
+      no_balance: 'Rien à retirer pour le moment.',
+    },
+    withdrawHistory: 'Derniers retraits',
+    withdrawStatus: {
+      awaiting_review: 'En contrôle',
+      pending: 'En cours',
+      processing: 'En cours',
+      succeeded: 'Reçu',
+      failed: 'Refusé',
+    },
     whenPaid: 'Quand suis-je payé ?',
     whenSteps: ['Le client paie', 'Argent bloqué', 'Libéré à la remise'] as const,
     movements: 'Mouvements',

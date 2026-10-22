@@ -488,3 +488,27 @@ faudrait des horaires structurés par jour.
   horaires jour par jour garde le délai normal.
 - Calcul dans le domaine (`addOpenMinutes`, heure de Brazzaville, UTC+1 toute l'année),
   9 tests ; migration 0012 (`seller_profiles.weekly_hours`).
+
+## 14. Retrait à la demande (✅ prêt, désactivé — décision §4.3)
+
+Le retrait de l'argent par le vendeur est en place, **désactivé par défaut** : tant que le
+back-office ne choisit pas « À la demande », le reversement reste automatique, comme aujourd'hui.
+
+- **Paramètres → Reversement aux vendeurs** : « Automatique » (dès la remise confirmée) ou
+  « À la demande » ; **seuil de contrôle** (100 000 F par défaut). Motif obligatoire, journal
+  d'audit.
+- **À la demande**, l'argent libéré reste sur le solde du vendeur. Dans « Mon argent », le
+  bouton **« Retirer vers MTN MoMo »** ouvre l'écran de retrait : montant (ou « Tout retirer »),
+  **code SMS de confirmation**, puis l'argent part vers son compte Mobile Money.
+- **Au-delà du seuil**, le retrait attend dans **Paiements → Retraits à contrôler** ; un
+  administrateur le valide (il part) ou le refuse avec un motif (l'argent revient sur le solde
+  et le vendeur est prévenu). Le montant est réservé dans le grand livre dès la demande : il ne
+  peut pas partir deux fois.
+- Les règles existantes s'appliquent toujours : boutique vérifiée, plafond des nouveaux
+  vendeurs sur 24 h, attente de 48 h après un changement de numéro, minimum 1 000 F.
+- API : `GET/POST /v1/seller/withdrawals`, `POST /v1/seller/withdrawals/confirm`,
+  `GET /v1/support/withdrawals`, `POST /v1/support/withdrawals/{id}/decision` ; statut
+  `awaiting_review` des reversements (migration 0013) ; 3 tests.
+
+Reste à décider (§4.3) : le mode retenu, le seuil de contrôle, et les frais éventuels de
+l'agrégateur sur les retraits (D1), aujourd'hui à la charge de Zandu.

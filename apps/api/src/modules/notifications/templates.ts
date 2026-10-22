@@ -33,6 +33,10 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : le support attend votre réponse au litige sur la commande ${v.ref}, avant ${v.deadline}. Répondez dans l'application.`,
   buyer_refunded: (v) =>
     `Zandu : remboursement de ${v.amount} envoyé sur votre compte Mobile Money.`,
+  withdrawal_code: (v) =>
+    `Zandu : code de confirmation de votre retrait de ${v.amount} : ${v.code}. Ne le donnez à personne, même au support.`,
+  seller_withdrawal_rejected: (v) =>
+    `Zandu : votre retrait de ${v.amount} n'a pas été validé (${v.reason}). L'argent est de nouveau disponible dans l'application.`,
   seller_payout_sent: (v) =>
     `Zandu : reversement de ${v.amount} envoyé sur votre compte Mobile Money.`,
   buyer_late_payment: (v) =>
@@ -55,6 +59,7 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   seller_dispute_reminder: { title: 'Litige : votre réponse est attendue', fallback: true },
   seller_order_completed: { title: 'Argent crédité', fallback: false },
   seller_payout_sent: { title: 'Reversement envoyé', fallback: true },
+  seller_withdrawal_rejected: { title: 'Retrait non validé', fallback: true },
   buyer_payment_confirmed: { title: 'Paiement reçu', fallback: false },
   buyer_order_accepted: { title: 'Commande en préparation', fallback: false },
   buyer_in_delivery: { title: 'Commande en route', fallback: true },
@@ -71,7 +76,7 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
  * quand le message d'origine ne doit pas être relu dans l'application. Les codes de connexion et
  * les messages du personnel n'y figurent pas.
  */
-export const INBOX_HIDDEN = ['otp_code', 'staff_access', 'support_alert'];
+export const INBOX_HIDDEN = ['otp_code', 'withdrawal_code', 'staff_access', 'support_alert'];
 export const INBOX: Record<string, { title: string; body?: string }> = {
   ...Object.fromEntries(Object.entries(PUSH).map(([k, v]) => [k, { title: v.title }])),
   buyer_rider_arrived: { title: 'Votre livreur est arrivé' },

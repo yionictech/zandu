@@ -326,6 +326,44 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/seller/withdrawals': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retrait à la demande — disponible, seuil de contrôle, derniers retraits */
+    get: operations['sellerWithdrawals'];
+    put?: never;
+    /** Demander un retrait (un code de confirmation part par SMS) */
+    post: operations['requestWithdrawal'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/withdrawals/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirmer un retrait avec le code SMS
+     * @description Le montant est réservé et part vers le compte Mobile Money du vendeur ; au-delà du seuil (`reviewAbove`), il attend le contrôle d'un administrateur.
+     */
+    post: operations['confirmWithdrawal'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/seller/reviews': {
     parameters: {
       query?: never;
@@ -979,6 +1017,40 @@ export interface paths {
     put?: never;
     /** Annuler une commande payée non expédiée (remboursement intégral) */
     post: operations['supportCancelOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/withdrawals': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retraits à contrôler (au-delà du seuil) */
+    get: operations['supportWithdrawals'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/withdrawals/{id}/decision': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Valider ou refuser un retrait (administrateurs) */
+    post: operations['decideWithdrawal'];
     delete?: never;
     options?: never;
     head?: never;
@@ -2508,6 +2580,8 @@ export interface components {
         at: string;
       }[];
     };
+    /** @enum {string} */
+    PayoutStatus: 'awaiting_review' | 'pending' | 'processing' | 'succeeded' | 'failed';
     /** @description 7 jours, lundi d'abord ; null = fermé ce jour-là. Heure de Brazzaville. */
     WeeklyHours: ({
       /** @example 08:00 */
@@ -2526,6 +2600,9 @@ export interface components {
           max: components['schemas']['Amount'];
         }[];
         newSellerPayoutCap: components['schemas']['Amount'];
+        /** @enum {string} */
+        payoutMode: 'automatic' | 'on_demand';
+        withdrawalReviewAmount: components['schemas']['Amount'];
       };
       delays: {
         sellerAcceptanceHours: number;
@@ -3373,6 +3450,114 @@ export interface operations {
       };
     };
   };
+  sellerWithdrawals: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            mode: 'automatic' | 'on_demand';
+            withdrawable: components['schemas']['Amount'];
+            /** @enum {string|null} */
+            blockedReason:
+              'not_verified' | 'payout_number_cooldown' | 'cap_reached' | 'no_balance' | null;
+            minimum: components['schemas']['Amount'];
+            /** @description Au-delà : contrôle du back-office */
+            reviewAbove: components['schemas']['Amount'];
+            items: {
+              /** Format: uuid */
+              id: string;
+              amount: components['schemas']['Amount'];
+              status: components['schemas']['PayoutStatus'];
+              /** Format: date-time */
+              createdAt: string;
+              reviewNote: string | null;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  requestWithdrawal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          amount: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Code envoyé par SMS */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            challengeId: string;
+            expiresInSeconds: number;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      429: components['responses']['Error'];
+    };
+  };
+  confirmWithdrawal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: uuid */
+          challengeId: string;
+          code: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Retrait enregistré */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            payoutId: string;
+            amount: components['schemas']['Amount'];
+            /** @enum {string} */
+            status: 'pending' | 'awaiting_review';
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+      423: components['responses']['Error'];
+    };
+  };
   sellerReviews: {
     parameters: {
       query?: never;
@@ -3546,6 +3731,11 @@ export interface operations {
         };
         content: {
           'application/json': {
+            /**
+             * @description Reversement automatique, ou retrait à la demande (Paramètres)
+             * @enum {string}
+             */
+            payoutMode: 'automatic' | 'on_demand';
             /** @description Libéré, en attente du reversement automatique (plafond nouveau vendeur compris) */
             available: components['schemas']['Amount'];
             /** @description Part du vendeur (articles − commission) des commandes encore en séquestre : versée après la livraison et la fin du délai de réclamation */
@@ -3554,8 +3744,7 @@ export interface operations {
               /** Format: uuid */
               id: string;
               amount: components['schemas']['Amount'];
-              /** @enum {string} */
-              status: 'pending' | 'processing' | 'succeeded' | 'failed';
+              status: components['schemas']['PayoutStatus'];
               /** Format: uuid */
               orderId: string | null;
               publicRef: string | null;
@@ -4428,6 +4617,78 @@ export interface operations {
     responses: {
       200: components['responses']['OrderStatusChange'];
       403: components['responses']['Error'];
+    };
+  };
+  supportWithdrawals: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              id: string;
+              amount: components['schemas']['Amount'];
+              status: components['schemas']['PayoutStatus'];
+              /** Format: date-time */
+              createdAt: string;
+              operator: components['schemas']['Operator'];
+              phone: string;
+              /** Format: uuid */
+              sellerId: string;
+              shopName: string;
+              accountName: string | null;
+              verificationStatus: components['schemas']['VerificationStatus'];
+            }[];
+          };
+        };
+      };
+    };
+  };
+  decideWithdrawal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          decision: 'approve' | 'reject';
+          note: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            id: string;
+            status: components['schemas']['PayoutStatus'];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+      409: components['responses']['Error'];
     };
   };
   supportDeliveryEvents: {
@@ -5669,6 +5930,9 @@ export interface operations {
           /** @enum {integer} */
           sellerAcceptanceMinutes?: 10 | 30 | 60 | 120 | 240 | 720 | 1440;
           acceptanceOpenHoursOnly?: boolean;
+          /** @enum {string} */
+          payoutMode?: 'automatic' | 'on_demand';
+          withdrawalReviewAmount?: number;
           reason: string;
         };
       };

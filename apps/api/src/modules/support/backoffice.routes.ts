@@ -6,7 +6,7 @@ import { HttpError, notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import { currentUser, requireAuth, requireStaff, staffActor } from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
-import { ACCEPTANCE_CHOICES, acceptanceSetting } from '../settings/settings.js';
+import { ACCEPTANCE_CHOICES, acceptanceSetting, payoutSettings } from '../settings/settings.js';
 
 const IdParam = z.object({ id: z.uuid() });
 const Period = z.object({ period: z.enum(['today', '7d', '30d']).default('today') });
@@ -319,6 +319,7 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
       );
       const policy = ctx.config.orderPolicy;
       const acceptance = await acceptanceSetting(ctx, ctx.pool);
+      const payouts = await payoutSettings(ctx.pool);
       return {
         money: {
           defaultCommissionBps: rule[0]?.rate_bps ?? null,
@@ -329,6 +330,8 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
             max: Number(r.max),
           })),
           newSellerPayoutCap: ctx.config.payoutPolicy.newSellerCapAmount,
+          payoutMode: payouts.mode,
+          withdrawalReviewAmount: payouts.reviewAmount,
         },
         delays: {
           sellerAcceptanceHours: acceptance.minutes / 60,
@@ -363,10 +366,16 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
             })
             .optional(),
           acceptanceOpenHoursOnly: z.boolean().optional(),
+          payoutMode: z.enum(['automatic', 'on_demand']).optional(),
+          withdrawalReviewAmount: z.int().min(10_000).max(10_000_000).optional(),
           reason: z.string().trim().min(5).max(300),
         })
         .refine(
-          (b) => b.sellerAcceptanceMinutes !== undefined || b.acceptanceOpenHoursOnly !== undefined,
+          (b) =>
+            b.sellerAcceptanceMinutes !== undefined ||
+            b.acceptanceOpenHoursOnly !== undefined ||
+            b.payoutMode !== undefined ||
+            b.withdrawalReviewAmount !== undefined,
           'Aucune modification',
         )
         .parse(request.body);
@@ -385,6 +394,31 @@ export function backofficeRoutes(ctx: AppContext): FastifyPluginAsync {
           await save('seller_acceptance_minutes', body.sellerAcceptanceMinutes);
         if (body.acceptanceOpenHoursOnly !== undefined)
           await save('seller_acceptance_open_hours_only', body.acceptanceOpenHoursOnly);
+        if (body.payoutMode !== undefined || body.withdrawalReviewAmount !== undefined) {
+          const payouts = await payoutSettings(tx);
+          if (body.payoutMode !== undefined) await save('payout_mode', body.payoutMode);
+          if (body.withdrawalReviewAmount !== undefined)
+            await save('withdrawal_review_amount', body.withdrawalReviewAmount);
+          await audit(
+            tx,
+            a,
+            'settings.payouts',
+            { type: 'setting', id: 'payouts' },
+            {
+              from: payouts,
+              to: {
+                mode: body.payoutMode ?? payouts.mode,
+                reviewAmount: body.withdrawalReviewAmount ?? payouts.reviewAmount,
+              },
+              reason: body.reason,
+            },
+          );
+          if (
+            body.sellerAcceptanceMinutes === undefined &&
+            body.acceptanceOpenHoursOnly === undefined
+          )
+            return;
+        }
         await audit(
           tx,
           a,

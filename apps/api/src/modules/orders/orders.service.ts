@@ -15,7 +15,7 @@ import { postJournal } from '../ledger/ledger.repository.js';
 import { publish } from '../notifications/outbox.js';
 import { createRefund } from '../payments/refunds.service.js';
 import { schedulePayout } from '../payouts/payouts.service.js';
-import { acceptanceRules } from '../settings/settings.js';
+import { acceptanceRules, payoutSettings } from '../settings/settings.js';
 
 export interface OrderRow {
   id: string;
@@ -208,7 +208,8 @@ async function runEffects(
         await postJournal(tx, release.journal, ctx.clock.now());
         sellerNet = release.sellerNet;
         // F8 : reversement automatique après réception, dans la limite de la politique vendeur.
-        if (release.sellerNet > 0) {
+        // En « retrait à la demande » (Paramètres), l'argent reste disponible pour le vendeur.
+        if (release.sellerNet > 0 && (await payoutSettings(tx)).mode === 'automatic') {
           await schedulePayout(ctx, tx, order.seller_id, {
             orderId: order.id,
             maxAmount: release.sellerNet,

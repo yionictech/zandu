@@ -609,6 +609,103 @@ paths:
                         lowStockThreshold: { type: integer }
                   productCount: { type: integer, description: Produits hors archives }
 
+  /v1/seller/withdrawals:
+    get:
+      tags: [Vendeur]
+      summary: Retrait à la demande — disponible, seuil de contrôle, derniers retraits
+      operationId: sellerWithdrawals
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mode, withdrawable, blockedReason, minimum, reviewAbove, items]
+                properties:
+                  mode: { type: string, enum: [automatic, on_demand] }
+                  withdrawable: { $ref: '#/components/schemas/Amount' }
+                  blockedReason:
+                    type: [string, 'null']
+                    enum: [not_verified, payout_number_cooldown, cap_reached, no_balance, null]
+                  minimum: { $ref: '#/components/schemas/Amount' }
+                  reviewAbove:
+                    {
+                      $ref: '#/components/schemas/Amount',
+                      description: 'Au-delà : contrôle du back-office',
+                    }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, amount, status, createdAt, reviewNote]
+                      properties:
+                        id: { type: string, format: uuid }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                        status: { $ref: '#/components/schemas/PayoutStatus' }
+                        createdAt: { type: string, format: date-time }
+                        reviewNote: { type: [string, 'null'] }
+    post:
+      tags: [Vendeur]
+      summary: Demander un retrait (un code de confirmation part par SMS)
+      operationId: requestWithdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: integer, minimum: 1000 }
+      responses:
+        '202':
+          description: Code envoyé par SMS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challengeId, expiresInSeconds]
+                properties:
+                  challengeId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/withdrawals/confirm:
+    post:
+      tags: [Vendeur]
+      summary: Confirmer un retrait avec le code SMS
+      description: >-
+        Le montant est réservé et part vers le compte Mobile Money du vendeur ; au-delà du seuil
+        (`reviewAbove`), il attend le contrôle d'un administrateur.
+      operationId: confirmWithdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeId, code]
+              properties:
+                challengeId: { type: string, format: uuid }
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '201':
+          description: Retrait enregistré
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [payoutId, amount, status]
+                properties:
+                  payoutId: { type: string, format: uuid }
+                  amount: { $ref: '#/components/schemas/Amount' }
+                  status: { type: string, enum: [pending, awaiting_review] }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '423': { $ref: '#/components/responses/Error' }
+
   /v1/seller/reviews:
     get:
       tags: [Vendeur]
@@ -785,8 +882,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [available, inEscrow, payoutAccount, payouts, movements]
+                required: [payoutMode, available, inEscrow, payoutAccount, payouts, movements]
                 properties:
+                  payoutMode:
+                    type: string
+                    enum: [automatic, on_demand]
+                    description: Reversement automatique, ou retrait à la demande (Paramètres)
                   available:
                     allOf: [{ $ref: '#/components/schemas/Amount' }]
                     description: Libéré, en attente du reversement automatique (plafond nouveau vendeur compris)
@@ -803,7 +904,7 @@ paths:
                       properties:
                         id: { type: string, format: uuid }
                         amount: { $ref: '#/components/schemas/Amount' }
-                        status: { type: string, enum: [pending, processing, succeeded, failed] }
+                        status: { $ref: '#/components/schemas/PayoutStatus' }
                         orderId: { type: [string, 'null'], format: uuid }
                         publicRef: { type: [string, 'null'] }
                         createdAt: { type: string, format: date-time }
@@ -1519,6 +1620,79 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/OrderStatusChange' }
         '403': { $ref: '#/components/responses/Error' }
+
+  /v1/support/withdrawals:
+    get:
+      tags: [Support]
+      summary: Retraits à contrôler (au-delà du seuil)
+      operationId: supportWithdrawals
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          amount,
+                          status,
+                          createdAt,
+                          operator,
+                          phone,
+                          sellerId,
+                          shopName,
+                          accountName,
+                          verificationStatus,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        amount: { $ref: '#/components/schemas/Amount' }
+                        status: { $ref: '#/components/schemas/PayoutStatus' }
+                        createdAt: { type: string, format: date-time }
+                        operator: { $ref: '#/components/schemas/Operator' }
+                        phone: { type: string }
+                        sellerId: { type: string, format: uuid }
+                        shopName: { type: string }
+                        accountName: { type: [string, 'null'] }
+                        verificationStatus: { $ref: '#/components/schemas/VerificationStatus' }
+
+  /v1/support/withdrawals/{id}/decision:
+    post:
+      tags: [Support]
+      summary: Valider ou refuser un retrait (administrateurs)
+      operationId: decideWithdrawal
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, note]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                note: { type: string, minLength: 3, maxLength: 300 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { $ref: '#/components/schemas/PayoutStatus' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 
   /v1/support/delivery-events:
     get:
@@ -2724,6 +2898,8 @@ paths:
                   type: integer
                   enum: [10, 30, 60, 120, 240, 720, 1440]
                 acceptanceOpenHoursOnly: { type: boolean }
+                payoutMode: { type: string, enum: [automatic, on_demand] }
+                withdrawalReviewAmount: { type: integer, minimum: 10000, maximum: 10000000 }
                 reason: { type: string, minLength: 5, maxLength: 300 }
       responses:
         '200':
@@ -4283,6 +4459,9 @@ components:
             properties:
               kind: { type: string, enum: [call, sms] }
               at: { type: string, format: date-time }
+    PayoutStatus:
+      type: string
+      enum: [awaiting_review, pending, processing, succeeded, failed]
     WeeklyHours:
       description: 7 jours, lundi d'abord ; null = fermé ce jour-là. Heure de Brazzaville.
       type: array
@@ -4302,7 +4481,14 @@ components:
       properties:
         money:
           type: object
-          required: [defaultCommissionBps, deliveryRates, newSellerPayoutCap]
+          required:
+            [
+              defaultCommissionBps,
+              deliveryRates,
+              newSellerPayoutCap,
+              payoutMode,
+              withdrawalReviewAmount,
+            ]
           properties:
             defaultCommissionBps: { type: [integer, 'null'] }
             deliveryRates:
@@ -4316,6 +4502,8 @@ components:
                   min: { $ref: '#/components/schemas/Amount' }
                   max: { $ref: '#/components/schemas/Amount' }
             newSellerPayoutCap: { $ref: '#/components/schemas/Amount' }
+            payoutMode: { type: string, enum: [automatic, on_demand] }
+            withdrawalReviewAmount: { $ref: '#/components/schemas/Amount' }
         delays:
           type: object
           required:

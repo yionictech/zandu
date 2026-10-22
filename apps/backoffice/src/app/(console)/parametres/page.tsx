@@ -28,6 +28,19 @@ const minutes = (m: number) => hours(m / 60);
 type AcceptanceMinutes =
   paths['/v1/admin/settings']['patch']['requestBody']['content']['application/json']['sellerAcceptanceMinutes'];
 
+async function savePayouts(form: FormData) {
+  'use server';
+  await act('/parametres', 'Reversements enregistrés', (api) =>
+    api.PATCH('/v1/admin/settings', {
+      body: {
+        payoutMode: field(form, 'mode') === 'on_demand' ? 'on_demand' : 'automatic',
+        withdrawalReviewAmount: Number(field(form, 'review').replace(/\D/g, '')),
+        reason: field(form, 'reason'),
+      },
+    }),
+  );
+}
+
 async function saveAcceptance(form: FormData) {
   'use server';
   await act('/parametres', 'Délai d’acceptation enregistré', (api) =>
@@ -62,8 +75,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
         <div>
           <h1>Paramètres</h1>
           <div className="subtitle">
-            Le délai d’acceptation se règle ici. Les autres délais viennent de la configuration du
-            serveur ; les commissions se changent dans leur page.
+            Reversements et délai d’acceptation se règlent ici ; les autres délais viennent de la
+            configuration du serveur, les commissions de leur page.
           </div>
         </div>
         <Link className="button" href="/commissions">
@@ -90,6 +103,49 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
               value={range(r.min, r.max)}
             />
           ))}
+          <form action={savePayouts} className="stack" data-testid="settings-payouts">
+            <div className="panel-head" style={{ alignItems: 'center' }}>
+              <div>
+                <div>Reversement aux vendeurs</div>
+                <div className="small muted">
+                  Automatique dès la remise confirmée, ou retrait à la demande avec code SMS
+                </div>
+              </div>
+              <select
+                name="mode"
+                defaultValue={money.payoutMode}
+                aria-label="Reversement"
+                style={{ minWidth: 150 }}
+              >
+                <option value="automatic">Automatique</option>
+                <option value="on_demand">À la demande</option>
+              </select>
+            </div>
+            <div className="panel-head" style={{ alignItems: 'center' }}>
+              <div>
+                <div>Retrait à contrôler au-delà de</div>
+                <div className="small muted">Validé par un administrateur avant l’envoi</div>
+              </div>
+              <input
+                name="review"
+                inputMode="numeric"
+                defaultValue={money.withdrawalReviewAmount}
+                aria-label="Seuil de contrôle (FCFA)"
+                style={{ maxWidth: 140, textAlign: 'right' }}
+              />
+            </div>
+            <div className="inline">
+              <input
+                name="reason"
+                required
+                minLength={5}
+                maxLength={300}
+                placeholder="Motif (journal d’audit)"
+                aria-label="Motif du changement"
+              />
+              <SubmitButton variant="secondary">Enregistrer</SubmitButton>
+            </div>
+          </form>
           <Row
             label="Plafond de reversement d'un nouveau vendeur"
             hint="Au-delà, l'argent attend la suite de la rampe de confiance"

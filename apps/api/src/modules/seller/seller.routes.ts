@@ -20,6 +20,7 @@ import { actor, currentUser, requireAuth } from '../auth/guards.js';
 import { loadCategoryPaths, loadCommissionRules } from '../checkout/checkout.service.js';
 import { accountBalance, sellerEscrowBalance } from '../ledger/ledger.repository.js';
 import { COVER_KEY_SQL, DISPLAYABLE, variantKeySql } from '../media/media.service.js';
+import { payoutSettings } from '../settings/settings.js';
 import { consumeUpload } from '../uploads/uploads.service.js';
 
 const MAX_PHOTOS = 6;
@@ -714,6 +715,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         [shop.id],
       );
       return {
+        payoutMode: (await payoutSettings(ctx.pool)).mode,
         available: await accountBalance(ctx.pool, sellerPayableAccount(shop.id)),
         inEscrow: await sellerEscrowBalance(ctx.pool, shop.id),
         payoutAccount: account[0],

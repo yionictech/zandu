@@ -14,6 +14,7 @@ import { addHours } from '../../lib/clock.js';
 import { notFound } from '../../lib/errors.js';
 import { accountBalance, postJournal } from '../ledger/ledger.repository.js';
 import { publish } from '../notifications/outbox.js';
+import { payoutSettings } from '../settings/settings.js';
 import {
   processDisbursements,
   type DisbursementRow,
@@ -38,16 +39,11 @@ export interface ScheduledPayout {
 }
 
 /**
- * Crée un reversement si la politique le permet. Le solde est réservé immédiatement
- * dans le grand livre (vendeur -> « reversements en cours ») : il ne peut pas partir deux fois.
- * Le profil vendeur est verrouillé pour sérialiser les reversements d'un même vendeur.
+ * Ce que le vendeur peut recevoir maintenant (solde, vérification, plafond des nouveaux
+ * vendeurs, délai après changement de numéro). Verrouille le profil vendeur : les reversements
+ * d'un même vendeur sont sérialisés.
  */
-export async function schedulePayout(
-  ctx: AppContext,
-  tx: Tx,
-  sellerId: string,
-  options: { orderId?: string | null; maxAmount?: number } = {},
-): Promise<ScheduledPayout> {
+export async function payoutEligibility(ctx: AppContext, tx: Tx, sellerId: string) {
   const now = ctx.clock.now();
   const { rows } = await tx.query<SellerPayoutProfile>(
     `SELECT id, user_id, verification_status, verified_at, payout_msisdn, payout_operator,
@@ -78,13 +74,35 @@ export async function schedulePayout(
     },
     ctx.config.payoutPolicy,
   );
+  return { seller, eligibility };
+}
+
+/**
+ * Crée un reversement si la politique le permet. Le solde est réservé immédiatement
+ * dans le grand livre (vendeur -> « reversements en cours ») : il ne peut pas partir deux fois.
+ * Un retrait à contrôler (`review`) attend le back-office avant d'être envoyé.
+ */
+export async function schedulePayout(
+  ctx: AppContext,
+  tx: Tx,
+  sellerId: string,
+  options: {
+    orderId?: string | null;
+    maxAmount?: number;
+    kind?: 'automatic' | 'withdrawal';
+    review?: boolean;
+  } = {},
+): Promise<ScheduledPayout> {
+  const now = ctx.clock.now();
+  const { seller, eligibility } = await payoutEligibility(ctx, tx, sellerId);
   const amount = Math.min(eligibility.amount, options.maxAmount ?? Number.MAX_SAFE_INTEGER);
   if (amount <= 0)
     return { payoutId: null, amount: 0, blockedReason: eligibility.blockedReason ?? 'no_balance' };
 
   const { rows: created } = await tx.query<{ id: string }>(
-    `INSERT INTO payouts (seller_id, order_id, amount, provider, operator, msisdn, next_attempt_at, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING id`,
+    `INSERT INTO payouts (seller_id, order_id, amount, provider, operator, msisdn, next_attempt_at, created_at,
+                          kind, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9) RETURNING id`,
     [
       sellerId,
       options.orderId ?? null,
@@ -93,6 +111,8 @@ export async function schedulePayout(
       seller.payout_operator,
       seller.payout_msisdn,
       now,
+      options.kind ?? 'automatic',
+      options.review ? 'awaiting_review' : 'pending',
     ],
   );
   const payoutId = created[0]!.id;
@@ -170,11 +190,14 @@ export const processPayouts = (ctx: AppContext): Promise<number> =>
  * terminée, fin du gel après changement de numéro, plafond renouvelé).
  */
 export async function sweepSellerBalances(ctx: AppContext): Promise<number> {
+  // Retrait à la demande : le vendeur choisit quand ; rien ne part tout seul.
+  if ((await payoutSettings(ctx.pool)).mode === 'on_demand') return 0;
   const { rows } = await ctx.pool.query<{ seller_id: string }>(
     `SELECT a.seller_id FROM ledger_accounts a
      JOIN ledger_entries e ON e.account_id = a.id
      JOIN seller_profiles s ON s.id = a.seller_id AND s.verification_status = 'verified'
-     WHERE NOT EXISTS (SELECT 1 FROM payouts p WHERE p.seller_id = a.seller_id AND p.status IN ('pending', 'processing'))
+     WHERE NOT EXISTS (SELECT 1 FROM payouts p WHERE p.seller_id = a.seller_id
+                       AND p.status IN ('awaiting_review', 'pending', 'processing'))
      GROUP BY a.seller_id HAVING -sum(e.amount) > 0
      LIMIT 100`,
   );

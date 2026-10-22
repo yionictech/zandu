@@ -110,8 +110,8 @@ await json('POST', `/v1/admin/sellers/${shop.id}/verification`, admin, { decisio
 const { items: products } = await json('GET', '/v1/seller/products', token);
 const productId = products.find((p) => p.title === PRODUCT).id;
 await json('POST', `/v1/admin/products/${productId}/moderation`, admin, { decision: 'published' });
-// Trois exemplaires : une livraison réussie, une cliente absente, un incident.
-await json('PATCH', `/v1/seller/products/${productId}`, token, { stock: 3 });
+// Quatre exemplaires : une livraison réussie, une cliente absente, un incident, un retrait.
+await json('PATCH', `/v1/seller/products/${productId}`, token, { stock: 4 });
 
 // 7. Un acheteur commande et paie (API + simulateur d'agrégateur)
 const buyer = await apiLogin(e164(BUYER));
@@ -334,6 +334,51 @@ await page.getByTestId('hours-close-5').fill('13:00');
 await shot('29-heures-d-ouverture');
 await page.getByTestId('hours-save').click();
 await page.getByText('Lun – Ven · 08:00 – 18:00 ; Sam · 08:00 – 13:00').waitFor();
+
+// 16. Retrait à la demande (Paramètres du back-office), avec contrôle au-delà de 10 000 F.
+await json('PATCH', '/v1/admin/settings', admin, {
+  payoutMode: 'on_demand',
+  withdrawalReviewAmount: 10_000,
+  reason: 'Parcours : essai du retrait à la demande',
+});
+const fourthAt = Date.now() - 1000;
+const fourth = await buy();
+await json('POST', `/v1/seller/orders/${fourth.orderId}/accept`, token, {});
+await json('POST', `/v1/seller/orders/${fourth.orderId}/ready`, token);
+await json('POST', `/v1/support/deliveries/${fourth.orderId}/assign`, admin, { riderId });
+await json('POST', `/v1/seller/orders/${fourth.orderId}/rider-pickup`, token, {
+  code: (await json('GET', `/v1/rider/deliveries/${fourth.orderId}`, riderToken)).pickupCode,
+});
+await json('POST', `/v1/rider/deliveries/${fourth.orderId}/pickup`, riderToken);
+const fourthCode = await lastMessage(e164(BUYER), 'buyer_handover_code', fourthAt);
+await json('POST', `/v1/rider/deliveries/${fourth.orderId}/handover`, riderToken, {
+  code: fourthCode.variables.code,
+});
+await json('POST', `/v1/orders/${fourth.orderId}/confirm-receipt`, buyer);
+await page.goto(`${WEB}/vendeur/argent`);
+await page.getByTestId('money-withdraw').click();
+await page.getByTestId('withdraw-amount').waitFor();
+await page.getByText('Tout retirer').click();
+await shot('30-retirer');
+const codeAsked = Date.now() - 1000;
+await page.getByTestId('withdraw-send-code').click();
+const withdrawalSms = await lastMessage(e164(SELLER), 'withdrawal_code', codeAsked);
+await page.getByTestId('withdraw-code').fill(withdrawalSms.variables.code);
+await page.getByTestId('withdraw-confirm').click();
+await page.getByTestId('withdraw-done').waitFor();
+await shot('31-retrait-en-controle');
+const queue = await json('GET', '/v1/support/withdrawals', admin);
+const mine = queue.items.find((w) => w.shopName === shop.shopName);
+if (!mine) throw new Error('Retrait absent des retraits à contrôler');
+await json('POST', `/v1/support/withdrawals/${mine.id}/decision`, admin, {
+  decision: 'approve',
+  note: 'Parcours : compte et pièce concordants',
+});
+await json('PATCH', '/v1/admin/settings', admin, {
+  payoutMode: 'automatic',
+  withdrawalReviewAmount: 100_000,
+  reason: 'Fin du parcours : retour au reversement automatique',
+});
 
 const balance = await json('GET', '/v1/seller/balance', token);
 console.log(

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { errorMessage } from '../../../src/api';
 import { displayPhone, formatDateTime, groupThousands } from '../../../src/format';
@@ -6,6 +7,7 @@ import { operatorName, useBalance } from '../../../src/seller/queries';
 import { TabHeader } from '../../../src/seller/ui';
 import { colors, font, radius, space } from '../../../src/theme';
 import { useRefetchOnFocus } from '../../../src/useRefetchOnFocus';
+import { Button } from '../../../src/ui/Button';
 import { Amount, Card, Eyebrow } from '../../../src/ui/kit';
 import { Failure, Loading } from '../../../src/ui/Layout';
 import { Text } from '../../../src/ui/Text';
@@ -24,6 +26,7 @@ function maskedPhone(e164: string): string {
 
 /** Mon argent (maquette) : disponible, bloqué, comment on est payé, mouvements. */
 export default function SellerMoney() {
+  const router = useRouter();
   const balance = useBalance();
   useRefetchOnFocus(balance.refetch);
 
@@ -63,12 +66,20 @@ export default function SellerMoney() {
               </Text>
             </View>
           </View>
-          <View style={styles.payoutTo}>
-            <Text style={styles.payoutText}>
-              {t.vendor.autoPayout(operatorName(b.payoutAccount.operator))} ·{' '}
-              {maskedPhone(b.payoutAccount.phone)}
-            </Text>
-          </View>
+          {b.payoutMode === 'on_demand' ? (
+            <Button
+              label={`${t.vendor.withdrawTo(operatorName(b.payoutAccount.operator))} · ${maskedPhone(b.payoutAccount.phone)}`}
+              onPress={() => router.push('/vendeur/retrait')}
+              testID="money-withdraw"
+            />
+          ) : (
+            <View style={styles.payoutTo}>
+              <Text style={styles.payoutText}>
+                {t.vendor.autoPayout(operatorName(b.payoutAccount.operator))} ·{' '}
+                {maskedPhone(b.payoutAccount.phone)}
+              </Text>
+            </View>
+          )}
         </Card>
 
         <Card>

@@ -66,3 +66,24 @@ export async function acceptanceRules(
   );
   return { policy, sellerHours: rows[0]?.weekly_hours ?? null };
 }
+
+/** `automatic` : reversé dès la remise confirmée ; `on_demand` : le vendeur retire quand il veut. */
+export type PayoutMode = 'automatic' | 'on_demand';
+/** Au-delà, un retrait attend le contrôle du back-office (« Retrait à contrôler »). */
+export const DEFAULT_WITHDRAWAL_REVIEW_AMOUNT = 100_000;
+
+export interface PayoutSettings {
+  mode: PayoutMode;
+  reviewAmount: number;
+}
+
+export async function payoutSettings(db: Db): Promise<PayoutSettings> {
+  const { rows } = await db.query<{ key: string; value: unknown }>(
+    `SELECT key, value FROM platform_settings WHERE key IN ('payout_mode', 'withdrawal_review_amount')`,
+  );
+  const value = (key: string) => rows.find((r) => r.key === key)?.value;
+  return {
+    mode: value('payout_mode') === 'on_demand' ? 'on_demand' : 'automatic',
+    reviewAmount: Number(value('withdrawal_review_amount') ?? DEFAULT_WITHDRAWAL_REVIEW_AMOUNT),
+  };
+}

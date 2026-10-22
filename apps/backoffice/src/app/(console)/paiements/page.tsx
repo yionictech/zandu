@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { load } from '@/lib/api';
+import { act, field, load } from '@/lib/api';
 import { formatF, formatTime, formatDateTime, formatXaf, OPERATORS } from '@/lib/format';
 import { MONEY_STATUS } from '@/lib/labels';
-import { Badge, Empty, Tabs, readParams, type SearchParams } from '@/components/ui';
+import { SubmitButton } from '@/components/SubmitButton';
+import { Badge, Empty, Flash, Tabs, readParams, type SearchParams } from '@/components/ui';
 
 export const metadata = { title: 'Paiements' };
 
@@ -56,18 +57,32 @@ function Kpi({
   );
 }
 
+async function decide(id: string, form: FormData) {
+  'use server';
+  const decision = field(form, 'decision') === 'approve' ? 'approve' : 'reject';
+  await act(
+    '/paiements',
+    decision === 'approve' ? 'Retrait validé : il part vers le vendeur' : 'Retrait refusé',
+    (api) =>
+      api.POST('/v1/support/withdrawals/{id}/decision', {
+        params: { path: { id } },
+        body: { decision, note: field(form, 'note') },
+      }),
+  );
+}
+
 /**
  * Paiements (maquette) : encaissé, en séquestre, libéré, échecs ; répartition MTN / Airtel ;
- * mouvements. Les retraits à la demande attendent la décision du §4.3 (versement automatique
- * aujourd'hui) : la carte « Retrait à contrôler » devient celle des versements en échec.
+ * « Retraits à contrôler » quand le retrait à la demande est actif (§4.3) ; mouvements.
  */
 export default async function PaymentsPage({ searchParams }: { searchParams: SearchParams }) {
-  const { one } = await readParams(searchParams);
+  const { one, ok, erreur } = await readParams(searchParams);
   const period = (PERIODS.find(([p]) => p === one('periode'))?.[0] ?? 'today') as Period;
   const kind = (KINDS.find(([k]) => k === one('type'))?.[0] ?? 'all') as Kind;
-  const [p, me] = await Promise.all([
+  const [p, me, review] = await Promise.all([
     load((api) => api.GET('/v1/support/payments', { params: { query: { period, kind } } })),
     load((api) => api.GET('/v1/me')),
+    load((api) => api.GET('/v1/support/withdrawals')),
   ]);
   const admin = me.roles.includes('admin');
   const total = p.byOperator.reduce((n, o) => n + o.amount, 0);
@@ -102,6 +117,67 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
           ) : null}
         </div>
       </header>
+
+      <Flash ok={ok} erreur={erreur} />
+      {review.items.length ? (
+        <section className="card" data-testid="withdrawals-review">
+          <h2>Retraits à contrôler</h2>
+          <p className="small muted">
+            Au-delà du seuil réglé dans Paramètres. Le montant est réservé : il part à la
+            validation, ou revient sur le solde du vendeur en cas de refus.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Demandé</th>
+                <th>Boutique</th>
+                <th>Compte Mobile Money</th>
+                <th className="num">Montant</th>
+                <th>{admin ? 'Décision' : ''}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {review.items.map((w) => (
+                <tr key={w.id}>
+                  <td className="nowrap">{formatDateTime(w.createdAt)}</td>
+                  <td>
+                    <Link href={`/vendeurs/${w.sellerId}`}>{w.shopName}</Link>
+                  </td>
+                  <td>
+                    {OPERATORS[w.operator]} · {w.phone}
+                    <div className="small muted">{w.accountName ?? 'Titulaire non renseigné'}</div>
+                  </td>
+                  <td className="num">
+                    <strong>{formatXaf(w.amount)}</strong>
+                  </td>
+                  <td>
+                    {admin ? (
+                      <form action={decide.bind(null, w.id)} className="inline">
+                        <input
+                          name="note"
+                          required
+                          minLength={3}
+                          maxLength={300}
+                          placeholder="Motif"
+                          aria-label="Motif"
+                        />
+                        <SubmitButton name="decision" value="approve">
+                          Valider
+                        </SubmitButton>
+                        <SubmitButton variant="danger" name="decision" value="reject">
+                          Refuser
+                        </SubmitButton>
+                      </form>
+                    ) : (
+                      <span className="small muted">Décision des administrateurs</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       <section className="grid grid-4">
         <Kpi

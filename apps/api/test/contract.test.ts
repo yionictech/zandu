@@ -397,6 +397,12 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
 
   it('espace vendeur redessiné : boutique, tableau de bord, avis, litige, argent', async () => {
     const seller = clientFor(m.seller.headers.authorization!.slice(7));
+    expectConforms(
+      '/v1/seller/withdrawals',
+      'get',
+      200,
+      unwrap(await seller.GET('/v1/seller/withdrawals')),
+    );
     const shop = unwrap(
       await seller.PATCH('/v1/seller/shop', {
         body: { defaultPrepMinutes: 60, openingHours: 'Lun – Sam · 08:00 – 18:00' },
@@ -709,6 +715,12 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     // Base partagée entre les fichiers de test : retour à la valeur du serveur.
     await env.pool.query('DELETE FROM platform_settings');
+    expectConforms(
+      '/v1/support/withdrawals',
+      'get',
+      200,
+      unwrap(await admin.GET('/v1/support/withdrawals')),
+    );
   });
 
   it('les erreurs suivent le format documenté', async () => {
