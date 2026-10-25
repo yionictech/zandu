@@ -1311,7 +1311,8 @@ paths:
                 type: object
                 required: [onTheWay, rider, position]
                 properties:
-                  onTheWay: { type: boolean, description: Colis pris en charge, en route vers vous }
+                  onTheWay:
+                    { type: boolean, description: 'Colis pris en charge, en route vers vous' }
                   rider:
                     type: [object, 'null']
                     required: [name, phone]

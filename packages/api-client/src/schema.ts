@@ -4256,7 +4256,7 @@ export interface operations {
         };
         content: {
           'application/json': {
-            /** @description Colis pris en charge */
+            /** @description Colis pris en charge, en route vers vous */
             onTheWay: boolean;
             rider: {
               /** @example Junior M. */
