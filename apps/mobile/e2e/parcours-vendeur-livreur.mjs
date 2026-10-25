@@ -179,7 +179,10 @@ await json('POST', `/v1/support/deliveries/${orderId}/assign`, admin, { riderId 
 // 10. Le livreur : ses courses, la course à récupérer avec son code de retrait. Le vendeur
 // saisit ce code dans son application ; le livreur vérifie le colis et le prend.
 const riderToken = await apiLogin('+242068000000');
-const rider = await openPhone(browser, riderToken);
+// Pointe-Noire, rond-point Lumumba : la position que le téléphone du livreur partage.
+const rider = await openPhone(browser, riderToken, {
+  geolocation: { latitude: -4.7761, longitude: 11.8635, accuracy: 15 },
+});
 await rider.page.goto(`${WEB}/livreur`);
 await rider.page.getByTestId(`mission-${ref}`).waitFor();
 await sleep(400);
@@ -201,8 +204,19 @@ await rider.page.getByTestId('rider-pickup').click();
 
 // 11. En route, arrivé, remise contre le code du client sur le pavé géant
 await rider.page.getByTestId('rider-arrived').waitFor();
+await rider.page.getByText('Le client voit votre position', { exact: false }).waitFor();
 await sleep(300);
 await rider.shot('16-livreur-en-route');
+// L'acheteur voit son livreur arriver : prénom, appel, petite carte.
+for (let i = 0; i < 20; i++) {
+  if ((await json('GET', `/v1/orders/${orderId}/tracking`, buyer)).position) break;
+  await sleep(500);
+}
+const client = await openPhone(browser, buyer);
+await client.page.goto(`${WEB}/commande/${orderId}`);
+await client.page.getByTestId('rider-map').waitFor();
+await sleep(1500);
+await client.shot('16b-acheteur-livreur-en-route');
 await rider.page.getByTestId('rider-arrived').click();
 await rider.page.getByTestId('rider-handover').waitFor();
 const handover = await lastMessage(e164(BUYER), 'buyer_handover_code');

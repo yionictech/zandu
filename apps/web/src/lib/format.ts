@@ -44,3 +44,11 @@ export function slugify(text: string): string {
 /** « 95 000 » : espace fine entre les milliers, sans la devise. */
 export const groupThousands = (value: number): string =>
   String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+const time = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Africa/Brazzaville',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+/** « 14:05 », heure de Brazzaville. */
+export const formatTime = (iso: string): string => time.format(new Date(iso));

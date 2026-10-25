@@ -324,6 +324,17 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     expectConforms('/v1/rider/deliveries/{id}', 'get', 200, mission);
     expect(mission.status).toBe('picked_up');
+    await rider.POST('/v1/rider/deliveries/{id}/position', {
+      params: { path: { id: orderId } },
+      body: { lat: -4.7761, lng: 11.8635, accuracy: 10 },
+    });
+    const buyerApi = clientFor(m.buyer.headers.authorization!.slice(7));
+    expectConforms(
+      '/v1/orders/{id}/tracking',
+      'get',
+      200,
+      unwrap(await buyerApi.GET('/v1/orders/{id}/tracking', { params: { path: { id: orderId } } })),
+    );
 
     // Arrivée, appel, incident, retour au vendeur, puis profil, historique et journal du support.
     const path = { params: { path: { id: orderId } } };

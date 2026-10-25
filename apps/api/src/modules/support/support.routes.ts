@@ -113,7 +113,8 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
       const { rows } = await ctx.pool.query(
         `SELECT r.id, u.phone, u.full_name AS "name", cp.name AS "partner", z.name AS "zone",
                 (SELECT count(*)::int FROM deliveries d
-                  WHERE d.rider_id = r.id AND d.status IN ('assigned', 'picked_up', 'at_pickup_point')) AS "activeMissions"
+                  WHERE d.rider_id = r.id AND d.status IN ('assigned', 'picked_up', 'at_pickup_point', 'returning')) AS "activeMissions",
+                (SELECT max(p.recorded_at) FROM rider_positions p WHERE p.rider_id = r.id) AS "lastPositionAt"
          FROM riders r JOIN users u ON u.id = r.user_id
          JOIN courier_partners cp ON cp.id = r.courier_partner_id
          LEFT JOIN delivery_zones z ON z.id = r.zone_id

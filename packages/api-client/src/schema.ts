@@ -708,6 +708,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/orders/{id}/tracking': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Livreur en route — prénom, téléphone, dernière position */
+    get: operations['orderTracking'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/orders/{id}/cancel': {
     parameters: {
       query?: never;
@@ -875,6 +892,26 @@ export interface paths {
      * @description Un SMS prévient le client et l'attente commence ; au bout de RIDER_ABSENT_WAIT_MINUTES (10 min par défaut), le livreur peut le déclarer absent.
      */
     post: operations['riderArrived'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/deliveries/{id}/position': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Position du livreur en route vers le client
+     * @description Envoyée toutes les 15 s environ, application au premier plan. Seule la dernière position est gardée ; elle est effacée dès que le colis n'est plus en route.
+     */
+    post: operations['riderPosition'];
     delete?: never;
     options?: never;
     head?: never;
@@ -4201,6 +4238,45 @@ export interface operations {
       404: components['responses']['Error'];
     };
   };
+  orderTracking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Colis pris en charge */
+            onTheWay: boolean;
+            rider: {
+              /** @example Junior M. */
+              name: string;
+              phone: string;
+            } | null;
+            /** @description Dernière position si elle a moins de 10 minutes */
+            position: {
+              lat: number;
+              lng: number;
+              accuracy: number | null;
+              /** Format: date-time */
+              at: string;
+            } | null;
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
   cancelOrder: {
     parameters: {
       query?: never;
@@ -4456,6 +4532,36 @@ export interface operations {
             absentAllowedAt: string;
           };
         };
+      };
+      409: components['responses']['Error'];
+    };
+  };
+  riderPosition: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          lat: number;
+          lng: number;
+          /** @description Précision en mètres */
+          accuracy?: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Enregistrée */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       409: components['responses']['Error'];
     };
@@ -6051,6 +6157,11 @@ export interface operations {
               partner: string;
               zone: string | null;
               activeMissions: number;
+              /**
+               * Format: date-time
+               * @description Dernière position partagée pendant une course en route
+               */
+              lastPositionAt: string | null;
             }[];
           };
         };

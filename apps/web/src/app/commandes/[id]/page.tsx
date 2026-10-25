@@ -1,9 +1,9 @@
 import { ApiError, unwrap, type DisputeReason } from '@zandu/api-client';
-import { Check, Package, Star } from 'lucide-react';
+import { Check, Package, Phone, Star } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { field, mine, userClient, withParam } from '@/lib/api';
-import { displayPhone, formatDateTime, formatXaf } from '@/lib/format';
+import { displayPhone, formatDateTime, formatTime, formatXaf } from '@/lib/format';
 import {
   DISPUTE_REASONS,
   headline,
@@ -13,6 +13,7 @@ import {
   TIMELINE,
 } from '@/lib/labels';
 import { Price } from '@/components/Price';
+import { RiderMap } from '@/components/RiderMap';
 import { SubmitButton } from '@/components/SubmitButton';
 
 type ReviewTag = keyof typeof REVIEW_TAGS;
@@ -91,6 +92,12 @@ export default async function OrderPage({
   const o = await mine(`/commandes/${id}`, (api) =>
     api.GET('/v1/orders/{id}', { params: { path: { id } } }),
   );
+  const tracking =
+    o.status === 'in_delivery'
+      ? await mine(`/commandes/${id}`, (api) =>
+          api.GET('/v1/orders/{id}/tracking', { params: { path: { id } } }),
+        )
+      : null;
   const reached = new Map(o.history.map((h) => [h.status, h.at]));
   const action = act.bind(null, id);
   const tone =
@@ -165,6 +172,35 @@ export default async function OrderPage({
           <SubmitButton variant="secondary">Publier mon avis</SubmitButton>
         </form>
       ))}
+
+      {tracking?.onTheWay && tracking.rider ? (
+        <section className="card stack" data-testid="rider-on-the-way">
+          <div className="row" style={{ alignItems: 'center' }}>
+            <div>
+              <p className="eyebrow" style={{ color: 'var(--waiting)' }}>
+                Votre livreur arrive
+              </p>
+              <strong>{tracking.rider.name}</strong>
+            </div>
+            <a className="button small" href={`tel:${tracking.rider.phone}`}>
+              <Phone className="icon" aria-hidden /> Appeler
+            </a>
+          </div>
+          {tracking.position ? (
+            <>
+              <RiderMap lat={tracking.position.lat} lng={tracking.position.lng} />
+              <span className="small muted">
+                Position du livreur à {formatTime(tracking.position.at)} ·{' '}
+                <a href={`/commandes/${id}`}>Actualiser</a>
+              </span>
+            </>
+          ) : (
+            <span className="small muted">
+              Sa position s’affichera ici dès qu’il partage sa localisation.
+            </span>
+          )}
+        </section>
+      ) : null}
 
       <section className="card">
         <ol className="track">

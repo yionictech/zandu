@@ -146,13 +146,15 @@ export async function launchBrowser() {
  * Un « téléphone » : contexte isolé (sa propre session) au format Android 360 × 780.
  * `token` : session déjà ouverte, déposée là où l'application web la range.
  */
-export async function phone(browser, token) {
+export async function phone(browser, token, { geolocation } = {}) {
   const context = await browser.newContext({
     viewport: { width: 360, height: 780 },
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
     locale: 'fr-FR',
+    // Livreur : position simulée, autorisation déjà donnée.
+    ...(geolocation ? { geolocation, permissions: ['geolocation'] } : {}),
   });
   if (token) {
     await context.addInitScript((value) => {

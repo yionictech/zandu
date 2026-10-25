@@ -187,6 +187,15 @@ await json('POST', `/v1/seller/orders/${orderId}/rider-pickup`, seller, {
   code: (await json('GET', `/v1/rider/deliveries/${orderId}`, rider)).pickupCode,
 });
 await json('POST', `/v1/rider/deliveries/${orderId}/pickup`, rider);
+// Le livreur partage sa position : l'acheteur le voit arriver sur le site.
+await json('POST', `/v1/rider/deliveries/${orderId}/position`, rider, {
+  lat: -4.7761,
+  lng: 11.8635,
+  accuracy: 15,
+});
+await page.reload();
+await page.getByTestId('rider-on-the-way').waitFor();
+await shot('10b-livreur-en-route');
 const handover = await lastMessage(e164(BUYER), 'buyer_handover_code');
 await json('POST', `/v1/rider/deliveries/${orderId}/handover`, rider, {
   code: handover.variables.code,

@@ -1296,6 +1296,39 @@ paths:
                       history: { $ref: '#/components/schemas/OrderHistory' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/orders/{id}/tracking:
+    get:
+      tags: [Commandes]
+      summary: Livreur en route — prénom, téléphone, dernière position
+      operationId: orderTracking
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [onTheWay, rider, position]
+                properties:
+                  onTheWay: { type: boolean, description: Colis pris en charge, en route vers vous }
+                  rider:
+                    type: [object, 'null']
+                    required: [name, phone]
+                    properties:
+                      name: { type: string, examples: [Junior M.] }
+                      phone: { type: string }
+                  position:
+                    type: [object, 'null']
+                    description: Dernière position si elle a moins de 10 minutes
+                    required: [lat, lng, accuracy, at]
+                    properties:
+                      lat: { type: number }
+                      lng: { type: number }
+                      accuracy: { type: [number, 'null'] }
+                      at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+
   /v1/orders/{id}/cancel:
     post:
       tags: [Commandes]
@@ -1494,6 +1527,30 @@ paths:
                 properties:
                   arrivedAt: { type: string, format: date-time }
                   absentAllowedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/deliveries/{id}/position:
+    post:
+      tags: [Livreur]
+      summary: Position du livreur en route vers le client
+      description: >-
+        Envoyée toutes les 15 s environ, application au premier plan. Seule la dernière position
+        est gardée ; elle est effacée dès que le colis n'est plus en route.
+      operationId: riderPosition
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lng: { type: number, minimum: -180, maximum: 180 }
+                accuracy: { type: number, minimum: 0, description: Précision en mètres }
+      responses:
+        '204': { description: Enregistrée }
         '409': { $ref: '#/components/responses/Error' }
 
   /v1/rider/deliveries/{id}/contact-attempt:
@@ -3018,7 +3075,7 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, phone, name, partner, zone, activeMissions]
+                      required: [id, phone, name, partner, zone, activeMissions, lastPositionAt]
                       properties:
                         id: { type: string, format: uuid }
                         phone: { type: string }
@@ -3026,6 +3083,10 @@ paths:
                         partner: { type: string }
                         zone: { type: [string, 'null'] }
                         activeMissions: { type: integer }
+                        lastPositionAt:
+                          type: [string, 'null']
+                          format: date-time
+                          description: Dernière position partagée pendant une course en route
         '403': { $ref: '#/components/responses/Error' }
 
   /v1/support/orders:

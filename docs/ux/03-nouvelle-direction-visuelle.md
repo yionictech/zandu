@@ -119,6 +119,9 @@ GPS** des livreurs, gains par course dans le grand livre (compte « livreurs à 
 retraits. C'est une décision de modèle économique (D15) avant d'être une décision technique :
 payer chaque livreur, c'est aussi des obligations (contrats, assurance).
 
+**Décision du fondateur (25 octobre)** : on garde les livreurs des sociétés partenaires et
+l'attribution par le support (§10) ; les livreurs indépendants ne sont pas prévus.
+
 **Recommandation** : au lancement, garder l'attribution par le support et les livreurs du
 partenaire, avec les **écrans restylés** des maquettes (mission, code de retrait, remise, cliente
 absente, retour) ; ajouter « En ligne » et les courses proposées en V2, quand le volume le justifie.
@@ -512,3 +515,29 @@ back-office ne choisit pas « À la demande », le reversement reste automatique
 
 Reste à décider (§4.3) : le mode retenu, le seuil de contrôle, et les frais éventuels de
 l'agrégateur sur les retraits (D1), aujourd'hui à la charge de Zandu.
+
+## 15. Livreur en route : position et petite carte (✅ fait — §4.2)
+
+Dans le modèle retenu (livreurs des partenaires, §4.1) :
+
+- **Livreur** : quand il a le colis et roule vers le client, l'application partage sa position
+  (au premier plan seulement, toutes les 15 s ou tous les 30 m) ; l'écran le lui dit (« Le
+  client voit votre position pendant la course »). S'il refuse la localisation, la course
+  continue normalement.
+- **Acheteur** (application et site) : encart **« Votre livreur arrive »** avec son prénom, le
+  bouton **Appeler** et une **petite carte** centrée sur sa dernière position (moins de 10 min),
+  rafraîchie toutes les 20 s dans l'application (« Actualiser » sur le site, sans script).
+- **Back-office, Livreurs** : heure de la dernière position de chaque livreur.
+- **Vie privée** : seule la dernière position de la course est gardée ; un déclencheur de la
+  base l'efface dès que le colis n'est plus en route (remise, point relais, retour, échec,
+  réassignation). Aucun historique des trajets.
+- **Carte sans bibliothèque** : quelques tuiles d'image posées côte à côte (pas de module natif,
+  léger en 3G, marche aussi sur le web). Tuiles d'OpenStreetMap pour les essais ;
+  **en production, il faut un fournisseur** (MapTiler, Stadia… 0 à 50 €/mois au début) :
+  `EXPO_PUBLIC_MAP_TILES` et `ZANDU_MAP_TILES`.
+- API : `POST /v1/rider/deliveries/{id}/position`, `GET /v1/orders/{id}/tracking`, migration 0014,
+  2 tests ; tuiles calculées dans le domaine (`tilesAround`), 2 tests.
+
+Pas encore fait : **temps d'arrivée** (les adresses sont des repères écrits, sans coordonnées :
+il faudrait demander la position du client à la commande) et position **en arrière-plan**
+(autorisation plus sensible, à demander aux livreurs).

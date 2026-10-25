@@ -1363,3 +1363,40 @@ textarea {
   padding: 0 14px;
   font-size: 13px;
 }
+
+/* Livreur en route (docs/ux/03 §15) : tuiles posées autour du centre, repère au milieu. */
+.map {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+.map img {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+}
+.map-marker {
+  position: absolute;
+  left: calc(50% - 18px);
+  top: calc(50% - 18px);
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: var(--brand);
+  border: 3px solid var(--background);
+  color: var(--on-brand);
+  display: grid;
+  place-items: center;
+}
+.map-attribution {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 9px;
+  color: #333;
+  background: rgb(255 255 255 / 70%);
+  padding: 0 3px;
+}

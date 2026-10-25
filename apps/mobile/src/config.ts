@@ -22,3 +22,12 @@ export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || null;
 
 /** Adresse du site, pour partager une fiche produit (ex. https://zandu.cg). Facultatif. */
 export const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || null;
+
+/**
+ * Tuiles de la carte « livreur en route » (docs/ux/03 §15), schéma {z}/{x}/{y}. Par défaut les
+ * tuiles d'OpenStreetMap, réservées aux essais (leur règlement interdit un usage intensif) ; en
+ * production, celles d'un fournisseur (MapTiler, Stadia…) via EXPO_PUBLIC_MAP_TILES.
+ */
+export const MAP_TILES =
+  process.env.EXPO_PUBLIC_MAP_TILES || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+export const MAP_ATTRIBUTION = process.env.EXPO_PUBLIC_MAP_ATTRIBUTION || '© OpenStreetMap';

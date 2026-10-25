@@ -8,3 +8,4 @@ export * from './ledger.js';
 export * from './payout-policy.js';
 export * from './chat-filter.js';
 export * from './opening-hours.js';
+export * from './map-tiles.js';

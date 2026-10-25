@@ -153,6 +153,52 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       return { ...order, history: await orderHistory(ctx.pool, id) };
     });
 
+    /**
+     * Livreur en route (docs/ux/03 §15) : prénom, téléphone pour l'appeler, dernière position
+     * si elle a moins de 10 minutes. Rien avant la prise en charge ni après la remise.
+     */
+    app.get('/v1/orders/:id/tracking', async (request) => {
+      const { id } = IdParam.parse(request.params);
+      const user = currentUser(request);
+      const { rows } = await ctx.pool.query<{
+        status: string;
+        delivery_status: string | null;
+        rider_name: string | null;
+        rider_phone: string | null;
+        lat: number | null;
+        lng: number | null;
+        accuracy_m: number | null;
+        recorded_at: Date | null;
+      }>(
+        `SELECT o.status, d.status AS delivery_status, u.full_name AS rider_name, u.phone AS rider_phone,
+                p.lat, p.lng, p.accuracy_m, p.recorded_at
+         FROM orders o
+         LEFT JOIN deliveries d ON d.order_id = o.id
+         LEFT JOIN riders r ON r.id = d.rider_id LEFT JOIN users u ON u.id = r.user_id
+         LEFT JOIN rider_positions p ON p.delivery_id = d.id
+         WHERE o.id = $1 AND o.buyer_id = $2`,
+        [id, user.id],
+      );
+      const row = rows[0];
+      if (!row) throw notFound('Commande');
+      const onTheWay = row.delivery_status === 'picked_up';
+      const fresh =
+        onTheWay &&
+        row.recorded_at !== null &&
+        ctx.clock.now().getTime() - row.recorded_at.getTime() <= 10 * 60_000;
+      const name = row.rider_name?.trim();
+      return {
+        onTheWay,
+        rider:
+          onTheWay && row.rider_phone
+            ? { name: name ? shortName(name) : 'Livreur Zandu', phone: row.rider_phone }
+            : null,
+        position: fresh
+          ? { lat: row.lat!, lng: row.lng!, accuracy: row.accuracy_m, at: row.recorded_at! }
+          : null,
+      };
+    });
+
     app.post('/v1/orders/:id/cancel', async (request) => {
       const { id } = IdParam.parse(request.params);
       const a = actor(request, 'buyer');

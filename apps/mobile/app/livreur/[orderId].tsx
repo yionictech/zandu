@@ -10,6 +10,7 @@ import {
   Lock,
   MapPin,
   MessageSquareText,
+  Navigation,
   PhoneCall,
   ShieldCheck,
 } from 'lucide-react-native';
@@ -28,6 +29,7 @@ import {
   ShowCode,
   useRiderMe,
 } from '../../src/rider/ui';
+import { useShareLocation, type ShareState } from '../../src/rider/useShareLocation';
 import { timeOf } from '../../src/seller/queries';
 import { CheckRow } from '../../src/seller/ui';
 import { colors, font, fonts, space } from '../../src/theme';
@@ -116,7 +118,19 @@ function Pickup({
 }
 
 /** Étape 2 : en route vers le client (ou le point relais). */
-function OnTheWay({ m }: { m: RiderMission }) {
+/** Ce que le livreur partage : sa position, pendant la course seulement. */
+function SharingNote({ state }: { state: ShareState }) {
+  if (state === 'sharing') return <Note icon={Navigation}>{t.rider.sharing}</Note>;
+  if (state === 'denied')
+    return (
+      <Note icon={Navigation} tone="waiting">
+        {t.rider.sharingDenied}
+      </Note>
+    );
+  return null;
+}
+
+function OnTheWay({ m, sharing }: { m: RiderMission; sharing: ShareState }) {
   const point = m.destination.pickupPoint;
   return (
     <>
@@ -142,6 +156,7 @@ function OnTheWay({ m }: { m: RiderMission }) {
           </Card>
         </>
       )}
+      <SharingNote state={sharing} />
       <Note icon={ShieldCheck}>{t.rider.prepaidLong}</Note>
     </>
   );
@@ -382,6 +397,8 @@ function Mission({ orderId }: { orderId: string }) {
       return waitingSeller ? 4_000 : 20_000;
     },
   });
+  // En route vers le client : la position est partagée (premier plan seulement).
+  const sharing = useShareLocation(orderId, mission.data?.status === 'picked_up');
   const step = useMutation({
     mutationFn: async (a: Action) => {
       const params = { params: { path: { id: orderId } } };
@@ -608,7 +625,7 @@ function Mission({ orderId }: { orderId: string }) {
       ) : handover ? (
         <Handover m={m} code={code} setCode={setCode} error={stepError} disabled={step.isPending} />
       ) : m.status === 'picked_up' ? (
-        <OnTheWay m={m} />
+        <OnTheWay m={m} sharing={sharing} />
       ) : (
         <Done m={m} />
       )}

@@ -310,6 +310,36 @@ export function riderRoutes(ctx: AppContext): FastifyPluginAsync {
         };
       });
 
+      /**
+       * Position du livreur en route vers le client (application au premier plan, toutes les
+       * 15 s environ). Seule la dernière est gardée ; elle disparaît à la fin de la course.
+       */
+      rider.post('/v1/rider/deliveries/:id/position', async (request, reply) => {
+        const { id } = IdParam.parse(request.params);
+        const body = z
+          .object({
+            lat: z.number().min(-90).max(90),
+            lng: z.number().min(-180).max(180),
+            accuracy: z.number().min(0).max(100_000).optional(),
+          })
+          .parse(request.body);
+        const a = actor(request, 'rider');
+        await withTx(ctx.pool, async (tx) => {
+          const d = await riderDelivery(tx, id, a);
+          if (d.status !== 'picked_up')
+            throw new HttpError(409, 'not_on_the_way', 'Position partagée seulement en route');
+          const rider = await riderOf(tx, a.userId);
+          await tx.query(
+            `INSERT INTO rider_positions (delivery_id, rider_id, lat, lng, accuracy_m, recorded_at)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (delivery_id) DO UPDATE SET lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+               accuracy_m = EXCLUDED.accuracy_m, recorded_at = EXCLUDED.recorded_at`,
+            [d.id, rider.id, body.lat, body.lng, body.accuracy ?? null, now()],
+          );
+        });
+        return reply.status(204).send();
+      });
+
       /** Appel au client pendant l'attente : gardé comme preuve des tentatives de contact. */
       rider.post('/v1/rider/deliveries/:id/contact-attempt', async (request, reply) => {
         const { id } = IdParam.parse(request.params);

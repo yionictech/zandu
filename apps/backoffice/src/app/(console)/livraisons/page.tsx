@@ -213,6 +213,7 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
               <th>Partenaire</th>
               <th>Zone</th>
               <th className="num">Missions en cours</th>
+              <th>Dernière position</th>
             </tr>
           </thead>
           <tbody>
@@ -223,6 +224,9 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
                 <td>{r.partner}</td>
                 <td>{r.zone ?? 'Toutes'}</td>
                 <td className="num">{r.activeMissions}</td>
+                <td className="muted">
+                  {r.lastPositionAt ? formatDateTime(r.lastPositionAt) : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -35,6 +35,14 @@
         {
           "color": "#C2410C"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Pendant une course, Zandu partage votre position avec le client pour qu'il vous voie arriver. Rien n'est envoyé en dehors des courses.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": false
+        }
       ]
     ]
   }

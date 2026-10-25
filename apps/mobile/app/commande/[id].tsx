@@ -1,9 +1,9 @@
 import type { Order } from '@zandu/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Lock, Package as PackageIcon, Star } from 'lucide-react-native';
+import { Lock, Package as PackageIcon, Phone, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { displayPhone, formatDateTime, formatXaf } from '../../src/format';
@@ -14,6 +14,7 @@ import { Chip, ErrorText, Field } from '../../src/ui/Form';
 import { Amount, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { statusColor } from '../../src/status';
+import { MapTiles } from '../../src/ui/MapTiles';
 import { Timeline } from '../../src/ui/Timeline';
 
 const CODE_PENDING = [
@@ -119,6 +120,55 @@ function ReviewForm({
   );
 }
 
+/**
+ * Livreur en route (docs/ux/03 §15) : son prénom, le bouton pour l'appeler et sa dernière
+ * position sur une petite carte, rafraîchie toutes les 20 s.
+ */
+function RiderOnTheWay({ orderId }: { orderId: string }) {
+  const tracking = useQuery({
+    queryKey: ['order', orderId, 'tracking'],
+    queryFn: async () =>
+      unwrap(await api.GET('/v1/orders/{id}/tracking', { params: { path: { id: orderId } } })),
+    refetchInterval: 20_000,
+  });
+  const tr = tracking.data;
+  if (!tr?.onTheWay || !tr.rider) return null;
+  const rider = tr.rider;
+  return (
+    <Card testID="rider-on-the-way">
+      <View style={styles.riderRow}>
+        <View style={styles.flex}>
+          <Eyebrow color={colors.waiting}>{t.orders.riderComing}</Eyebrow>
+          <Text style={styles.body}>{rider.name}</Text>
+        </View>
+        <Pressable
+          onPress={() => void Linking.openURL(`tel:${rider.phone}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`${t.orders.callRider} ${rider.name}`}
+          style={styles.callRider}
+        >
+          <Phone color={colors.onBrand} size={20} strokeWidth={2} />
+        </Pressable>
+      </View>
+      {tr.position ? (
+        <>
+          <MapTiles lat={tr.position.lat} lng={tr.position.lng} testID="rider-map" />
+          <Text style={styles.muted}>{t.orders.positionAt(timeOf(tr.position.at))}</Text>
+        </>
+      ) : (
+        <Text style={styles.muted}>{t.orders.positionSoon}</Text>
+      )}
+    </Card>
+  );
+}
+
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Africa/Brazzaville',
+  });
+
 /** Suivi d'une commande : frise, code de remise, confirmation de réception, litige, avis. */
 export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -187,6 +237,8 @@ export default function OrderScreen() {
           {o.seller.shopName} · {formatDateTime(o.createdAt)}
         </Text>
       </Card>
+
+      {o.status === 'in_delivery' ? <RiderOnTheWay orderId={o.id} /> : null}
 
       {o.status === 'delivered' && o.disputeWindowEndsAt ? (
         <Card>
@@ -283,6 +335,15 @@ export default function OrderScreen() {
 }
 
 const styles = StyleSheet.create({
+  riderRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  callRider: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   flex: { flex: 1 },
   hero: { gap: 6, borderColor: colors.brandBorder },
   eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
