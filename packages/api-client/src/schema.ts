@@ -715,7 +715,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Livreur en route — prénom, téléphone, dernière position */
+    /** Livreur en route — prénom, téléphone, dernière position, temps d’arrivée */
     get: operations['orderTracking'];
     put?: never;
     post?: never;
@@ -2408,6 +2408,15 @@ export interface components {
       recipientName: string;
       phone: string;
       landmark: string;
+      location?: components['schemas']['GeoPoint'];
+    };
+    GeoPoint: {
+      /** @example -4.7612 */
+      lat: number;
+      /** @example 11.8735 */
+      lng: number;
+      /** @description Précision en mètres */
+      accuracy?: number;
     };
     /** @enum {string} */
     DisputeReason:
@@ -2570,6 +2579,8 @@ export interface components {
       destination: {
         city: string;
         zone: string;
+        /** @description Repère GPS du client ou coordonnées du point relais, s'ils sont connus */
+        location: components['schemas']['GeoPoint'] | null;
         pickupPoint: {
           name: string;
           landmark: string;
@@ -4102,6 +4113,8 @@ export interface operations {
              * @example Tié-Tié, derrière l'école Saint-Pierre, portail bleu
              */
             landmark: string;
+            /** @description Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un point relais). Hors du Congo : 422 location_out_of_area. */
+            location?: components['schemas']['GeoPoint'];
           };
         };
       };
@@ -4271,6 +4284,12 @@ export interface operations {
               /** Format: date-time */
               at: string;
             } | null;
+            /** @description Repère posé à la commande, ou point relais */
+            destination: components['schemas']['GeoPoint'] | null;
+            /** @description À vol d'oiseau, entre le livreur et la destination */
+            distanceMeters: number | null;
+            /** @description Estimation (détour et vitesse d'une moto en ville compris) */
+            etaMinutes: number | null;
           };
         };
       };

@@ -18,6 +18,14 @@ const CheckoutBody = z.object({
     recipientName: z.string().trim().min(2).max(80),
     phone: z.string().min(8).max(20),
     landmark: z.string().trim().min(5).max(300),
+    /** Repère posé sur la carte (facultatif, livraison à domicile). */
+    location: z
+      .object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        accuracy: z.number().min(0).max(10_000).optional(),
+      })
+      .optional(),
   }),
 });
 

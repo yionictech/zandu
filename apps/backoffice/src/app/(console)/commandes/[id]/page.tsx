@@ -95,7 +95,22 @@ export default async function OrderPage({
               {o.shippingAddress.recipientName} · {displayPhone(o.shippingAddress.phone)}
             </dd>
             <dt>Repère</dt>
-            <dd>{o.shippingAddress.landmark}</dd>
+            <dd>
+              {o.shippingAddress.landmark}
+              {o.shippingAddress.location ? (
+                <>
+                  {' '}
+                  ·{' '}
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${o.shippingAddress.location.lat}&mlon=${o.shippingAddress.location.lng}#map=18/${o.shippingAddress.location.lat}/${o.shippingAddress.location.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Repère sur la carte
+                  </a>
+                </>
+              ) : null}
+            </dd>
             <dt>Boutique</dt>
             <dd>
               {o.seller.shopName} · {displayPhone(o.sellerContact.phone)}{' '}

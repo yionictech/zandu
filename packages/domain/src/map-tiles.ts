@@ -14,6 +14,43 @@ export interface Tile {
   top: number;
 }
 
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+/** Position d'un point sur la carte du monde entière au zoom donné, en pixels. */
+export function worldPixel(lat: number, lng: number, zoom: number): { x: number; y: number } {
+  const size = 2 ** zoom * TILE_SIZE;
+  const rad = (lat * Math.PI) / 180;
+  return {
+    x: ((lng + 180) / 360) * size,
+    y: ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * size,
+  };
+}
+
+/** Décalage en pixels d'un point par rapport au centre du cadre (pour y poser un second repère). */
+export function offsetFromCenter(
+  center: LatLng,
+  point: LatLng,
+  zoom: number,
+): { dx: number; dy: number } {
+  const c = worldPixel(center.lat, center.lng, zoom);
+  const p = worldPixel(point.lat, point.lng, zoom);
+  return { dx: p.x - c.x, dy: p.y - c.y };
+}
+
+/** Point de la carte touché à (dx, dy) pixels du centre : déplacer le repère d'un toucher. */
+export function latLngAtOffset(center: LatLng, zoom: number, dx: number, dy: number): LatLng {
+  const size = 2 ** zoom * TILE_SIZE;
+  const c = worldPixel(center.lat, center.lng, zoom);
+  const x = c.x + dx;
+  const y = c.y + dy;
+  const lng = (x / size) * 360 - 180;
+  const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / size))) * 180) / Math.PI;
+  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
+}
+
 export function tilesAround(
   lat: number,
   lng: number,
@@ -22,9 +59,7 @@ export function tilesAround(
   height: number,
 ): Tile[] {
   const n = 2 ** zoom;
-  const rad = (lat * Math.PI) / 180;
-  const px = ((lng + 180) / 360) * n * TILE_SIZE;
-  const py = ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * n * TILE_SIZE;
+  const { x: px, y: py } = worldPixel(lat, lng, zoom);
   const left = px - width / 2;
   const top = py - height / 2;
   const tiles: Tile[] = [];

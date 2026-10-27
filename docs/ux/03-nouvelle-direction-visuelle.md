@@ -538,6 +538,40 @@ Dans le modèle retenu (livreurs des partenaires, §4.1) :
 - API : `POST /v1/rider/deliveries/{id}/position`, `GET /v1/orders/{id}/tracking`, migration 0014,
   2 tests ; tuiles calculées dans le domaine (`tilesAround`), 2 tests.
 
-Pas encore fait : **temps d'arrivée** (les adresses sont des repères écrits, sans coordonnées :
-il faudrait demander la position du client à la commande) et position **en arrière-plan**
-(autorisation plus sensible, à demander aux livreurs).
+Temps d'arrivée : fait au §16 (repère sur la carte à la commande). Pas encore fait : position
+**en arrière-plan** (autorisation plus sensible, à demander aux livreurs).
+
+## 16. Repère sur la carte et temps d'arrivée (✅ fait)
+
+Le repère écrit reste obligatoire (c'est lui que le livreur lit) ; la carte l'aide à trouver la
+bonne rue.
+
+- **Client, à la livraison à domicile** (application et site) : bloc facultatif **« Votre porte sur
+  la carte »**, bouton **« Utiliser ma position actuelle »**. Dans l'application, une petite carte
+  montre le repère et un toucher le déplace sur la bonne porte ; sur le site, la position est
+  simplement enregistrée (pas de carte dans le formulaire, pour garder la page légère). Repère
+  retenu avec l'adresse si le client coche « Enregistrer cette adresse ». Hors du Congo : refusé
+  (téléphone mal réglé). Point relais : pas de repère, ce sont les coordonnées du relais qui
+  servent.
+- **Livreur, en route** : carte de la destination (maison du client ou point relais) avec sa
+  propre position, **« À 2,0 km · environ 10 min »** et un bouton **Itinéraire** qui ouvre
+  l'application de cartes du téléphone. Sans repère : « suivez le repère écrit et appelez le
+  client ».
+- **Client, suivi** : **« Arrivée dans 10 min environ »** au-dessus de la carte, qui montre le
+  livreur et la maison (le zoom recule pour que les deux tiennent dans le cadre).
+- **Back-office, commande** : lien « Repère sur la carte » à côté du repère écrit.
+- **Estimation** : distance à vol d'oiseau × 1,4 (les rues ne vont pas tout droit), à 18 km/h (moto
+  en ville, embouteillages compris), arrondie à la minute supérieure. Pas de calcul d'itinéraire,
+  donc pas de service payant ; à recaler sur les vraies durées des courses après quelques
+  semaines.
+- Données : `shipping_address.location` (commande), `pickup_points.lat/lng` (migration 0015, les
+  deux relais pilotes renseignés) ; API `delivery.location` à la commande,
+  `destination.location` dans la course, `destination`, `distanceMeters`, `etaMinutes` dans
+  `/v1/orders/{id}/tracking` ; domaine `geo.ts` (distance, estimation, zone Congo) et
+  `latLngAtOffset` (point touché sur la carte), 5 tests ; API 3 tests.
+- Le site autorise désormais la localisation pour lui-même (`Permissions-Policy:
+geolocation=(self)`), toujours interdite aux contenus d'autres sites.
+
+Écarts : pas de saisie des coordonnées des points relais au back-office (à ajouter quand il y en
+aura plus de deux) ; repère posé seulement depuis la position du téléphone, pas en cherchant une
+adresse (pas de géocodage : les quartiers n'ont pas d'adresses fiables).

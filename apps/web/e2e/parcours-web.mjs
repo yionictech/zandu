@@ -111,6 +111,9 @@ const context = await browser.newContext({
   isMobile: true,
   hasTouch: true,
   locale: 'fr-FR',
+  // L'acheteur commande depuis chez lui, à Tié-Tié (autorisation de localisation donnée).
+  geolocation: { latitude: -4.7612, longitude: 11.8735, accuracy: 25 },
+  permissions: ['geolocation'],
 });
 const page = await context.newPage();
 page.on('dialog', (dialog) => void dialog.accept());
@@ -152,6 +155,8 @@ await page.getByTestId('login-verify').click();
 await page.getByTestId('zone-Tié-Tié').click();
 await page.getByTestId('recipient').fill('Grâce Mabiala');
 await page.getByTestId('landmark').fill("Tié-Tié, derrière l'école Saint-Pierre, portail bleu");
+await page.getByTestId('pin-use').click();
+await page.getByTestId('pin-saved').waitFor();
 await shot('06-livraison');
 await page.getByTestId('checkout-continue').click();
 
@@ -195,6 +200,8 @@ await json('POST', `/v1/rider/deliveries/${orderId}/position`, rider, {
 });
 await page.reload();
 await page.getByTestId('rider-on-the-way').waitFor();
+// Le repère posé à la commande donne le temps d'arrivée (≈ 2 km, 10 min en moto).
+await page.getByTestId('rider-eta').getByText('10 min', { exact: false }).waitFor();
 await shot('10b-livreur-en-route');
 const handover = await lastMessage(e164(BUYER), 'buyer_handover_code');
 await json('POST', `/v1/rider/deliveries/${orderId}/handover`, rider, {

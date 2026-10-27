@@ -15,6 +15,7 @@ import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
 import { Chip, ErrorText, Field } from '../../src/ui/Form';
 import { Empty, Loading, Screen } from '../../src/ui/Layout';
+import { LocationPicker, type PinnedLocation } from '../../src/ui/LocationPicker';
 
 const ADDRESS_KEY = 'zandu.lastAddress';
 
@@ -25,6 +26,8 @@ interface Address {
   recipientName: string;
   phone: string;
   landmark: string;
+  /** Repère sur la carte (facultatif, domicile seulement). */
+  location?: PinnedLocation | null;
 }
 
 /** Livraison : adresse par repères, domicile ou point relais. Mémorisée pour la prochaine fois. */
@@ -97,6 +100,7 @@ export default function DeliveryScreen() {
         recipientName: address.recipientName.trim(),
         phone: address.phone,
         landmark: address.landmark.trim(),
+        ...(address.mode === 'home' && address.location ? { location: address.location } : {}),
       },
     };
     // Même clé tant que le contenu ne change pas : un renvoi après coupure ne crée pas de doublon.
@@ -242,6 +246,12 @@ export default function DeliveryScreen() {
             </Pressable>
           ))}
         </View>
+        {address.mode === 'home' ? (
+          <LocationPicker
+            value={address.location ?? null}
+            onChange={(location) => set({ location })}
+          />
+        ) : null}
       </Card>
 
       <Pressable

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { arrivalMinutes, distanceMeters, formatDistance, type LatLng } from '@zandu/domain';
 import { api, errorCode, errorMessage, unwrap } from '../../src/api';
 import { countdown } from '../../src/format';
 import { t } from '../../src/i18n/fr';
@@ -40,6 +41,7 @@ import { Chip, ErrorText } from '../../src/ui/Form';
 import { Badge, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { RequireRole } from '../../src/ui/RequireRole';
+import { MapTiles } from '../../src/ui/MapTiles';
 import { Text } from '../../src/ui/Text';
 
 type Action =
@@ -130,10 +132,19 @@ function SharingNote({ state }: { state: ShareState }) {
   return null;
 }
 
-function OnTheWay({ m, sharing }: { m: RiderMission; sharing: ShareState }) {
+function OnTheWay({
+  m,
+  sharing,
+  here,
+}: {
+  m: RiderMission;
+  sharing: ShareState;
+  here: LatLng | null;
+}) {
   const point = m.destination.pickupPoint;
   return (
     <>
+      <Destination m={m} here={here} />
       {point ? (
         <Card>
           <Eyebrow>{t.rider.deliverTo}</Eyebrow>
@@ -159,6 +170,42 @@ function OnTheWay({ m, sharing }: { m: RiderMission; sharing: ShareState }) {
       <SharingNote state={sharing} />
       <Note icon={ShieldCheck}>{t.rider.prepaidLong}</Note>
     </>
+  );
+}
+
+/**
+ * Où livrer sur la carte (docs/ux/03 §16) : le repère posé par le client ou le point relais,
+ * la distance qui reste et l'itinéraire dans l'application de cartes du téléphone.
+ */
+function Destination({ m, here }: { m: RiderMission; here: LatLng | null }) {
+  const to = m.destination.location;
+  if (!to) return <Note icon={MapPin}>{t.rider.noPin}</Note>;
+  return (
+    <Card>
+      <MapTiles
+        lat={to.lat}
+        lng={to.lng}
+        pin="home"
+        other={here ? { point: here, pin: 'rider' } : null}
+        label={t.rider.deliverTo}
+        testID="destination-map"
+      />
+      <Text style={styles.muted}>
+        {here
+          ? t.rider.distanceLeft(formatDistance(distanceMeters(here, to)), arrivalMinutes(here, to))
+          : missionDestination(m)}
+      </Text>
+      <Button
+        label={t.rider.route}
+        variant="secondary"
+        onPress={() =>
+          void Linking.openURL(
+            `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lng}`,
+          )
+        }
+        testID="destination-route"
+      />
+    </Card>
   );
 }
 
@@ -398,7 +445,10 @@ function Mission({ orderId }: { orderId: string }) {
     },
   });
   // En route vers le client : la position est partagée (premier plan seulement).
-  const sharing = useShareLocation(orderId, mission.data?.status === 'picked_up');
+  const { state: sharing, position: here } = useShareLocation(
+    orderId,
+    mission.data?.status === 'picked_up',
+  );
   const step = useMutation({
     mutationFn: async (a: Action) => {
       const params = { params: { path: { id: orderId } } };
@@ -625,7 +675,7 @@ function Mission({ orderId }: { orderId: string }) {
       ) : handover ? (
         <Handover m={m} code={code} setCode={setCode} error={stepError} disabled={step.isPending} />
       ) : m.status === 'picked_up' ? (
-        <OnTheWay m={m} sharing={sharing} />
+        <OnTheWay m={m} sharing={sharing} here={here} />
       ) : (
         <Done m={m} />
       )}

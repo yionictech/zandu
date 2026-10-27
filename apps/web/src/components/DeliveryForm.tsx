@@ -19,6 +19,8 @@ interface Address {
   recipientName: string;
   phone: string;
   landmark: string;
+  /** Repère posé avec la position du téléphone (facultatif, domicile seulement). */
+  location?: { lat: number; lng: number; accuracy?: number } | null;
 }
 
 const ADDRESS_KEY = 'zandu.lastAddress';
@@ -219,6 +221,9 @@ export function DeliveryForm({
             </button>
           ))}
         </div>
+        {address.mode === 'home' ? (
+          <PinButton value={address.location ?? null} onChange={(location) => set({ location })} />
+        ) : null}
       </section>
       <label className="card check-line">
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
@@ -238,6 +243,77 @@ export function DeliveryForm({
       </div>
       <SubmitButton testId="checkout-continue">Continuer vers le paiement</SubmitButton>
     </form>
+  );
+}
+
+/**
+ * « Votre porte sur la carte » (docs/ux/03 §16), facultatif : la position du téléphone, envoyée
+ * dans des champs cachés. Le repère écrit reste obligatoire.
+ */
+function PinButton({
+  value,
+  onChange,
+}: {
+  value: Address['location'] | null;
+  onChange: (value: Address['location'] | null) => void;
+}) {
+  const [state, setState] = useState<'idle' | 'busy' | 'denied' | 'failed'>('idle');
+  const locate = () => {
+    if (!('geolocation' in navigator)) return setState('failed');
+    setState('busy');
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setState('idle');
+        onChange({
+          lat: Math.round(coords.latitude * 1e6) / 1e6,
+          lng: Math.round(coords.longitude * 1e6) / 1e6,
+          accuracy: Math.round(coords.accuracy),
+        });
+      },
+      (error) => setState(error.code === error.PERMISSION_DENIED ? 'denied' : 'failed'),
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
+  };
+  return (
+    <div className="stack" style={{ gap: 8 }} data-testid="pin">
+      <strong>Votre porte sur la carte</strong>
+      {value ? (
+        <>
+          <input type="hidden" name="lat" value={value.lat} />
+          <input type="hidden" name="lng" value={value.lng} />
+          {value.accuracy ? <input type="hidden" name="accuracy" value={value.accuracy} /> : null}
+          <span className="small muted" data-testid="pin-saved">
+            Position enregistrée{value.accuracy ? ` (à ${value.accuracy} m près)` : ''} : le livreur
+            la verra sur sa carte.{' '}
+            <button type="button" className="link" onClick={() => onChange(null)}>
+              Retirer
+            </button>
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="small muted">
+            Facultatif : depuis chez vous, le livreur vous trouve plus vite et vous voyez quand il
+            arrive.
+          </span>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={locate}
+            disabled={state === 'busy'}
+            data-testid="pin-use"
+          >
+            {state === 'busy' ? 'Recherche de la position…' : 'Utiliser ma position actuelle'}
+          </button>
+          {state === 'denied' ? (
+            <span className="small muted">Localisation refusée : le repère écrit suffit.</span>
+          ) : null}
+          {state === 'failed' ? (
+            <span className="small muted">Position introuvable : le repère écrit suffit.</span>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 

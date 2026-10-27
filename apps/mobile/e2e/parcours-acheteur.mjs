@@ -25,7 +25,10 @@ const BUYER = process.env.BUYER_PHONE ?? freshPhone('05 5');
 const buyerE164 = e164(BUYER);
 
 const browser = await launchBrowser();
-const { page, shot } = await openPhone(browser);
+// Le téléphone de l'acheteur est chez lui, à Tié-Tié (autorisation de localisation donnée).
+const { page, shot } = await openPhone(browser, undefined, {
+  geolocation: { latitude: -4.7612, longitude: 11.8735, accuracy: 25 },
+});
 
 // 0. Le vendeur réapprovisionne le produit de démonstration (les produits en rupture sont masqués).
 const seller = await apiLogin('+242061000001');
@@ -73,6 +76,14 @@ await page
   .getByTestId('checkout-landmark')
   .fill("Tié-Tié, derrière l'école Saint-Pierre, portail bleu");
 await shot('05-livraison');
+// Facultatif : sa porte sur la carte, ajustée d'un toucher.
+await page.getByTestId('checkout-pin').click();
+const pinMap = page.getByTestId('checkout-pin-map');
+await pinMap.waitFor();
+await pinMap.click({ position: { x: 200, y: 80 } });
+await page.getByText('Touchez la carte', { exact: false }).waitFor();
+await pinMap.scrollIntoViewIfNeeded();
+await shot('05b-livraison-repere-sur-la-carte');
 await page.getByTestId('checkout-continue').click();
 
 // 6. Paiement Mobile Money

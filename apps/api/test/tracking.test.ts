@@ -6,9 +6,12 @@ import {
   confirmPickupCode,
   createTestEnv,
   handoverCodeFor,
+  homeDelivery,
   login,
   pay,
+  PICKUP_TIE_TIE,
   setupMarketplace,
+  ZONES,
   type Marketplace,
   type TestEnv,
 } from './helpers.js';
@@ -27,8 +30,19 @@ beforeEach(async () => {
 /** Pointe-Noire, rond-point Lumumba. */
 const HERE = { lat: -4.7761, lng: 11.8635, accuracy: 12 };
 
-async function assignedOrder(): Promise<string> {
-  const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }]);
+/** Tié-Tié, derrière l'école : à 2 km environ du rond-point. */
+const HOME = { lat: -4.7612, lng: 11.8735, accuracy: 20 };
+const NOT_ON_THE_WAY = {
+  onTheWay: false,
+  rider: null,
+  position: null,
+  destination: null,
+  distanceMeters: null,
+  etaMinutes: null,
+};
+
+async function assignedOrder(delivery = homeDelivery): Promise<string> {
+  const co = await checkout(env, m.buyer, [{ productId: m.productId, quantity: 1 }], delivery);
   await approveAndNotify(env, (await pay(env, m.buyer, co.id)).body.id);
   const orderId: string = co.orders[0].id;
   await call(env, m.seller, { method: 'POST', url: `/v1/seller/orders/${orderId}/accept` });
@@ -53,11 +67,7 @@ const share = (orderId: string, position = HERE) =>
 describe('Livreur en route (docs/ux/03 §4.2)', () => {
   it('position partagée seulement en route, visible du seul acheteur, effacée à la remise', async () => {
     const orderId = await assignedOrder();
-    expect((await tracking(orderId)).body).toEqual({
-      onTheWay: false,
-      rider: null,
-      position: null,
-    });
+    expect((await tracking(orderId)).body).toEqual(NOT_ON_THE_WAY);
     // Pas de position avant d'avoir le colis.
     expect((await share(orderId)).status).toBe(409);
 
@@ -89,11 +99,7 @@ describe('Livreur en route (docs/ux/03 §4.2)', () => {
       payload: { code },
     });
     expect((await env.pool.query('SELECT 1 FROM rider_positions')).rowCount).toBe(0);
-    expect((await tracking(orderId)).body).toEqual({
-      onTheWay: false,
-      rider: null,
-      position: null,
-    });
+    expect((await tracking(orderId)).body).toEqual(NOT_ON_THE_WAY);
   });
 
   it('coordonnées invalides refusées', async () => {
@@ -101,5 +107,61 @@ describe('Livreur en route (docs/ux/03 §4.2)', () => {
     await confirmPickupCode(env, m.rider, m.seller, orderId);
     await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
     expect((await share(orderId, { lat: 120, lng: 11, accuracy: 5 })).status).toBe(400);
+  });
+
+  it('repère posé à la commande : le livreur voit la destination, le client le temps d’arrivée', async () => {
+    const orderId = await assignedOrder({ ...homeDelivery, location: HOME });
+    const mission = await call(env, m.rider, {
+      method: 'GET',
+      url: `/v1/rider/deliveries/${orderId}`,
+    });
+    expect(mission.body.destination.location).toEqual({
+      lat: HOME.lat,
+      lng: HOME.lng,
+      accuracy: 20,
+    });
+
+    await confirmPickupCode(env, m.rider, m.seller, orderId);
+    await call(env, m.rider, { method: 'POST', url: `/v1/rider/deliveries/${orderId}/pickup` });
+    // Sans position du livreur, pas d'estimation.
+    expect((await tracking(orderId)).body).toMatchObject({
+      destination: { lat: HOME.lat, lng: HOME.lng },
+      etaMinutes: null,
+    });
+    await share(orderId);
+    const seen = (await tracking(orderId)).body;
+    expect(seen.distanceMeters).toBeGreaterThan(1900);
+    expect(seen.distanceMeters).toBeLessThan(2100);
+    expect(seen.etaMinutes).toBe(10);
+  });
+
+  it('point relais : ses coordonnées servent de destination, le repère du client est ignoré', async () => {
+    const orderId = await assignedOrder({
+      ...homeDelivery,
+      mode: 'pickup_point',
+      zoneId: ZONES.tieTie,
+      pickupPointId: PICKUP_TIE_TIE,
+      location: { lat: -4.7, lng: 11.9 },
+    });
+    const mission = await call(env, m.rider, {
+      method: 'GET',
+      url: `/v1/rider/deliveries/${orderId}`,
+    });
+    expect(mission.body.destination.location).toEqual({ lat: -4.7612, lng: 11.8735 });
+    expect(mission.body.recipient.location).toBeUndefined();
+  });
+
+  it('repère hors du Congo refusé', async () => {
+    const res = await call(env, m.buyer, {
+      method: 'POST',
+      url: '/v1/checkouts',
+      headers: { 'idempotency-key': `geo-${Date.now()}` },
+      payload: {
+        items: [{ productId: m.productId, quantity: 1 }],
+        delivery: { ...homeDelivery, location: { lat: 48.85, lng: 2.35 } },
+      },
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('location_out_of_area');
   });
 });

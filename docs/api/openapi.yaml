@@ -1195,6 +1195,11 @@ paths:
                       type: string
                       description: Adresse par repères
                       examples: ["Tié-Tié, derrière l'école Saint-Pierre, portail bleu"]
+                    location:
+                      allOf: [{ $ref: '#/components/schemas/GeoPoint' }]
+                      description: >-
+                        Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un
+                        point relais). Hors du Congo : 422 location_out_of_area.
       responses:
         '201':
           description: Créé
@@ -1299,7 +1304,7 @@ paths:
   /v1/orders/{id}/tracking:
     get:
       tags: [Commandes]
-      summary: Livreur en route — prénom, téléphone, dernière position
+      summary: Livreur en route — prénom, téléphone, dernière position, temps d’arrivée
       operationId: orderTracking
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
@@ -1309,7 +1314,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [onTheWay, rider, position]
+                required: [onTheWay, rider, position, destination, distanceMeters, etaMinutes]
                 properties:
                   onTheWay:
                     { type: boolean, description: 'Colis pris en charge, en route vers vous' }
@@ -1328,6 +1333,15 @@ paths:
                       lng: { type: number }
                       accuracy: { type: [number, 'null'] }
                       at: { type: string, format: date-time }
+                  destination:
+                    description: Repère posé à la commande, ou point relais
+                    oneOf: [{ $ref: '#/components/schemas/GeoPoint' }, { type: 'null' }]
+                  distanceMeters:
+                    type: [integer, 'null']
+                    description: À vol d'oiseau, entre le livreur et la destination
+                  etaMinutes:
+                    type: [integer, 'null']
+                    description: Estimation (détour et vitesse d'une moto en ville compris)
         '404': { $ref: '#/components/responses/Error' }
 
   /v1/orders/{id}/cancel:
@@ -4215,6 +4229,14 @@ components:
         recipientName: { type: string }
         phone: { type: string }
         landmark: { type: string }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90, examples: [-4.7612] }
+        lng: { type: number, minimum: -180, maximum: 180, examples: [11.8735] }
+        accuracy: { type: number, description: Précision en mètres }
     DisputeReason:
       type: string
       enum: [not_received, not_as_described, damaged, counterfeit, missing_items, other]
@@ -4468,10 +4490,13 @@ components:
             zone: { type: string }
         destination:
           type: object
-          required: [city, zone, pickupPoint]
+          required: [city, zone, pickupPoint, location]
           properties:
             city: { type: string }
             zone: { type: string }
+            location:
+              description: Repère GPS du client ou coordonnées du point relais, s'ils sont connus
+              oneOf: [{ $ref: '#/components/schemas/GeoPoint' }, { type: 'null' }]
             pickupPoint:
               type: [object, 'null']
               required: [name, landmark]

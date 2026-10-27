@@ -52,6 +52,12 @@ INSERT INTO pickup_points (id, zone_id, name, landmark, opening_hours) VALUES
    'Relais Tié-Tié', 'Rond-point Tié-Tié, boutique à côté de la pharmacie', 'Lun-Sam 8h-20h')
 ON CONFLICT DO NOTHING;
 
+-- Coordonnées des points relais pilotes (pour la carte du livreur et le temps d'arrivée).
+UPDATE pickup_points SET lat = v.lat, lng = v.lng
+FROM (VALUES ('30000000-0000-4000-8000-000000000001'::uuid, -4.7795, 11.8641),
+             ('30000000-0000-4000-8000-000000000002'::uuid, -4.7612, 11.8735)) AS v(id, lat, lng)
+WHERE pickup_points.id = v.id AND pickup_points.lat IS NULL;
+
 INSERT INTO courier_partners (id, name, kind, phone) VALUES
   ('40000000-0000-4000-8000-000000000001', 'Coursiers Ponténégrins (pilote)', 'company', '+242061000000')
 ON CONFLICT DO NOTHING;

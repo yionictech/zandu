@@ -152,7 +152,18 @@ function RiderOnTheWay({ orderId }: { orderId: string }) {
       </View>
       {tr.position ? (
         <>
-          <MapTiles lat={tr.position.lat} lng={tr.position.lng} testID="rider-map" />
+          {tr.etaMinutes ? (
+            <Text style={styles.eta} testID="rider-eta">
+              {t.orders.eta(tr.etaMinutes)}
+            </Text>
+          ) : null}
+          <MapTiles
+            lat={tr.position.lat}
+            lng={tr.position.lng}
+            other={tr.destination ? { point: tr.destination, pin: 'home' } : null}
+            label={t.orders.riderComing}
+            testID="rider-map"
+          />
           <Text style={styles.muted}>{t.orders.positionAt(timeOf(tr.position.at))}</Text>
         </>
       ) : (
@@ -335,6 +346,7 @@ export default function OrderScreen() {
 }
 
 const styles = StyleSheet.create({
+  eta: { fontSize: font.title, fontWeight: '800', color: colors.text },
   riderRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   callRider: {
     width: 44,

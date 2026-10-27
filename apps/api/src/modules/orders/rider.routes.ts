@@ -55,7 +55,9 @@ async function riderMissions(
             json_build_object('shopName', s.shop_name, 'phone', su.phone, 'city', s.city, 'zone', pz.name) AS "pickup",
             json_build_object('city', dz.city, 'zone', dz.name,
                               'pickupPoint', CASE WHEN pp.id IS NULL THEN NULL
-                                                  ELSE json_build_object('name', pp.name, 'landmark', pp.landmark) END) AS "destination",
+                                                  ELSE json_build_object('name', pp.name, 'landmark', pp.landmark) END,
+                              'location', CASE WHEN pp.id IS NULL THEN o.shipping_address->'location'
+                                               WHEN pp.lat IS NOT NULL THEN jsonb_build_object('lat', pp.lat, 'lng', pp.lng) END) AS "destination",
             (SELECT coalesce(sum(oi.quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS "itemCount",
             (SELECT coalesce(json_agg(json_build_object('title', oi.title_snapshot, 'quantity', oi.quantity) ORDER BY oi.id), '[]')
                FROM order_items oi WHERE oi.order_id = o.id) AS "items",

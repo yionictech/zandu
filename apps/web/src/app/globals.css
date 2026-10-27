@@ -1391,6 +1391,10 @@ textarea {
   display: grid;
   place-items: center;
 }
+.map-marker.home {
+  background: var(--danger);
+  color: #fff;
+}
 .map-attribution {
   position: absolute;
   right: 4px;
@@ -1399,4 +1403,13 @@ textarea {
   color: #333;
   background: rgb(255 255 255 / 70%);
   padding: 0 3px;
+}
+button.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--brand);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }

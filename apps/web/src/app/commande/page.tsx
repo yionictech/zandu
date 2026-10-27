@@ -22,6 +22,17 @@ const parseItems = (raw: string): Array<{ productId: string; quantity: number }>
   }
 };
 
+/** Repère posé avec « Utiliser ma position » (facultatif) : champs cachés du formulaire. */
+function pinned(form: FormData) {
+  const lat = Number(field(form, 'lat'));
+  const lng = Number(field(form, 'lng'));
+  const accuracy = Number(field(form, 'accuracy'));
+  if (!field(form, 'lat') || !Number.isFinite(lat) || !Number.isFinite(lng)) return {};
+  return {
+    location: { lat, lng, ...(Number.isFinite(accuracy) && accuracy > 0 ? { accuracy } : {}) },
+  };
+}
+
 async function placeOrder(form: FormData) {
   'use server';
   const items = parseItems(field(form, 'items'));
@@ -43,6 +54,7 @@ async function placeOrder(form: FormData) {
             recipientName: field(form, 'recipientName'),
             phone: field(form, 'phone'),
             landmark: field(form, 'landmark'),
+            ...(mode === 'home' ? pinned(form) : {}),
           },
         },
       }),

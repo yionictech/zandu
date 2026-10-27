@@ -39,7 +39,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Pendant une course, Zandu partage votre position avec le client pour qu'il vous voie arriver. Rien n'est envoyé en dehors des courses.",
+          "locationWhenInUsePermission": "Zandu utilise votre position pour placer votre porte sur la carte quand vous commandez et, si vous êtes livreur, pour que le client vous voie arriver pendant une course. Rien n'est suivi en dehors de ces moments.",
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
         }

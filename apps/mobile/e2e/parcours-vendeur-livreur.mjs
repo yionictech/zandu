@@ -130,6 +130,8 @@ async function buy() {
         recipientName: 'Prisca Nkounkou',
         phone: BUYER,
         landmark: 'Tié-Tié, rue Mbochi, maison jaune après la boulangerie',
+        // Repère posé sur la carte à la commande : le livreur voit où aller, le client quand il arrive.
+        location: { lat: -4.7612, lng: 11.8735, accuracy: 20 },
       },
     },
     once(),
@@ -205,6 +207,8 @@ await rider.page.getByTestId('rider-pickup').click();
 // 11. En route, arrivé, remise contre le code du client sur le pavé géant
 await rider.page.getByTestId('rider-arrived').waitFor();
 await rider.page.getByText('Le client voit votre position', { exact: false }).waitFor();
+await rider.page.getByTestId('destination-map').waitFor();
+await rider.page.getByText('environ 10 min', { exact: false }).waitFor();
 await sleep(300);
 await rider.shot('16-livreur-en-route');
 // L'acheteur voit son livreur arriver : prénom, appel, petite carte.
@@ -215,6 +219,7 @@ for (let i = 0; i < 20; i++) {
 const client = await openPhone(browser, buyer);
 await client.page.goto(`${WEB}/commande/${orderId}`);
 await client.page.getByTestId('rider-map').waitFor();
+await client.page.getByTestId('rider-eta').getByText('10 min', { exact: false }).waitFor();
 await sleep(1500);
 await client.shot('16b-acheteur-livreur-en-route');
 await rider.page.getByTestId('rider-arrived').click();

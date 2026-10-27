@@ -231,6 +231,7 @@ export interface DeliveryInput {
   recipientName: string;
   phone: string;
   landmark: string;
+  location?: { lat: number; lng: number; accuracy?: number };
 }
 
 export const homeDelivery: DeliveryInput = {

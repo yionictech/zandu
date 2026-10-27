@@ -188,7 +188,16 @@ export default async function OrderPage({
           </div>
           {tracking.position ? (
             <>
-              <RiderMap lat={tracking.position.lat} lng={tracking.position.lng} />
+              {tracking.etaMinutes ? (
+                <strong data-testid="rider-eta">
+                  Arrivée dans {tracking.etaMinutes} min environ
+                </strong>
+              ) : null}
+              <RiderMap
+                lat={tracking.position.lat}
+                lng={tracking.position.lng}
+                home={tracking.destination}
+              />
               <span className="small muted">
                 Position du livreur à {formatTime(tracking.position.at)} ·{' '}
                 <a href={`/commandes/${id}`}>Actualiser</a>

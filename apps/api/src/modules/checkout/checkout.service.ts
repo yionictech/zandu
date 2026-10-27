@@ -1,4 +1,5 @@
 import {
+  isInCongo,
   lineCommission,
   parseCongoMobile,
   resolveCommissionRate,
@@ -23,6 +24,8 @@ export interface CheckoutInput {
     phone: string;
     /** Adresse par repères : « Quartier Tié-Tié, derrière l'école Saint-Pierre, portail bleu ». */
     landmark: string;
+    /** Repère posé sur la carte par le client, pour le livreur et le temps d'arrivée. */
+    location?: { lat: number; lng: number; accuracy?: number | undefined } | undefined;
   };
 }
 
@@ -53,6 +56,17 @@ export async function createCheckout(
 ): Promise<string> {
   const now = ctx.clock.now();
   const recipientPhone = parseCongoMobile(input.delivery.phone);
+  // Le repère sur la carte ne sert qu'à domicile ; hors du Congo, c'est un téléphone mal réglé.
+  const pinned = input.delivery.mode === 'home' ? input.delivery.location : undefined;
+  if (pinned && !isInCongo(pinned))
+    throw new HttpError(422, 'location_out_of_area', 'Le repère sur la carte est hors du Congo');
+  const location = pinned
+    ? {
+        lat: Math.round(pinned.lat * 1e6) / 1e6,
+        lng: Math.round(pinned.lng * 1e6) / 1e6,
+        ...(pinned.accuracy !== undefined ? { accuracy: Math.round(pinned.accuracy) } : {}),
+      }
+    : null;
 
   return withTx(ctx.pool, async (tx) => {
     const previous = await claimIdempotency(tx, {
@@ -188,6 +202,7 @@ export async function createCheckout(
       recipientName: input.delivery.recipientName,
       phone: recipientPhone.e164,
       landmark: input.delivery.landmark,
+      ...(location ? { location } : {}),
     };
 
     for (const d of drafts) {

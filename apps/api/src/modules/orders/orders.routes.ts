@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { formatXaf } from '@zandu/domain';
+import { arrivalMinutes, distanceMeters, formatXaf, type LatLng } from '@zandu/domain';
 import type { Actor, AppContext } from '../../context.js';
 import { withTx, type Db, type Tx } from '../../db/pool.js';
 import { addHours } from '../../lib/clock.js';
@@ -169,10 +169,14 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
         lng: number | null;
         accuracy_m: number | null;
         recorded_at: Date | null;
+        destination: LatLng | null;
       }>(
         `SELECT o.status, d.status AS delivery_status, u.full_name AS rider_name, u.phone AS rider_phone,
-                p.lat, p.lng, p.accuracy_m, p.recorded_at
+                p.lat, p.lng, p.accuracy_m, p.recorded_at,
+                CASE WHEN o.pickup_point_id IS NULL THEN o.shipping_address->'location'
+                     WHEN pp.lat IS NOT NULL THEN jsonb_build_object('lat', pp.lat, 'lng', pp.lng) END AS destination
          FROM orders o
+         LEFT JOIN pickup_points pp ON pp.id = o.pickup_point_id
          LEFT JOIN deliveries d ON d.order_id = o.id
          LEFT JOIN riders r ON r.id = d.rider_id LEFT JOIN users u ON u.id = r.user_id
          LEFT JOIN rider_positions p ON p.delivery_id = d.id
@@ -187,6 +191,10 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
         row.recorded_at !== null &&
         ctx.clock.now().getTime() - row.recorded_at.getTime() <= 10 * 60_000;
       const name = row.rider_name?.trim();
+      const destination = row.destination
+        ? { lat: row.destination.lat, lng: row.destination.lng }
+        : null;
+      const position = fresh ? { lat: row.lat!, lng: row.lng! } : null;
       return {
         onTheWay,
         rider:
@@ -196,6 +204,10 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
         position: fresh
           ? { lat: row.lat!, lng: row.lng!, accuracy: row.accuracy_m, at: row.recorded_at! }
           : null,
+        destination,
+        // Estimation à vol d'oiseau, détour compris (docs/ux/03 §16) : seulement avec les deux points.
+        distanceMeters: position && destination ? distanceMeters(position, destination) : null,
+        etaMinutes: position && destination ? arrivalMinutes(position, destination) : null,
       };
     });
 
