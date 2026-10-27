@@ -38,6 +38,9 @@ async function paidOrder(): Promise<string> {
   return co.orders[0].id;
 }
 
+/** Téléphone de l'acheteur (05 555 55 55) sous toutes ses formes ; pas un « 555 » d'identifiant. */
+const BUYER_PHONE = /5\s?555\s?55\s?55/;
+
 describe('Commandes vues par le vendeur', () => {
   it('montre ce que le vendeur recevra, sans le téléphone ni le repère de l’acheteur', async () => {
     const orderId = await paidOrder();
@@ -54,7 +57,7 @@ describe('Commandes vues par le vendeur', () => {
     });
     expect(order.sellerAcceptDeadline).toBeTruthy();
     expect(order).not.toHaveProperty('shippingAddress');
-    expect(JSON.stringify(list.body)).not.toContain('555');
+    expect(JSON.stringify(list.body)).not.toMatch(BUYER_PHONE);
 
     const detail = await call(env, m.seller, {
       method: 'GET',
@@ -65,7 +68,7 @@ describe('Commandes vues par le vendeur', () => {
       'pending_payment',
       'paid',
     ]);
-    expect(JSON.stringify(detail.body)).not.toContain('555');
+    expect(JSON.stringify(detail.body)).not.toMatch(BUYER_PHONE);
 
     // « En séquestre » : la part du vendeur, pas le total payé (livraison et commission exclues).
     const money = await call(env, m.seller, { method: 'GET', url: '/v1/seller/balance' });
