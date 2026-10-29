@@ -82,7 +82,7 @@ export default function ServerScreen() {
       />
       <Text style={styles.hint}>{t.server.keyHint}</Text>
       <ErrorText message={error} />
-      <Text style={styles.hint}>{t.server.ok}</Text>
+      <Text style={styles.hint}>{t.server.note}</Text>
     </Screen>
   );
 }

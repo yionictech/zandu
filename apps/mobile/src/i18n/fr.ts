@@ -456,11 +456,11 @@ export const fr = {
     intro:
       'Version de test : indiquez le serveur Zandu à utiliser (la recette, ou l’ordinateur qui fait tourner l’API sur votre Wi-Fi).',
     url: 'Adresse du serveur',
-    urlPlaceholder: 'Ex. https://recette.zandu.cg/api ou 192.168.1.20:3000',
+    urlPlaceholder: 'Adresse IP de votre ordinateur, ex. 192.168.1.20:3000',
     key: 'Clé de recette (facultative)',
     keyHint: 'Demandée par la recette en ligne pour lire les SMS de test et simuler un paiement.',
     save: 'Tester et enregistrer',
-    ok: 'Serveur joignable. Changer de serveur vous déconnecte.',
+    note: 'Changer de serveur vous déconnecte.',
     unreachable:
       'Serveur injoignable : vérifiez l’adresse et que le téléphone est sur le même réseau.',
     current: (url: string) => `Serveur de test : ${url}`,

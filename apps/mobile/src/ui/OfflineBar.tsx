@@ -4,6 +4,7 @@ import { Text } from './Text';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n/fr';
 import { useOnline } from '../network';
+import { needsServer } from '../server';
 import { colors, font, space } from '../theme';
 
 /**
@@ -11,7 +12,8 @@ import { colors, font, space } from '../theme';
  * les en-têtes en dessous ne la comptent plus (marge haute remise à zéro).
  */
 export function OfflineBar({ children }: { children: ReactNode }) {
-  const online = useOnline();
+  // APK de test sans serveur choisi : rien n'est « hors connexion », il n'y a pas encore de serveur.
+  const online = useOnline() || needsServer();
   const insets = useSafeAreaInsets();
   // Même arbre en ligne et hors ligne : la navigation n'est pas remise à zéro au changement.
   return (
