@@ -3,7 +3,9 @@ import { ShieldCheck, Smartphone } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { api, errorMessage, unwrap } from '../src/api';
-import { RECETTE_SMS_URL } from '../src/config';
+import { parseCongoMobile } from '@zandu/domain';
+import { RECETTE_SMS_URL, SERVER_PICKER } from '../src/config';
+import { apiUrl, recetteHeaders } from '../src/server';
 import { displayPhone, isValidCongoPhone } from '../src/format';
 import { t } from '../src/i18n/fr';
 import { useSession } from '../src/session';
@@ -29,6 +31,29 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
+  const [testCode, setTestCode] = useState<string | null>(null);
+
+  /** APK de test : le SMS ne part pas, on lit le code dans la boîte de test du serveur. */
+  const readTestCode = async () => {
+    setTestCode(null);
+    try {
+      const recipient = parseCongoMobile(phone).e164;
+      const res = await fetch(
+        `${apiUrl()}/dev/messages?recipient=${encodeURIComponent(recipient)}`,
+        { headers: recetteHeaders() },
+      );
+      const { items } = (await res.json()) as {
+        items: Array<{ template: string; variables: { code?: string } }>;
+      };
+      const found = items.find((m) => m.template === 'otp_code')?.variables.code;
+      if (found) {
+        setCode(found);
+        setTestCode(t.auth.testCode(found));
+      } else setTestCode(t.auth.noTestCode);
+    } catch {
+      setTestCode(t.auth.noTestCode);
+    }
+  };
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -129,7 +154,18 @@ export default function LoginScreen() {
             </Pressable>
           </View>
           <ErrorText message={error} />
-          {RECETTE_SMS_URL && (
+          {SERVER_PICKER ? (
+            <>
+              <Button
+                label={t.auth.readTestCode}
+                variant="ghost"
+                onPress={() => void readTestCode()}
+                testID="login-test-code"
+              />
+              {testCode ? <Text style={styles.testCode}>{testCode}</Text> : null}
+            </>
+          ) : null}
+          {!SERVER_PICKER && RECETTE_SMS_URL && (
             <Button
               label={t.auth.readTestCode}
               variant="ghost"
@@ -167,6 +203,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  testCode: { color: colors.text, textAlign: 'center', fontSize: font.small },
   icon: {
     width: 64,
     height: 64,

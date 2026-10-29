@@ -1,7 +1,7 @@
 import { onlineManager } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
-import { API_URL } from './config';
+import { apiUrl, fetchOnServer } from './server';
 
 /**
  * Réseau disponible ou non, d'après les réponses de l'API elle-même : un téléphone peut être
@@ -34,7 +34,7 @@ export function reportNetwork(ok: boolean): void {
 
 async function check(): Promise<void> {
   try {
-    await fetch(`${API_URL}/health`, { cache: 'no-store' });
+    await fetch(`${apiUrl()}/health`, { cache: 'no-store' });
     reportNetwork(true);
   } catch {
     reportNetwork(false);
@@ -47,7 +47,7 @@ export async function trackedFetch(
   init?: RequestInit,
 ): Promise<Response> {
   try {
-    const response = await fetch(input, init);
+    const response = await fetchOnServer(input, init);
     reportNetwork(true);
     return response;
   } catch (error) {

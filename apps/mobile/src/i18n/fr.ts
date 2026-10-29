@@ -121,6 +121,8 @@ export const fr = {
     changeNumber: 'Changer de numéro',
     resend: 'Renvoyer le code',
     readTestCode: 'Lire le code de test (recette)',
+    testCode: (code: string) => `Code de test reçu : ${code}`,
+    noTestCode: 'Pas encore de code de test pour ce numéro : réessayez dans un instant.',
     phoneTitle: 'Votre numéro de téléphone',
     codeTitle: 'Entrez le code reçu par SMS',
     sentTo: (phone: string) => `Envoyé au ${phone}. Pas de mot de passe à retenir.`,
@@ -448,6 +450,21 @@ export const fr = {
     received: 'Reçu ✔',
     add: 'Ajouter',
     dossierComplete: 'Dossier complet : le support le vérifie sous 24 h.',
+  },
+  server: {
+    title: 'Serveur de test',
+    intro:
+      'Version de test : indiquez le serveur Zandu à utiliser (la recette, ou l’ordinateur qui fait tourner l’API sur votre Wi-Fi).',
+    url: 'Adresse du serveur',
+    urlPlaceholder: 'Ex. https://recette.zandu.cg/api ou 192.168.1.20:3000',
+    key: 'Clé de recette (facultative)',
+    keyHint: 'Demandée par la recette en ligne pour lire les SMS de test et simuler un paiement.',
+    save: 'Tester et enregistrer',
+    ok: 'Serveur joignable. Changer de serveur vous déconnecte.',
+    unreachable:
+      'Serveur injoignable : vérifiez l’adresse et que le téléphone est sur le même réseau.',
+    current: (url: string) => `Serveur de test : ${url}`,
+    change: 'Changer de serveur de test',
   },
   rider: {
     title: 'Mes livraisons',

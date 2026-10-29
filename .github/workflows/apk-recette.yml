@@ -7,11 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "Adresse de l'API de recette (ex. https://api.recette.zandu.cg)"
-        required: true
+        description: "Adresse de l'API de recette (ex. https://api.recette.zandu.cg) ; vide si serveur à saisir"
+        required: false
+        default: ''
       site_url:
-        description: 'Adresse du site de recette (ex. https://recette.zandu.cg)'
-        required: true
+        description: 'Adresse du site de recette (ex. https://recette.zandu.cg) ; vide si serveur à saisir'
+        required: false
+        default: ''
+      serveur_a_saisir:
+        description: "APK de test : l'adresse du serveur se saisit dans l'application (docs/exploitation/apk-de-test.md)"
+        type: boolean
+        default: false
       eas_project_id:
         description: 'Notifications : identifiant du projet Expo (vide = sans notifications)'
         required: false
@@ -26,7 +32,14 @@ jobs:
     timeout-minutes: 60
     env:
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      # Lu aussi par app.config.js au prebuild (HTTP simple autorisé, nom « Zandu (test) »).
+      EXPO_PUBLIC_SERVER_PICKER: ${{ inputs.serveur_a_saisir && '1' || '' }}
     steps:
+      - name: Adresse de l'API ou serveur à saisir
+        if: ${{ !inputs.serveur_a_saisir && inputs.api_url == '' }}
+        run: |
+          echo "::error::Indiquez api_url, ou cochez serveur_a_saisir."
+          exit 1
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -49,7 +62,7 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
           EXPO_PUBLIC_SIMULATOR: '1'
-          EXPO_PUBLIC_RECETTE_SMS_URL: ${{ inputs.site_url }}/recette/sms
+          EXPO_PUBLIC_RECETTE_SMS_URL: ${{ inputs.site_url && format('{0}/recette/sms', inputs.site_url) || '' }}
           EXPO_PUBLIC_EAS_PROJECT_ID: ${{ inputs.eas_project_id }}
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
       - uses: actions/upload-artifact@v4

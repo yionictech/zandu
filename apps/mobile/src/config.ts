@@ -4,6 +4,12 @@
  */
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+/**
+ * APK de test : l'adresse du serveur se saisit dans l'application (écran « Serveur de test »),
+ * et le code SMS de test s'y lit directement. Jamais dans l'application publiée.
+ */
+export const SERVER_PICKER = process.env.EXPO_PUBLIC_SERVER_PICKER === '1';
+
 /** Affiche le bouton « Simuler la validation du PIN » (simulateur d'agrégateur, jamais en production). */
 export const SIMULATOR_ENABLED = process.env.EXPO_PUBLIC_SIMULATOR === '1';
 

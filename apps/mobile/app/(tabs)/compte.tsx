@@ -1,9 +1,11 @@
 import { Link, useRouter } from 'expo-router';
 import { Bike, ChevronRight, Store } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SERVER_PICKER } from '../../src/config';
 import { displayPhone, formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useFavorites } from '../../src/prefs';
+import { apiUrl } from '../../src/server';
 import { useSession } from '../../src/session';
 import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
@@ -39,6 +41,23 @@ function Favorites() {
   );
 }
 
+/** APK de test : serveur utilisé, et lien pour en changer. */
+function TestServerLink() {
+  const router = useRouter();
+  if (!SERVER_PICKER) return null;
+  return (
+    <Pressable
+      onPress={() => router.push('/serveur')}
+      accessibilityRole="button"
+      style={styles.logout}
+      testID="account-server"
+    >
+      <Text style={styles.label}>{t.server.current(apiUrl())}</Text>
+      <Text style={styles.serverLink}>{t.server.change}</Text>
+    </Pressable>
+  );
+}
+
 /** Mon compte : numéro, favoris, espaces vendeur et livreur, déconnexion. */
 export default function AccountScreen() {
   const router = useRouter();
@@ -52,6 +71,7 @@ export default function AccountScreen() {
           <Button label={t.orders.login} onPress={() => router.push('/connexion')} />
         </Card>
         <Favorites />
+        <TestServerLink />
       </Screen>
     );
   }
@@ -100,6 +120,7 @@ export default function AccountScreen() {
       <Pressable onPress={() => void signOut()} accessibilityRole="button" style={styles.logout}>
         <Text style={styles.logoutText}>{t.account.logout}</Text>
       </Pressable>
+      <TestServerLink />
     </Screen>
   );
 }
@@ -124,5 +145,6 @@ const styles = StyleSheet.create({
   },
   spaceText: { flex: 1, color: colors.text, fontWeight: '700', fontSize: font.body },
   logout: { alignItems: 'center', padding: space.md },
+  serverLink: { color: colors.brand, fontWeight: '700', fontSize: font.small },
   logoutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
 });

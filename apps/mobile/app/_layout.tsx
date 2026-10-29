@@ -5,8 +5,9 @@ import { Unbounded_700Bold } from '@expo-google-fonts/unbounded/700Bold';
 import { Unbounded_800ExtraBold } from '@expo-google-fonts/unbounded/800ExtraBold';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient } from '../src/api';
 import { CartProvider } from '../src/cart';
@@ -17,6 +18,7 @@ import { darkHeader } from '../src/ui/navigation';
 import { OfflineBar } from '../src/ui/OfflineBar';
 import { OutboxRunner } from '../src/seller/outbox';
 import { PushNotifications } from '../src/notifications';
+import { loadServer, needsServer } from '../src/server';
 
 // Un lien direct (notification, partage) garde l'accueil en dessous : le bouton retour y ramène.
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -30,13 +32,19 @@ export default function RootLayout() {
     Unbounded_700Bold,
     Unbounded_800ExtraBold,
   });
-  if (!fontsLoaded && !fontError) return null;
+  // APK de test : le serveur choisi est relu avant le premier appel à l'API.
+  const [serverLoaded, setServerLoaded] = useState(false);
+  useEffect(() => {
+    void loadServer().finally(() => setServerLoaded(true));
+  }, []);
+  if ((!fontsLoaded && !fontError) || !serverLoaded) return null;
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
           <CartProvider>
             <StatusBar style="light" />
+            <ServerGate />
             <OutboxRunner />
             <PushNotifications />
             <OfflineBar>
@@ -50,6 +58,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="produit/[id]" options={{ title: '' }} />
                 <Stack.Screen name="notifications" options={{ title: t.inbox.title }} />
+                <Stack.Screen name="serveur" options={{ title: t.server.title }} />
                 <Stack.Screen
                   name="connexion"
                   options={{ title: t.auth.title, presentation: 'modal' }}
@@ -91,4 +100,13 @@ export default function RootLayout() {
       </QueryClientProvider>
     </SafeAreaProvider>
   );
+}
+
+/** APK de test sans serveur choisi : l'écran « Serveur de test » s'ouvre d'abord. */
+function ServerGate() {
+  const router = useRouter();
+  useEffect(() => {
+    if (needsServer()) router.push('/serveur');
+  }, [router]);
+  return null;
 }
