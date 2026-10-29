@@ -1,11 +1,13 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createContext } from './bootstrap.js';
 import { runSweepers } from './jobs/sweepers.js';
+import { loadDevEnvFile } from './env-file.js';
 
 /**
  * Processus de fond : expirations, interrogation de l'agrégateur, reversements,
  * remboursements, notifications. Peut tourner en plusieurs exemplaires.
  */
+loadDevEnvFile();
 const ctx = createContext();
 let running = true;
 process.once('SIGTERM', () => (running = false));

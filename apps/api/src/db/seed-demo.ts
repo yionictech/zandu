@@ -4,6 +4,7 @@ import { createStorage } from '../bootstrap.js';
 import { loadConfig } from '../config.js';
 import { createPool, withTx } from './pool.js';
 import { seedReference } from './seed.js';
+import { loadDevEnvFile } from '../env-file.js';
 
 /**
  * Données de démonstration (développement et recette uniquement) : trois boutiques vérifiées
@@ -44,6 +45,7 @@ interface DemoProduct {
   description: string;
 }
 
+loadDevEnvFile();
 const config = loadConfig();
 if (config.env === 'production')
   throw new Error('Données de démonstration interdites en production');

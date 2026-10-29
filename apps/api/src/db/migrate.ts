@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createPool, withTx, type Pool } from './pool.js';
+import { isEntryPoint, loadDevEnvFile } from '../env-file.js';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../../../db/migrations/', import.meta.url));
 
@@ -28,7 +29,8 @@ export async function migrate(pool: Pool, dir = MIGRATIONS_DIR): Promise<string[
   return applied;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isEntryPoint(import.meta.url)) {
+  loadDevEnvFile();
   const pool = createPool(
     process.env.DATABASE_URL ?? 'postgres://zandu:zandu@localhost:5432/zandu',
   );

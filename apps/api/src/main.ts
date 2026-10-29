@@ -1,6 +1,8 @@
 import { buildApp } from './app.js';
 import { createContext } from './bootstrap.js';
+import { loadDevEnvFile } from './env-file.js';
 
+loadDevEnvFile();
 const ctx = createContext();
 const app = await buildApp(ctx);
 
