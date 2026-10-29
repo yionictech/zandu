@@ -1,4 +1,5 @@
-import { API_URL, SERVER_PICKER } from './config';
+import { API_URL, DEMO, SERVER_PICKER } from './config';
+import { demoFetch } from './demo';
 import { loadJson, saveJson } from './storage';
 
 /**
@@ -51,6 +52,7 @@ export async function fetchOnServer(
 ): Promise<Response> {
   const target = apiUrl();
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if (DEMO && url.startsWith(API_URL)) return demoFetch(input, init);
   if (target === API_URL || !url.startsWith(API_URL)) return fetch(input, init);
   const moved = target + url.slice(API_URL.length);
   if (typeof input === 'string' || input instanceof URL) return fetch(moved, init);

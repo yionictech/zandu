@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n/fr';
+import { DEMO } from '../config';
 import { useOnline } from '../network';
 import { needsServer } from '../server';
 import { colors, font, space } from '../theme';
@@ -15,6 +17,23 @@ export function OfflineBar({ children }: { children: ReactNode }) {
   // APK de test sans serveur choisi : rien n'est « hors connexion », il n'y a pas encore de serveur.
   const online = useOnline() || needsServer();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  if (DEMO)
+    return (
+      <View style={styles.fill}>
+        <Pressable
+          onPress={() => router.push('/compte')}
+          accessibilityRole="button"
+          style={[styles.bar, styles.demo, { paddingTop: insets.top + space.xs }]}
+          testID="demo-banner"
+        >
+          <Text style={[styles.text, styles.demoText]}>{t.demo.banner}</Text>
+        </Pressable>
+        <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+          {children}
+        </SafeAreaInsetsContext.Provider>
+      </View>
+    );
   // Même arbre en ligne et hors ligne : la navigation n'est pas remise à zéro au changement.
   return (
     <View style={styles.fill}>
@@ -34,4 +53,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   bar: { backgroundColor: colors.text, paddingHorizontal: space.md, paddingBottom: space.sm },
   text: { color: colors.surface, fontSize: font.small, fontWeight: '600', lineHeight: 18 },
+  demo: { backgroundColor: colors.brand, paddingBottom: space.xs },
+  demoText: { color: colors.onBrand, textAlign: 'center', fontSize: 12 },
 });

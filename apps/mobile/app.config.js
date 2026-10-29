@@ -20,6 +20,15 @@ module.exports = ({ config }) => {
   let result = existsSync(firebase)
     ? { ...config, android: { ...config.android, googleServicesFile: './google-services.json' } }
     : config;
+  // Démonstration locale (EXPO_PUBLIC_DEMO=1, docs/exploitation/demo-locale.md) : application à
+  // part, installable à côté des autres versions, sans serveur.
+  if (process.env.EXPO_PUBLIC_DEMO === '1') {
+    return {
+      ...result,
+      name: `${result.name} (démo)`,
+      android: { ...result.android, package: `${result.android.package}.demo` },
+    };
+  }
   if (process.env.EXPO_PUBLIC_SERVER_PICKER === '1') {
     result = {
       ...withTestCleartext(result),

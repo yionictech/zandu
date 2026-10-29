@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/ui/Text';
 import { api, errorCode, errorMessage, newIdempotencyKey, unwrap } from '../../src/api';
 import { SIMULATOR_ENABLED } from '../../src/config';
-import { apiUrl, recetteHeaders } from '../../src/server';
+import { apiUrl, fetchOnServer, recetteHeaders } from '../../src/server';
 import { displayPhone, formatXaf, isValidCongoPhone, suggestOperator } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useSession } from '../../src/session';
@@ -115,7 +115,7 @@ export default function PaymentScreen() {
   };
 
   const simulateApproval = async (p: Payment) => {
-    await fetch(`${apiUrl()}/dev/simulator/collections/${p.id}/approve`, {
+    await fetchOnServer(`${apiUrl()}/dev/simulator/collections/${p.id}/approve`, {
       method: 'POST',
       headers: recetteHeaders(),
     });

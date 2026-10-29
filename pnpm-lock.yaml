@@ -60,6 +60,9 @@ importers:
       '@zandu/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@zandu/demo':
+        specifier: workspace:*
+        version: link:../../packages/demo
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -139,6 +142,9 @@ importers:
       '@zandu/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@zandu/demo':
+        specifier: workspace:*
+        version: link:../../packages/demo
       '@zandu/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -255,6 +261,15 @@ importers:
       openapi-fetch:
         specifier: ~0.17.0
         version: 0.17.0
+
+  packages/demo:
+    dependencies:
+      '@zandu/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@zandu/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/design: {}
 

@@ -2,6 +2,8 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { api, unwrap } from './api';
+import { DEMO } from './config';
+import { registerDemoUpload } from './demo';
 import { trackedFetch } from './network';
 
 export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence';
@@ -68,6 +70,11 @@ export async function uploadImage(
       body: { purpose, contentType: 'image/jpeg', sizeBytes: blob.size },
     }),
   );
+  // Démonstration : la photo reste sur le téléphone, rattachée à la réservation.
+  if (DEMO) {
+    registerDemoUpload(reserved.uploadId, image.uri);
+    return reserved.uploadId;
+  }
   let response: Response;
   if (reserved.method === 'PUT') {
     response = await trackedFetch(reserved.url, {

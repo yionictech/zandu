@@ -10,6 +10,12 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000
  */
 export const SERVER_PICKER = process.env.EXPO_PUBLIC_SERVER_PICKER === '1';
 
+/**
+ * Démonstration locale (docs/exploitation/demo-locale.md) : l'application répond elle-même avec
+ * des données fictives, sans serveur. Jamais dans l'application publiée.
+ */
+export const DEMO = process.env.EXPO_PUBLIC_DEMO === '1';
+
 /** Affiche le bouton « Simuler la validation du PIN » (simulateur d'agrégateur, jamais en production). */
 export const SIMULATOR_ENABLED = process.env.EXPO_PUBLIC_SIMULATOR === '1';
 

@@ -1,0 +1,25 @@
+{
+  "name": "@zandu/demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API fictive de la démonstration locale de l'application (sans serveur), conforme au contrat OpenAPI.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "zandu-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@zandu/api-client": "workspace:*",
+    "@zandu/domain": "workspace:*"
+  }
+}

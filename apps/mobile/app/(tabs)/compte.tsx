@@ -9,6 +9,7 @@ import { apiUrl } from '../../src/server';
 import { useSession } from '../../src/session';
 import { colors, font, radius, space } from '../../src/theme';
 import { Button } from '../../src/ui/Button';
+import { DemoPanel } from '../../src/ui/DemoPanel';
 import { Card } from '../../src/ui/kit';
 import { Loading, Screen } from '../../src/ui/Layout';
 import { ProductImage } from '../../src/ui/ProductImage';
@@ -66,6 +67,7 @@ export default function AccountScreen() {
   if (!user) {
     return (
       <Screen>
+        <DemoPanel />
         <Card>
           <Text style={styles.label}>{t.account.guest}</Text>
           <Button label={t.orders.login} onPress={() => router.push('/connexion')} />
@@ -77,6 +79,7 @@ export default function AccountScreen() {
   }
   return (
     <Screen>
+      <DemoPanel />
       <Card>
         <Text style={styles.label}>{t.account.phone}</Text>
         <Text style={styles.value}>{displayPhone(user.phone)}</Text>

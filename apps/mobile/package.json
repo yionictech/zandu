@@ -18,6 +18,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.104.3",
     "@zandu/api-client": "workspace:*",
+    "@zandu/demo": "workspace:*",
     "@zandu/design": "workspace:*",
     "@zandu/domain": "workspace:*",
     "expo": "~58.0.14",

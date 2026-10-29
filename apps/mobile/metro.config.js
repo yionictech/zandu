@@ -14,7 +14,11 @@ config.resolver.unstable_conditionNames = [
 
 // Les paquets partagés suivent la convention ESM de Node (`import './money.js'` pour money.ts).
 const defaultResolve = config.resolver.resolveRequest;
+// Hors démonstration (EXPO_PUBLIC_DEMO=1), l'API fictive et ses photos restent hors du paquet.
+const demoStub = path.join(__dirname, 'src', 'demo-stub.js');
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@zandu/demo' && process.env.EXPO_PUBLIC_DEMO !== '1')
+    return { type: 'sourceFile', filePath: demoStub };
   if (
     moduleName.startsWith('.') &&
     moduleName.endsWith('.js') &&

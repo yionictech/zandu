@@ -18,6 +18,10 @@ on:
         description: "APK de test : l'adresse du serveur se saisit dans l'application (docs/exploitation/apk-de-test.md)"
         type: boolean
         default: false
+      demo:
+        description: 'Démonstration sans serveur, données fictives (docs/exploitation/demo-locale.md)'
+        type: boolean
+        default: false
       eas_project_id:
         description: 'Notifications : identifiant du projet Expo (vide = sans notifications)'
         required: false
@@ -34,11 +38,12 @@ jobs:
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
       # Lu aussi par app.config.js au prebuild (HTTP simple autorisé, nom « Zandu (test) »).
       EXPO_PUBLIC_SERVER_PICKER: ${{ inputs.serveur_a_saisir && '1' || '' }}
+      EXPO_PUBLIC_DEMO: ${{ inputs.demo && '1' || '' }}
     steps:
       - name: Adresse de l'API ou serveur à saisir
-        if: ${{ !inputs.serveur_a_saisir && inputs.api_url == '' }}
+        if: ${{ !inputs.serveur_a_saisir && !inputs.demo && inputs.api_url == '' }}
         run: |
-          echo "::error::Indiquez api_url, ou cochez serveur_a_saisir."
+          echo "::error::Indiquez api_url, ou cochez serveur_a_saisir ou demo."
           exit 1
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

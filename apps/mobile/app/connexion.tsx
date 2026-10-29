@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { api, errorMessage, unwrap } from '../src/api';
 import { parseCongoMobile } from '@zandu/domain';
-import { RECETTE_SMS_URL, SERVER_PICKER } from '../src/config';
-import { apiUrl, recetteHeaders } from '../src/server';
+import { DEMO, RECETTE_SMS_URL, SERVER_PICKER } from '../src/config';
+import { apiUrl, fetchOnServer, recetteHeaders } from '../src/server';
 import { displayPhone, isValidCongoPhone } from '../src/format';
 import { t } from '../src/i18n/fr';
 import { useSession } from '../src/session';
@@ -38,7 +38,7 @@ export default function LoginScreen() {
     setTestCode(null);
     try {
       const recipient = parseCongoMobile(phone).e164;
-      const res = await fetch(
+      const res = await fetchOnServer(
         `${apiUrl()}/dev/messages?recipient=${encodeURIComponent(recipient)}`,
         { headers: recetteHeaders() },
       );
@@ -154,10 +154,10 @@ export default function LoginScreen() {
             </Pressable>
           </View>
           <ErrorText message={error} />
-          {SERVER_PICKER ? (
+          {SERVER_PICKER || DEMO ? (
             <>
               <Button
-                label={t.auth.readTestCode}
+                label={DEMO ? t.auth.readDemoCode : t.auth.readTestCode}
                 variant="ghost"
                 onPress={() => void readTestCode()}
                 testID="login-test-code"
@@ -165,7 +165,7 @@ export default function LoginScreen() {
               {testCode ? <Text style={styles.testCode}>{testCode}</Text> : null}
             </>
           ) : null}
-          {!SERVER_PICKER && RECETTE_SMS_URL && (
+          {!SERVER_PICKER && !DEMO && RECETTE_SMS_URL && (
             <Button
               label={t.auth.readTestCode}
               variant="ghost"

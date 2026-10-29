@@ -18,6 +18,7 @@ import { darkHeader } from '../src/ui/navigation';
 import { OfflineBar } from '../src/ui/OfflineBar';
 import { OutboxRunner } from '../src/seller/outbox';
 import { PushNotifications } from '../src/notifications';
+import { loadDemo } from '../src/demo';
 import { loadServer, needsServer } from '../src/server';
 
 // Un lien direct (notification, partage) garde l'accueil en dessous : le bouton retour y ramène.
@@ -32,10 +33,11 @@ export default function RootLayout() {
     Unbounded_700Bold,
     Unbounded_800ExtraBold,
   });
-  // APK de test : le serveur choisi est relu avant le premier appel à l'API.
+  // APK de test : le serveur choisi est relu avant le premier appel à l'API ; démonstration :
+  // les données fictives enregistrées sur le téléphone.
   const [serverLoaded, setServerLoaded] = useState(false);
   useEffect(() => {
-    void loadServer().finally(() => setServerLoaded(true));
+    void Promise.all([loadServer(), loadDemo()]).finally(() => setServerLoaded(true));
   }, []);
   if ((!fontsLoaded && !fontError) || !serverLoaded) return null;
   return (

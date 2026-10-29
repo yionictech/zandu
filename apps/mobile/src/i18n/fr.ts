@@ -13,6 +13,17 @@ export const fr = {
     seeAll: 'Tout voir',
     items: (n: number) => `${n} article${n > 1 ? 's' : ''}`,
   },
+  demo: {
+    banner: 'Démonstration · données fictives · changer de rôle',
+    title: 'Mode démonstration',
+    intro:
+      'Tout se passe sur ce téléphone, sans serveur : boutiques, produits, paiements et livraisons sont fictifs. Entrez avec l’un des comptes :',
+    enterAs: (label: string) => `Entrer comme ${label}`,
+    current: (label: string) => `Vous êtes : ${label}`,
+    reset: 'Remettre la démonstration à zéro',
+    resetDone: 'Démonstration remise à zéro.',
+    hint: 'Astuce : passez d’un rôle à l’autre pour suivre une commande de bout en bout (acheter, accepter, livrer).',
+  },
   offline: {
     banner:
       'Hors connexion : vous voyez la dernière version enregistrée. Le paiement attendra le retour du réseau.',
@@ -121,6 +132,7 @@ export const fr = {
     changeNumber: 'Changer de numéro',
     resend: 'Renvoyer le code',
     readTestCode: 'Lire le code de test (recette)',
+    readDemoCode: 'Afficher le code (démonstration)',
     testCode: (code: string) => `Code de test reçu : ${code}`,
     noTestCode: 'Pas encore de code de test pour ce numéro : réessayez dans un instant.',
     phoneTitle: 'Votre numéro de téléphone',
