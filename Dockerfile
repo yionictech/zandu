@@ -31,6 +31,7 @@ COPY apps/mobile/package.json apps/mobile/
 COPY packages/domain/package.json packages/domain/
 COPY packages/api-client/package.json packages/api-client/
 COPY packages/design/package.json packages/design/
+COPY packages/demo/package.json packages/demo/
 RUN --mount=type=cache,id=zandu-pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile \
       --filter "@zandu/api..." --filter "@zandu/web..." --filter "@zandu/backoffice..."
