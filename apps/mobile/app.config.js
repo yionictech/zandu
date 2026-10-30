@@ -37,6 +37,21 @@ function checkStoreBuild(env) {
 
 module.exports = ({ config }) => {
   checkStoreBuild(process.env);
+  // Carte Google Maps (docs/exploitation/google-maps.md) : une clé par système, sans clé la carte
+  // en tuiles prend le relais.
+  config = {
+    ...config,
+    plugins: [
+      ...config.plugins,
+      [
+        'react-native-maps',
+        {
+          androidGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY || undefined,
+          iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY || undefined,
+        },
+      ],
+    ],
+  };
   const firebase = join(__dirname, 'google-services.json');
   let result = existsSync(firebase)
     ? { ...config, android: { ...config.android, googleServicesFile: './google-services.json' } }

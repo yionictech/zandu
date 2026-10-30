@@ -41,7 +41,7 @@ import { Chip, ErrorText } from '../../src/ui/Form';
 import { Badge, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { RequireRole } from '../../src/ui/RequireRole';
-import { MapTiles } from '../../src/ui/MapTiles';
+import { LiveMap } from '../../src/ui/LiveMap';
 import { MessagesButton } from '../../src/ui/MessagesButton';
 import { Text } from '../../src/ui/Text';
 
@@ -183,7 +183,7 @@ function Destination({ m, here }: { m: RiderMission; here: LatLng | null }) {
   if (!to) return <Note icon={MapPin}>{t.rider.noPin}</Note>;
   return (
     <Card>
-      <MapTiles
+      <LiveMap
         lat={to.lat}
         lng={to.lng}
         pin="home"

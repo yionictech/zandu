@@ -39,6 +39,8 @@ jobs:
       # Lu aussi par app.config.js au prebuild (HTTP simple autorisé, nom « Zandu (test) »).
       EXPO_PUBLIC_SERVER_PICKER: ${{ inputs.serveur_a_saisir && '1' || '' }}
       EXPO_PUBLIC_DEMO: ${{ inputs.demo && '1' || '' }}
+      # Carte Google Maps (docs/exploitation/google-maps.md) ; sans ce secret, carte en tuiles.
+      EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_KEY }}
     steps:
       - name: Adresse de l'API ou serveur à saisir
         if: ${{ !inputs.serveur_a_saisir && !inputs.demo && inputs.api_url == '' }}

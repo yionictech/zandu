@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { t } from '../i18n/fr';
 import { colors, font, radius, space } from '../theme';
 import { Button } from './Button';
-import { MapTiles } from './MapTiles';
+import { LiveMap } from './LiveMap';
 import { Text } from './Text';
 
 export type PinnedLocation = LatLng & { accuracy?: number };
@@ -63,7 +63,7 @@ export function LocationPicker({
       </View>
       {value ? (
         <>
-          <MapTiles
+          <LiveMap
             lat={value.lat}
             lng={value.lng}
             pin="home"

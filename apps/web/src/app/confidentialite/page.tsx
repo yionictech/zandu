@@ -64,6 +64,7 @@ export default function PrivacyPage() {
         <li>le fournisseur de SMS et WhatsApp (codes et avis de commande) ;</li>
         <li>l’hébergeur des serveurs (Union européenne) ;</li>
         <li>les services de notification de Google et Apple (alertes sur le téléphone) ;</li>
+        <li>Google Maps, pour afficher les cartes dans l’application ;</li>
         <li>les autorités, sur demande légale.</li>
       </ul>
 

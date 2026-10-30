@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * Adresse de l'API. En développement : http://localhost:3000 (web), http://10.0.2.2:3000
  * (émulateur Android) ou l'adresse IP du poste (téléphone réel), via EXPO_PUBLIC_API_URL.
@@ -40,6 +42,17 @@ export const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || null;
  * tuiles d'OpenStreetMap, réservées aux essais (leur règlement interdit un usage intensif) ; en
  * production, celles d'un fournisseur (MapTiler, Stadia…) via EXPO_PUBLIC_MAP_TILES.
  */
+/**
+ * Carte Google Maps (suivi en direct, choix de la porte) : clé d'API Google propre à chaque
+ * système, restreinte à l'application dans la console Google Cloud. Sans clé, la petite carte
+ * en tuiles prend le relais.
+ */
+export const GOOGLE_MAPS_KEY =
+  Platform.OS === 'ios'
+    ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY || null
+    : process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY || null;
+export const GOOGLE_MAPS_ENABLED = Platform.OS !== 'web' && !!GOOGLE_MAPS_KEY;
+
 export const MAP_TILES =
   process.env.EXPO_PUBLIC_MAP_TILES || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const MAP_ATTRIBUTION = process.env.EXPO_PUBLIC_MAP_ATTRIBUTION || '© OpenStreetMap';

@@ -15,7 +15,7 @@ import { Chip, ErrorText, Field } from '../../src/ui/Form';
 import { Amount, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { statusColor } from '../../src/status';
-import { MapTiles } from '../../src/ui/MapTiles';
+import { LiveMap } from '../../src/ui/LiveMap';
 import { Timeline } from '../../src/ui/Timeline';
 
 const CODE_PENDING = [
@@ -123,14 +123,14 @@ function ReviewForm({
 
 /**
  * Livreur en route (docs/ux/03 §15) : son prénom, le bouton pour l'appeler et sa dernière
- * position sur une petite carte, rafraîchie toutes les 20 s.
+ * position sur la carte, rafraîchie toutes les 8 s.
  */
 function RiderOnTheWay({ orderId }: { orderId: string }) {
   const tracking = useQuery({
     queryKey: ['order', orderId, 'tracking'],
     queryFn: async () =>
       unwrap(await api.GET('/v1/orders/{id}/tracking', { params: { path: { id: orderId } } })),
-    refetchInterval: 20_000,
+    refetchInterval: 8_000,
   });
   const tr = tracking.data;
   if (!tr?.onTheWay || !tr.rider) return null;
@@ -158,7 +158,7 @@ function RiderOnTheWay({ orderId }: { orderId: string }) {
               {t.orders.eta(tr.etaMinutes)}
             </Text>
           ) : null}
-          <MapTiles
+          <LiveMap
             lat={tr.position.lat}
             lng={tr.position.lng}
             other={tr.destination ? { point: tr.destination, pin: 'home' } : null}
