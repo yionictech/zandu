@@ -219,6 +219,85 @@ paths:
         '204': { description: Notifications marquées comme lues }
         '401': { $ref: '#/components/responses/Error' }
 
+  /v1/me/deletion:
+    get:
+      tags: [Authentification]
+      summary: Suppression du compte — ce qui l'empêche encore
+      description: >-
+        Exigence de Google Play et de l'App Store. Impossible tant qu'une commande est en cours,
+        qu'un reversement est attendu, ou pour un livreur ou un membre du personnel.
+      operationId: accountDeletionStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [possible, blockers]
+                properties:
+                  possible: { type: boolean }
+                  blockers:
+                    type: array
+                    items:
+                      type: object
+                      required: [code, message]
+                      properties:
+                        code:
+                          type: string
+                          enum:
+                            [
+                              orders_in_progress,
+                              shop_orders_in_progress,
+                              seller_balance,
+                              payout_pending,
+                              rider_account,
+                              staff_account,
+                            ]
+                        message: { type: string }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Authentification]
+      summary: Demander la suppression du compte (code par SMS)
+      operationId: requestAccountDeletion
+      responses:
+        '202':
+          description: Code envoyé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challengeId, expiresInSeconds]
+                properties:
+                  challengeId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/me/deletion/confirm:
+    post:
+      tags: [Authentification]
+      summary: Confirmer la suppression avec le code reçu
+      description: >-
+        Le compte est fermé, le nom, le téléphone, les adresses et les appareils effacés ; les
+        commandes et écritures comptables restent, anonymes (obligation légale).
+      operationId: confirmAccountDeletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeId, code]
+              properties:
+                challengeId: { type: string, format: uuid }
+                code: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '204': { description: Compte supprimé }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '423': { $ref: '#/components/responses/Error' }
+
   /v1/me/devices:
     put:
       tags: [Notifications]

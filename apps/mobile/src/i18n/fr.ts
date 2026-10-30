@@ -13,6 +13,20 @@ export const fr = {
     seeAll: 'Tout voir',
     items: (n: number) => `${n} article${n > 1 ? 's' : ''}`,
   },
+  deletion: {
+    title: 'Supprimer mon compte',
+    link: 'Supprimer mon compte',
+    erased:
+      'Seront effacés : votre nom, votre numéro, vos adresses de livraison, vos appareils et vos sessions. Si vous avez une boutique, elle est fermée et vos produits retirés de la vente.',
+    kept: 'Seront gardés, sans votre nom ni votre numéro : les commandes, paiements et reversements passés, que la loi nous oblige à conserver pour la comptabilité.',
+    final:
+      'C’est définitif. Vous pourrez ensuite recréer un compte avec le même numéro, mais il sera vide.',
+    blockedTitle: 'Pas encore possible',
+    blockedHint: 'Attendez la fin de ces opérations, ou écrivez au support Zandu qui vous aidera.',
+    ask: 'Recevoir le code de confirmation',
+    codeSent: 'Saisissez le code reçu par SMS pour confirmer la suppression.',
+    confirm: 'Supprimer définitivement mon compte',
+  },
   demo: {
     banner: 'Démonstration · données fictives · changer de rôle',
     title: 'Mode démonstration',

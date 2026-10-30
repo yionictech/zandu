@@ -851,6 +851,74 @@ export class DemoApi {
       return undefined;
     });
 
+    // Suppression de compte (exigence des stores) -------------------------
+    const deletionBlockers = (me: DUser) => {
+      const blockers: Array<{
+        code: 'orders_in_progress' | 'shop_orders_in_progress' | 'rider_account';
+        message: string;
+      }> = [];
+      const active = (o: DOrder) => ESCROW.includes(o.status);
+      if (me.roles.includes('rider'))
+        blockers.push({
+          code: 'rider_account',
+          message:
+            'Les comptes livreurs sont fermés par votre société de livraison avec le support.',
+        });
+      if (this.state.orders.some((o) => o.buyerId === me.id && active(o)))
+        blockers.push({
+          code: 'orders_in_progress',
+          message: 'Une de vos commandes est encore en cours ou en litige.',
+        });
+      const shop = this.state.shops.find((x) => x.userId === me.id);
+      if (shop && this.state.orders.some((o) => o.sellerId === shop.id && active(o)))
+        blockers.push({
+          code: 'shop_orders_in_progress',
+          message: 'Votre boutique a des commandes en cours.',
+        });
+      return blockers;
+    };
+    this.on('GET', '/v1/me/deletion', ({ user }): Ok<'/v1/me/deletion', 'get'> => {
+      const blockers = deletionBlockers(user());
+      return { possible: blockers.length === 0, blockers };
+    });
+    this.on(
+      'POST',
+      '/v1/me/deletion',
+      ({ user }): Ok<'/v1/me/deletion', 'post', 202> => {
+        const me = user();
+        const blockers = deletionBlockers(me);
+        if (blockers.length) throw conflict('deletion_blocked', blockers[0]!.message);
+        const id = this.deps.newId();
+        const code = this.digits(6);
+        this.state.challenges.unshift({ id, phone: me.phone, code, createdAt: this.iso() });
+        this.sms(me.phone, 'account_deletion_code', { code });
+        return { challengeId: id, expiresInSeconds: 300 };
+      },
+      202,
+    );
+    this.on('POST', '/v1/me/deletion/confirm', ({ user, body }) => {
+      const me = user();
+      const challenge = this.state.challenges.find(
+        (c) => c.id === body.challengeId && c.phone === me.phone,
+      );
+      if (!challenge || challenge.code !== body.code)
+        throw new DemoError(422, 'otp_invalid', 'Code incorrect ou expiré');
+      for (const [token, userId] of Object.entries(this.state.sessions))
+        if (userId === me.id) delete this.state.sessions[token];
+      me.phone = `+999${this.digits(11)}`;
+      me.fullName = null;
+      me.roles = ['buyer'];
+      for (const o of this.state.orders)
+        if (o.buyerId === me.id)
+          o.shippingAddress = { recipientName: 'Compte supprimé', phone: '', landmark: '' };
+      const shop = this.state.shops.find((x) => x.userId === me.id);
+      if (shop) {
+        shop.isOpen = false;
+        for (const p of this.state.products) if (p.sellerId === shop.id) p.status = 'archived';
+      }
+      return undefined;
+    });
+
     // Achat ---------------------------------------------------------------
     this.on(
       'POST',

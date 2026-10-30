@@ -361,7 +361,7 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
   });
 
   it('écarts : refus, annulation, retour au vendeur, point relais, litige', () => {
-    const { call, login, advance } = demo();
+    const { call, login, lastCode, advance } = demo();
     const buyer = login(DEMO_ACCOUNTS.buyer.phone);
     const seller = login(DEMO_ACCOUNTS.seller.phone);
     const rider = login(DEMO_ACCOUNTS.rider.phone);
@@ -471,6 +471,19 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
         expect: 201,
       }).status,
     ).toBe('failed');
+    // Suppression de compte : refusée avec une commande en cours, possible pour un compte neuf.
+    expect(call(buyer, 'GET', '/v1/me/deletion').possible).toBe(false);
+    const fresh = login('+242064445566');
+    expect(call(fresh, 'GET', '/v1/me/deletion').possible).toBe(true);
+    const asked = call(fresh, 'POST', '/v1/me/deletion', { expect: 202 });
+    call(fresh, 'POST', '/v1/me/deletion/confirm', {
+      body: {
+        challengeId: asked.challengeId,
+        code: lastCode('+242064445566', 'account_deletion_code'),
+      },
+      expect: 204,
+    });
+    call(fresh, 'GET', '/v1/me', { expect: 401 });
     call(buyer, 'POST', '/v1/auth/logout');
     call(buyer, 'GET', '/v1/me', { expect: 401 });
   });

@@ -124,6 +124,14 @@ export default function AccountScreen() {
         <Text style={styles.logoutText}>{t.account.logout}</Text>
       </Pressable>
       <TestServerLink />
+      <Pressable
+        onPress={() => router.push('/supprimer-compte')}
+        accessibilityRole="button"
+        style={styles.logout}
+        testID="account-delete"
+      >
+        <Text style={styles.label}>{t.deletion.link}</Text>
+      </Pressable>
     </Screen>
   );
 }

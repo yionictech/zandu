@@ -61,6 +61,7 @@ export default function RootLayout() {
                 <Stack.Screen name="produit/[id]" options={{ title: '' }} />
                 <Stack.Screen name="notifications" options={{ title: t.inbox.title }} />
                 <Stack.Screen name="serveur" options={{ title: t.server.title }} />
+                <Stack.Screen name="supprimer-compte" options={{ title: t.deletion.title }} />
                 <Stack.Screen
                   name="connexion"
                   options={{ title: t.auth.title, presentation: 'modal' }}

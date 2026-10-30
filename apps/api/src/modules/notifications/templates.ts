@@ -35,6 +35,8 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : remboursement de ${v.amount} envoyé sur votre compte Mobile Money.`,
   withdrawal_code: (v) =>
     `Zandu : code de confirmation de votre retrait de ${v.amount} : ${v.code}. Ne le donnez à personne, même au support.`,
+  account_deletion_code: (v) =>
+    `Zandu : code ${v.code} pour supprimer définitivement votre compte. Si vous n'avez rien demandé, ignorez ce message.`,
   seller_withdrawal_rejected: (v) =>
     `Zandu : votre retrait de ${v.amount} n'a pas été validé (${v.reason}). L'argent est de nouveau disponible dans l'application.`,
   seller_payout_sent: (v) =>
@@ -76,7 +78,13 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
  * quand le message d'origine ne doit pas être relu dans l'application. Les codes de connexion et
  * les messages du personnel n'y figurent pas.
  */
-export const INBOX_HIDDEN = ['otp_code', 'withdrawal_code', 'staff_access', 'support_alert'];
+export const INBOX_HIDDEN = [
+  'otp_code',
+  'withdrawal_code',
+  'account_deletion_code',
+  'staff_access',
+  'support_alert',
+];
 export const INBOX: Record<string, { title: string; body?: string }> = {
   ...Object.fromEntries(Object.entries(PUSH).map(([k, v]) => [k, { title: v.title }])),
   buyer_rider_arrived: { title: 'Votre livreur est arrivé' },

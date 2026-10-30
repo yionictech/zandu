@@ -28,6 +28,7 @@ import { simulatorDevRoutes, webhookRoutes } from './modules/payments/webhooks.r
 import { sellerRoutes } from './modules/seller/seller.routes.js';
 import { MemoryStorage } from './modules/storage/storage.js';
 import { devStorageRoutes, uploadRoutes } from './modules/uploads/uploads.routes.js';
+import { accountDeletionRoutes } from './modules/account/deletion.routes.js';
 
 export async function buildApp(
   ctx: AppContext,
@@ -92,6 +93,7 @@ export async function buildApp(
   await app.register(webhookRoutes(ctx));
   await app.register(deviceRoutes(ctx));
   await app.register(inboxRoutes(ctx));
+  await app.register(accountDeletionRoutes(ctx));
 
   const inbox =
     ctx.notifier instanceof RoutingNotificationSender ? ctx.notifier.messaging : ctx.notifier;

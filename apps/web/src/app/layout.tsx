@@ -97,7 +97,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {children}
         <footer className="footer">
           Zandu · Pointe-Noire et Brazzaville · Paiement MTN MoMo et Airtel Money ·{' '}
-          <Link href="/vendre">Vendre sur Zandu</Link>
+          <Link href="/vendre">Vendre sur Zandu</Link> ·{' '}
+          <Link href="/supprimer-mon-compte">Supprimer mon compte</Link>
         </footer>
       </body>
     </html>

@@ -133,6 +133,47 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/me/deletion': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Suppression du compte — ce qui l'empêche encore
+     * @description Exigence de Google Play et de l'App Store. Impossible tant qu'une commande est en cours, qu'un reversement est attendu, ou pour un livreur ou un membre du personnel.
+     */
+    get: operations['accountDeletionStatus'];
+    put?: never;
+    /** Demander la suppression du compte (code par SMS) */
+    post: operations['requestAccountDeletion'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/deletion/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirmer la suppression avec le code reçu
+     * @description Le compte est fermé, le nom, le téléphone, les adresses et les appareils effacés ; les commandes et écritures comptables restent, anonymes (obligation légale).
+     */
+    post: operations['confirmAccountDeletion'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/me/devices': {
     parameters: {
       query?: never;
@@ -3107,6 +3148,95 @@ export interface operations {
         content?: never;
       };
       401: components['responses']['Error'];
+    };
+  };
+  accountDeletionStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            possible: boolean;
+            blockers: {
+              /** @enum {string} */
+              code:
+                | 'orders_in_progress'
+                | 'shop_orders_in_progress'
+                | 'seller_balance'
+                | 'payout_pending'
+                | 'rider_account'
+                | 'staff_account';
+              message: string;
+            }[];
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  requestAccountDeletion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Code envoyé */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            challengeId: string;
+            expiresInSeconds: number;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      429: components['responses']['Error'];
+    };
+  };
+  confirmAccountDeletion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: uuid */
+          challengeId: string;
+          code: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Compte supprimé */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+      423: components['responses']['Error'];
     };
   };
   registerDevice: {

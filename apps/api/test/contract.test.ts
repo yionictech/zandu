@@ -338,6 +338,7 @@ describe('Contrat OpenAPI ⇄ API réelle (via le client généré)', () => {
     );
     expectConforms('/v1/orders/{id}/tracking', 'get', 200, tracked);
     expect(tracked.etaMinutes).toBe(10);
+    expectConforms('/v1/me/deletion', 'get', 200, unwrap(await buyerApi.GET('/v1/me/deletion')));
 
     // Arrivée, appel, incident, retour au vendeur, puis profil, historique et journal du support.
     const path = { params: { path: { id: orderId } } };
