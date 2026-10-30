@@ -13,6 +13,10 @@ export const fr = {
     seeAll: 'Tout voir',
     items: (n: number) => `${n} article${n > 1 ? 's' : ''}`,
   },
+  legal: {
+    terms: 'Conditions d’utilisation',
+    privacy: 'Confidentialité',
+  },
   deletion: {
     title: 'Supprimer mon compte',
     link: 'Supprimer mon compte',

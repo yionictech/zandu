@@ -5,7 +5,12 @@ export const dynamic = 'force-dynamic';
 
 /** Plan du site : accueil, chaque produit en vente, chaque boutique (jusqu'à 1 050 produits). */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const entries: MetadataRoute.Sitemap = [{ url: `${SITE_URL}/`, changeFrequency: 'hourly' }];
+  const entries: MetadataRoute.Sitemap = [
+    { url: `${SITE_URL}/`, changeFrequency: 'hourly' },
+    { url: `${SITE_URL}/vendre` },
+    { url: `${SITE_URL}/conditions` },
+    { url: `${SITE_URL}/confidentialite` },
+  ];
   const shops = new Set<string>();
   for (let offset = 0; offset <= 1000; offset += 50) {
     const { items } = await catalog((api) =>

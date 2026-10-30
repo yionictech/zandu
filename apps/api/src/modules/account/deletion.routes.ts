@@ -8,6 +8,7 @@ import { addSeconds } from '../../lib/clock.js';
 import { hmac, randomDigits, safeEqualHex } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
+import { isReviewAccount } from '../auth/auth.service.js';
 import { actor, currentUser, requireAuth } from '../auth/guards.js';
 import { accountBalance, sellerEscrowBalance } from '../ledger/ledger.repository.js';
 import { render } from '../notifications/templates.js';
@@ -118,7 +119,8 @@ export function accountDeletionRoutes(ctx: AppContext): FastifyPluginAsync {
       if (last && now().getTime() - last.getTime() < ctx.config.auth.otpResendSeconds * 1000)
         throw new HttpError(429, 'otp_resend_too_soon', 'Patientez avant de demander un code');
       const id = randomUUID();
-      const code = randomDigits(6);
+      const review = isReviewAccount(ctx, user.phone);
+      const code = review ? ctx.config.storeReview!.code : randomDigits(6);
       await ctx.pool.query(
         `INSERT INTO otp_challenges (id, phone, purpose, code_hash, expires_at, requested_ip, created_at)
          VALUES ($1, $2, 'account_deletion', $3, $4, $5::inet, $6)`,
@@ -131,13 +133,14 @@ export function accountDeletionRoutes(ctx: AppContext): FastifyPluginAsync {
           now(),
         ],
       );
-      await ctx.notifier.send({
-        channel: 'sms',
-        recipient: user.phone,
-        template: 'account_deletion_code',
-        variables: { code },
-        text: render('account_deletion_code', { code }),
-      });
+      if (!review)
+        await ctx.notifier.send({
+          channel: 'sms',
+          recipient: user.phone,
+          template: 'account_deletion_code',
+          variables: { code },
+          text: render('account_deletion_code', { code }),
+        });
       return reply
         .status(202)
         .send({ challengeId: id, expiresInSeconds: ctx.config.auth.otpTtlSeconds });

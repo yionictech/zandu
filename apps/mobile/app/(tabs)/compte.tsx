@@ -1,7 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { Bike, ChevronRight, Store } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { SERVER_PICKER } from '../../src/config';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { SERVER_PICKER, SITE_URL } from '../../src/config';
 import { displayPhone, formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useFavorites } from '../../src/prefs';
@@ -59,6 +59,29 @@ function TestServerLink() {
   );
 }
 
+/** Conditions et politique de confidentialité, publiées sur le site (exigence des stores). */
+function LegalLinks() {
+  if (!SITE_URL) return null;
+  return (
+    <View style={styles.legal}>
+      <Pressable
+        onPress={() => void Linking.openURL(`${SITE_URL}/conditions`)}
+        accessibilityRole="link"
+        testID="account-terms"
+      >
+        <Text style={styles.label}>{t.legal.terms}</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => void Linking.openURL(`${SITE_URL}/confidentialite`)}
+        accessibilityRole="link"
+        testID="account-privacy"
+      >
+        <Text style={styles.label}>{t.legal.privacy}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /** Mon compte : numéro, favoris, espaces vendeur et livreur, déconnexion. */
 export default function AccountScreen() {
   const router = useRouter();
@@ -74,6 +97,7 @@ export default function AccountScreen() {
         </Card>
         <Favorites />
         <TestServerLink />
+        <LegalLinks />
       </Screen>
     );
   }
@@ -132,6 +156,7 @@ export default function AccountScreen() {
       >
         <Text style={styles.label}>{t.deletion.link}</Text>
       </Pressable>
+      <LegalLinks />
     </Screen>
   );
 }
@@ -156,6 +181,7 @@ const styles = StyleSheet.create({
   },
   spaceText: { flex: 1, color: colors.text, fontWeight: '700', fontSize: font.body },
   logout: { alignItems: 'center', padding: space.md },
+  legal: { flexDirection: 'row', justifyContent: 'center', gap: space.lg, paddingBottom: space.md },
   serverLink: { color: colors.brand, fontWeight: '700', fontSize: font.small },
   logoutText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
 });

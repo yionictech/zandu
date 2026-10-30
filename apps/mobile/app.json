@@ -5,20 +5,35 @@
     "scheme": "zandu",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "android": {
       "package": "cg.zandu.app",
-      "softwareKeyboardLayoutMode": "pan"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B0E15"
+      },
+      "softwareKeyboardLayoutMode": "pan",
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",
       "output": "single",
       "name": "Zandu",
-      "themeColor": "#C2410C"
+      "themeColor": "#0B0E15",
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
       "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#0B0E15",
+          "resizeMode": "contain"
+        }
+      ],
       "expo-secure-store",
       "expo-image",
       "expo-font",
@@ -44,6 +59,19 @@
           "isIosBackgroundLocationEnabled": false
         }
       ]
-    ]
+    ],
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#0B0E15",
+    "ios": {
+      "bundleIdentifier": "cg.zandu.app",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "fr",
+        "CFBundleAllowMixedLocalizations": true
+      }
+    }
   }
 }

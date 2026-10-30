@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   DEFAULT_ORDER_POLICY,
   DEFAULT_PAYOUT_POLICY,
+  parseCongoMobile,
   type OrderPolicy,
   type PayoutPolicy,
 } from '@zandu/domain';
@@ -71,6 +72,14 @@ const EnvSchema = z.object({
   RIDER_ABSENT_WAIT_MINUTES: z.coerce.number().int().min(0).default(10),
   /** Second facteur (TOTP) du personnel. Toujours exigé en production ; désactivé par défaut en test. */
   STAFF_MFA_REQUIRED: z.stringbool().optional(),
+  /**
+   * Compte de revue Google Play / App Store (docs/exploitation/publication-stores.md) :
+   * « +242060000000:482915 ». Ce numéro reçoit toujours ce code, sans SMS. Acheteur seulement.
+   */
+  STORE_REVIEW_ACCOUNT: z
+    .string()
+    .regex(/^\+?\d{9,15}:\d{6}$/, 'STORE_REVIEW_ACCOUNT : « numéro:code à 6 chiffres »')
+    .optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -137,6 +146,8 @@ export interface Config {
   handoverMaxAttempts: number;
   riderAbsentWaitMinutes: number;
   publicApiUrl: string;
+  /** Compte de revue des stores : code fixe, aucun SMS envoyé. */
+  storeReview: { phone: string; code: string } | null;
   /** null = toute origine (développement uniquement). */
   corsOrigins: string[] | null;
   storage:
@@ -152,6 +163,14 @@ export interface Config {
         buckets: { public: string; private: string };
         publicBaseUrl: string;
       };
+}
+
+function parseReviewAccount(value: string | undefined): Config['storeReview'] {
+  if (!value) return null;
+  const [phone, code] = value.split(':') as [string, string];
+  if (/^(\d)\1{5}$/.test(code) || code === '123456')
+    throw new Error('STORE_REVIEW_ACCOUNT : choisissez un code moins évident.');
+  return { phone: parseCongoMobile(phone).e164, code };
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
@@ -191,6 +210,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     paymentProvider: env.PAYMENT_PROVIDER,
     simulatorWebhookSecret: env.SIMULATOR_WEBHOOK_SECRET,
     supportAlertPhone: env.SUPPORT_ALERT_PHONE ?? null,
+    storeReview: parseReviewAccount(env.STORE_REVIEW_ACCOUNT),
     push: { provider: env.PUSH_PROVIDER, expoAccessToken: env.EXPO_ACCESS_TOKEN ?? null },
     pushFallbackMinutes: env.PUSH_FALLBACK_MINUTES,
     recetteKey: deployment === 'recette' ? env.RECETTE_KEY! : null,

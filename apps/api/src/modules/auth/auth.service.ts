@@ -27,6 +27,10 @@ export interface AuthSession {
 const otpHash = (ctx: AppContext, challengeId: string, code: string): string =>
   hmac(ctx.config.appSecret, `otp:${challengeId}:${code}`);
 
+/** Compte de revue des stores : code fixe connu des testeurs d'Apple et de Google, pas de SMS. */
+export const isReviewAccount = (ctx: AppContext, phone: string): boolean =>
+  ctx.config.storeReview?.phone === phone;
+
 /**
  * Envoie un code à 6 chiffres. Limites strictes : le « SMS pumping » (bots qui déclenchent
  * des milliers de SMS surtaxés) est une fraude courante qui vide un budget SMS en une nuit.
@@ -38,7 +42,8 @@ export async function requestOtp(ctx: AppContext, phoneInput: string, ip: string
     ctx.config.auth;
   const hourAgo = addHours(now, -1);
 
-  const code = randomDigits(6);
+  const review = isReviewAccount(ctx, phone);
+  const code = review ? ctx.config.storeReview!.code : randomDigits(6);
   const challengeId = await withTx(ctx.pool, async (tx) => {
     // Sérialise les demandes pour un même numéro (verrou consultatif transactionnel).
     await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', [phone]);
@@ -74,13 +79,14 @@ export async function requestOtp(ctx: AppContext, phoneInput: string, ip: string
     return id;
   });
 
-  await ctx.notifier.send({
-    channel: 'sms',
-    recipient: phone,
-    template: 'otp_code',
-    variables: { code },
-    text: render('otp_code', { code }),
-  });
+  if (!review)
+    await ctx.notifier.send({
+      channel: 'sms',
+      recipient: phone,
+      template: 'otp_code',
+      variables: { code },
+      text: render('otp_code', { code }),
+    });
   return { challengeId, expiresInSeconds: otpTtlSeconds, resendAfterSeconds: otpResendSeconds };
 }
 
