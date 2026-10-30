@@ -92,12 +92,15 @@ export function PersonCard({
   line,
   phone,
   onCall,
+  appCall,
 }: {
   name: string;
   line: string;
   phone: string;
   /** Appelé avant d'ouvrir le téléphone (noter une tentative de contact). */
   onCall?: () => void;
+  /** Appel internet dans l'application ; l'appel téléphonique normal reste en secours. */
+  appCall?: () => void;
 }) {
   return (
     <Card style={styles.person}>
@@ -109,11 +112,25 @@ export function PersonCard({
         <Text style={styles.muted} numberOfLines={2}>
           {line}
         </Text>
+        {appCall ? (
+          <Pressable
+            onPress={() => {
+              onCall?.();
+              void Linking.openURL(`tel:${phone}`);
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            testID="person-normal-call"
+          >
+            <Text style={styles.normalCall}>{t.calls.normalCall}</Text>
+          </Pressable>
+        ) : null}
       </View>
       <Pressable
         onPress={() => {
           onCall?.();
-          void Linking.openURL(`tel:${phone}`);
+          if (appCall) appCall();
+          else void Linking.openURL(`tel:${phone}`);
         }}
         accessibilityRole="button"
         accessibilityLabel={`${t.rider.call} ${name}`}
@@ -159,4 +176,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   callPressed: { backgroundColor: colors.brandPressed },
+  normalCall: { fontSize: 13, color: colors.brand, fontWeight: '700', marginTop: 2 },
 });

@@ -32,6 +32,10 @@ const EnvSchema = z.object({
   /** WhatsApp (API Cloud de Meta), facultatif : sans lui, les avis partent en SMS. */
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  /** Appels dans l'application (LiveKit, docs/exploitation/appels.md) : wss://appel.… */
+  LIVEKIT_URL: z.union([z.literal(''), z.string().regex(/^wss?:\/\//)]).optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.union([z.literal(''), z.string().min(32)]).optional(),
   /** pawaPay (D1, docs/exploitation/points-bloquants.md) : jeton d'API du tableau de bord. */
   PAWAPAY_API_TOKEN: z.union([z.literal(''), z.string().min(20)]).optional(),
   /** https://api.sandbox.pawapay.io (bac à sable, par défaut) ou https://api.pawapay.io. */
@@ -160,6 +164,7 @@ export interface Config {
   handoverMaxAttempts: number;
   riderAbsentWaitMinutes: number;
   publicApiUrl: string;
+  livekit: { url: string; apiKey: string; apiSecret: string } | null;
   messaging: {
     sms: { baseUrl: string; apiKey: string; sender: string } | null;
     whatsapp: { phoneNumberId: string; accessToken: string } | null;
@@ -243,6 +248,10 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     appSecret: env.APP_SECRET,
     paymentProvider: env.PAYMENT_PROVIDER,
     simulatorWebhookSecret: env.SIMULATOR_WEBHOOK_SECRET,
+    livekit:
+      env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET
+        ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET }
+        : null,
     messaging: {
       sms:
         env.INFOBIP_BASE_URL && env.INFOBIP_API_KEY

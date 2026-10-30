@@ -138,7 +138,12 @@ export async function launchBrowser() {
   return chromium.launch({
     executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
     // Essai local de la recette : certificats émis par l'autorité interne de Caddy.
-    args: process.env.E2E_ACCEPT_LOCAL_CERTS === '1' ? ['--ignore-certificate-errors'] : [],
+    args: [
+      // Appels : micro simulé (son de test), autorisation donnée d'office.
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      ...(process.env.E2E_ACCEPT_LOCAL_CERTS === '1' ? ['--ignore-certificate-errors'] : []),
+    ],
   });
 }
 

@@ -134,6 +134,27 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
             pushOnly: true,
           }));
       }
+      case 'order.call': {
+        const { rows } = await db.query<{ caller_id: string; callee_id: string; status: string }>(
+          'SELECT caller_id, callee_id, status::text AS status FROM order_calls WHERE id = $1',
+          [p.callId],
+        );
+        const call = rows[0];
+        if (!call || call.status !== 'ringing') return [];
+        const c = await conversationOf(db, event.aggregate_id);
+        const caller = c.participants.find((x) => x.userId === call.caller_id)?.name ?? 'Zandu';
+        return [
+          {
+            userId: call.callee_id,
+            recipient: '',
+            channel: 'push' as const,
+            template: 'incoming_call',
+            variables: { ref, caller },
+            url: `/appel/${String(p.callId)}`,
+            pushOnly: true,
+          },
+        ];
+      }
       case 'order.paid':
         return [
           toBuyer(o, 'buyer_payment_confirmed', { ref, amount: formatXaf(o.total) }),

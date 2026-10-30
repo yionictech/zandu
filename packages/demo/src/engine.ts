@@ -955,6 +955,15 @@ export class DemoApi {
       return { totalUnread: items.reduce((n, i) => n + i.unread, 0), items };
     });
 
+    // Appels : ils passent par un serveur d'appels, absent de la démonstration.
+    this.on('POST', '/v1/orders/{id}/calls', () => {
+      throw new DemoError(
+        503,
+        'calls_unavailable',
+        'Les appels ne marchent pas en démonstration : ils passent par le serveur de Zandu.',
+      );
+    });
+
     // Suppression de compte (exigence des stores) -------------------------
     const deletionBlockers = (me: DUser) => {
       const blockers: Array<{

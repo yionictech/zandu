@@ -47,3 +47,10 @@
 	}
 	reverse_proxy stockage:8333
 }
+
+# Appels : connexion de contrôle des téléphones vers le serveur d'appels (le son passe en UDP,
+# directement). Sans appels configurés, l'adresse vaut « localhost » et ne sert pas.
+{$CALL_HOST} {
+	import commun
+	reverse_proxy livekit:7880
+}

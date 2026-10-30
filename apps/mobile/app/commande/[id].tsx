@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Lock, Package as PackageIcon, Phone, Star } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useStartCall } from '../../src/call/useStartCall';
 import { MessagesButton } from '../../src/ui/MessagesButton';
 import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
@@ -126,6 +127,7 @@ function ReviewForm({
  * position sur la carte, rafraîchie toutes les 8 s.
  */
 function RiderOnTheWay({ orderId }: { orderId: string }) {
+  const startCall = useStartCall(orderId);
   const tracking = useQuery({
     queryKey: ['order', orderId, 'tracking'],
     queryFn: async () =>
@@ -141,12 +143,20 @@ function RiderOnTheWay({ orderId }: { orderId: string }) {
         <View style={styles.flex}>
           <Eyebrow color={colors.waiting}>{t.orders.riderComing}</Eyebrow>
           <Text style={styles.body}>{rider.name}</Text>
+          <Pressable
+            onPress={() => void Linking.openURL(`tel:${rider.phone}`)}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.normalCall}>{t.calls.normalCall}</Text>
+          </Pressable>
         </View>
         <Pressable
-          onPress={() => void Linking.openURL(`tel:${rider.phone}`)}
+          onPress={() => startCall.mutate('rider')}
           accessibilityRole="button"
           accessibilityLabel={`${t.orders.callRider} ${rider.name}`}
           style={styles.callRider}
+          testID="call-rider"
         >
           <Phone color={colors.onBrand} size={20} strokeWidth={2} />
         </Pressable>
@@ -350,6 +360,7 @@ export default function OrderScreen() {
 const styles = StyleSheet.create({
   eta: { fontSize: font.title, fontWeight: '800', color: colors.text },
   riderRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  normalCall: { color: colors.brand, fontWeight: '700', fontSize: font.small, marginTop: 2 },
   callRider: {
     width: 44,
     height: 44,

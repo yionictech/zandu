@@ -19,6 +19,10 @@ x-api-env: &api-env
   # Paiements : simulateur, ou bac à sable pawaPay dès qu'un jeton est fourni (« pawapay »).
   PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-simulator}
   PAWAPAY_API_TOKEN: ${PAWAPAY_API_TOKEN:-}
+  # Appels dans l'application (service « livekit » ci-dessous, profil « appels »).
+  LIVEKIT_URL: ${LIVEKIT_URL:-}
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
   PAWAPAY_BASE_URL: ${PAWAPAY_BASE_URL:-https://api.sandbox.pawapay.io}
   SIMULATOR_WEBHOOK_SECRET: ${SIMULATOR_WEBHOOK_SECRET:?SIMULATOR_WEBHOOK_SECRET manquant dans .env}
   SUPPORT_ALERT_PHONE: ${SUPPORT_ALERT_PHONE:-}
@@ -139,6 +143,22 @@ services:
     depends_on:
       api: { condition: service_healthy }
 
+  # Appels internet dans l'application (docs/exploitation/appels.md). Activé par
+  # COMPOSE_PROFILES=appels dans .env (preparer-serveur.sh) ; absent de l'essai local.
+  livekit:
+    <<: *restart
+    image: livekit/livekit-server:v1.13.10
+    profiles: [appels]
+    command: ['--config', '/etc/livekit.yaml']
+    environment:
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}'
+    ports:
+      - '7881:7881/tcp'
+      - '3478:3478/udp'
+      - '40000-40100:40000-40100/udp'
+      - '50000-50100:50000-50100/udp'
+    volumes: ['./livekit.yaml:/etc/livekit.yaml:ro']
+
   caddy:
     <<: *restart
     image: caddy:2
@@ -149,6 +169,7 @@ services:
       API_HOST: ${API_HOST:?API_HOST manquant dans .env}
       BACKOFFICE_HOST: ${BACKOFFICE_HOST:?BACKOFFICE_HOST manquant dans .env}
       MEDIA_HOST: ${MEDIA_HOST}
+      CALL_HOST: ${CALL_HOST:-localhost}
       BACKOFFICE_ALLOWED_IPS: ${BACKOFFICE_ALLOWED_IPS:-0.0.0.0/0 ::/0}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

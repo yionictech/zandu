@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { SendHorizontal } from 'lucide-react-native';
+import { Phone, SendHorizontal } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { components } from '@zandu/api-client';
+import { useStartCall } from '../../src/call/useStartCall';
 import { api, errorMessage, queryClient, unwrap } from '../../src/api';
 import { t } from '../../src/i18n/fr';
 import { colors, font, radius, space } from '../../src/theme';
@@ -61,6 +63,7 @@ function Conversation() {
       void queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
   });
+  const startCall = useStartCall(orderId);
   const count = conversation.data?.items.length ?? 0;
   useEffect(() => {
     if (count) setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
@@ -83,7 +86,34 @@ function Conversation() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t.messages.title(c.publicRef) }} />
+      <Stack.Screen
+        options={{
+          title: t.messages.title(c.publicRef),
+          headerRight: () =>
+            c.canWrite && c.participants.length ? (
+              <Pressable
+                onPress={() => {
+                  const [only] = c.participants;
+                  if (c.participants.length === 1 && only) return startCall.mutate(only.role);
+                  Alert.alert(t.calls.chooseTitle, undefined, [
+                    ...c.participants.map((p) => ({
+                      text: t.calls.callWho(p.name, t.messages.roles[p.role]),
+                      onPress: () => startCall.mutate(p.role),
+                    })),
+                    { text: t.calls.cancel, style: 'cancel' as const },
+                  ]);
+                }}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t.calls.call}
+                testID="messages-call"
+                style={styles.headerCall}
+              >
+                <Phone color={colors.brand} size={22} strokeWidth={2} />
+              </Pressable>
+            ) : null,
+        }}
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -150,6 +180,7 @@ function Conversation() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  headerCall: { paddingHorizontal: space.sm },
   flex: { flex: 1 },
   with: {
     color: colors.muted,

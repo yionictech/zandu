@@ -822,6 +822,111 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/orders/{id}/calls': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Appeler un participant de la commande (appel internet, sans numéro)
+     * @description Crée l'appel, prévient l'appelé sur son téléphone et donne à l'appelant le jeton LiveKit de la salle. Sans réponse en 45 s, l'appel est manqué.
+     */
+    post: operations['startCall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/calls/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** État d'un appel (appelant ou appelé) */
+    get: operations['getCall'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/calls/{id}/accept': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Décrocher (jeton LiveKit de la salle) */
+    post: operations['acceptCall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/calls/{id}/decline': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refuser un appel entrant */
+    post: operations['declineCall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/calls/{id}/end': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Raccrocher, ou annuler avant la réponse */
+    post: operations['endCall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/calls/incoming': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Appel qui sonne pour moi (interrogé par l'application au premier plan) */
+    get: operations['incomingCalls'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/orders/{id}/cancel': {
     parameters: {
       query?: never;
@@ -2175,6 +2280,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    Call: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      orderId: string;
+      publicRef: string;
+      /** @enum {string} */
+      status: 'ringing' | 'accepted' | 'declined' | 'missed' | 'ended';
+      /** @enum {string} */
+      direction: 'outgoing' | 'incoming';
+      peer: components['schemas']['ConversationParticipant'];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      answeredAt: string | null;
+      ringSeconds: number;
+    };
+    CallWithAccess: components['schemas']['Call'] & {
+      /** @description Salle de l'appel sur le serveur LiveKit (jeton valable 2 heures) */
+      livekit: {
+        url: string;
+        token: string;
+      };
+    };
     /** @enum {string} */
     ConversationRole: 'buyer' | 'seller' | 'rider';
     ConversationParticipant: {
@@ -4649,6 +4778,150 @@ export interface operations {
         };
       };
       404: components['responses']['Error'];
+    };
+  };
+  startCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          to: components['schemas']['ConversationRole'];
+        };
+      };
+    };
+    responses: {
+      /** @description Ça sonne chez l'appelé */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CallWithAccess'];
+        };
+      };
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+      429: components['responses']['Error'];
+      503: components['responses']['Error'];
+    };
+  };
+  getCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Call'];
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  acceptCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CallWithAccess'];
+        };
+      };
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  declineCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Refusé */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  endCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Terminé */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  incomingCalls: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['Call'][];
+          };
+        };
+      };
+      401: components['responses']['Error'];
     };
   };
   cancelOrder: {

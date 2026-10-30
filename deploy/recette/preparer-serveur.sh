@@ -25,6 +25,11 @@ if command -v ufw >/dev/null 2>&1 && ! ufw status | grep -q 'Status: active'; th
   ufw allow 443/udp >/dev/null && ufw --force enable >/dev/null
   echo "✔ Pare-feu : SSH, HTTP et HTTPS seulement"
 fi
+# Appels dans l'application : son en direct (UDP) et relais (sans effet si déjà ouverts).
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q 'Status: active'; then
+  ufw allow 7881/tcp >/dev/null && ufw allow 3478/udp >/dev/null
+  ufw allow 40000:40100/udp >/dev/null && ufw allow 50000:50100/udp >/dev/null
+fi
 
 secret() { openssl rand -hex "${1:-32}"; }
 if [ ! -f .env ]; then
@@ -52,6 +57,14 @@ elif [ -n "${RECETTE_KEY:-}" ] && ! grep -q "^RECETTE_KEY=$RECETTE_KEY$" .env; t
   sed -i "s/^RECETTE_KEY=.*/RECETTE_KEY=$RECETTE_KEY/" .env
   echo "✔ Mot de passe des testeurs (RECETTE_KEY) mis à jour"
 fi
+
+# Réglages ajoutés après la création du .env : complétés sans toucher aux autres.
+ajouter() { grep -q "^$1=" .env || echo "$1=$2" >> .env; }
+ajouter CALL_HOST "appel.recette.$DOMAINE"
+ajouter LIVEKIT_URL "wss://appel.recette.$DOMAINE"
+ajouter LIVEKIT_API_KEY "API$(secret 6)"
+ajouter LIVEKIT_API_SECRET "$(secret)"
+ajouter COMPOSE_PROFILES appels
 
 chmod +x sauvegarder.sh deployer.sh
 ligne="30 2 * * * $PWD/sauvegarder.sh >> /var/log/zandu-sauvegarde.log 2>&1"

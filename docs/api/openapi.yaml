@@ -1543,6 +1543,103 @@ paths:
               schema: { $ref: '#/components/schemas/OrderMessage' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/orders/{id}/calls:
+    post:
+      tags: [Commandes]
+      summary: Appeler un participant de la commande (appel internet, sans numéro)
+      description: >-
+        Crée l'appel, prévient l'appelé sur son téléphone et donne à l'appelant le jeton LiveKit
+        de la salle. Sans réponse en 45 s, l'appel est manqué.
+      operationId: startCall
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to: { $ref: '#/components/schemas/ConversationRole' }
+      responses:
+        '201':
+          description: Ça sonne chez l'appelé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CallWithAccess' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/calls/{id}:
+    get:
+      tags: [Commandes]
+      summary: État d'un appel (appelant ou appelé)
+      operationId: getCall
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Call' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/calls/{id}/accept:
+    post:
+      tags: [Commandes]
+      summary: Décrocher (jeton LiveKit de la salle)
+      operationId: acceptCall
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CallWithAccess' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/calls/{id}/decline:
+    post:
+      tags: [Commandes]
+      summary: Refuser un appel entrant
+      operationId: declineCall
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Refusé }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/calls/{id}/end:
+    post:
+      tags: [Commandes]
+      summary: Raccrocher, ou annuler avant la réponse
+      operationId: endCall
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Terminé }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/me/calls/incoming:
+    get:
+      tags: [Commandes]
+      summary: Appel qui sonne pour moi (interrogé par l'application au premier plan)
+      operationId: incomingCalls
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Call' }
+        '401': { $ref: '#/components/responses/Error' }
+
   /v1/orders/{id}/cancel:
     post:
       tags: [Commandes]
@@ -4001,6 +4098,33 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    Call:
+      type: object
+      required:
+        [id, orderId, publicRef, status, direction, peer, createdAt, answeredAt, ringSeconds]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        publicRef: { type: string }
+        status: { type: string, enum: [ringing, accepted, declined, missed, ended] }
+        direction: { type: string, enum: [outgoing, incoming] }
+        peer: { $ref: '#/components/schemas/ConversationParticipant' }
+        createdAt: { type: string, format: date-time }
+        answeredAt: { type: [string, 'null'], format: date-time }
+        ringSeconds: { type: integer }
+    CallWithAccess:
+      allOf:
+        - $ref: '#/components/schemas/Call'
+        - type: object
+          required: [livekit]
+          properties:
+            livekit:
+              type: object
+              required: [url, token]
+              description: Salle de l'appel sur le serveur LiveKit (jeton valable 2 heures)
+              properties:
+                url: { type: string }
+                token: { type: string }
     ConversationRole:
       type: string
       enum: [buyer, seller, rider]

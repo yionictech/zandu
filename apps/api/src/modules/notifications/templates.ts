@@ -43,6 +43,8 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : reversement de ${v.amount} envoyé sur votre compte Mobile Money.`,
   buyer_late_payment: (v) =>
     `Zandu : votre paiement de ${v.amount} est arrivé après l'expiration de la commande. Il vous est remboursé automatiquement.`,
+  incoming_call: (v) =>
+    `Zandu : ${v.caller} vous appelle (commande ${v.ref}). Touchez pour répondre.`,
   order_message: (v) => `Zandu : ${v.author} (commande ${v.ref}) : ${v.preview}`,
   support_alert: (v) => `[Zandu support] ${v.message}`,
   staff_access: (v) =>
@@ -58,6 +60,7 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
  */
 export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   order_message: { title: 'Nouveau message', fallback: false },
+  incoming_call: { title: 'Appel entrant', fallback: false },
   seller_new_order: { title: 'Nouvelle commande', fallback: true },
   seller_dispute_opened: { title: 'Litige ouvert', fallback: true },
   seller_dispute_reminder: { title: 'Litige : votre réponse est attendue', fallback: true },
@@ -87,6 +90,7 @@ export const INBOX_HIDDEN = [
   'staff_access',
   'support_alert',
   'order_message',
+  'incoming_call',
 ];
 export const INBOX: Record<string, { title: string; body?: string }> = {
   ...Object.fromEntries(Object.entries(PUSH).map(([k, v]) => [k, { title: v.title }])),

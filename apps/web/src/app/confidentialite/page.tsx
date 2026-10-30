@@ -44,7 +44,12 @@ export default function PrivacyPage() {
           suive son colis.
         </li>
         <li>
-          <strong>Photos, avis et messages</strong> que vous publiez ou envoyez au support.
+          <strong>Photos, avis et messages</strong> que vous publiez, et les messages échangés dans
+          une commande (acheteur, vendeur, livreur), gardés avec la commande en cas de litige.
+        </li>
+        <li>
+          <strong>Appels dans l’application</strong> : qui a appelé qui et quand. Le son passe par
+          nos serveurs sans être enregistré.
         </li>
         <li>
           <strong>Technique</strong> : appareil et jeton de notification, adresse IP, journaux de

@@ -20,6 +20,11 @@ import { OutboxRunner } from '../src/seller/outbox';
 import { PushNotifications } from '../src/notifications';
 import { loadDemo } from '../src/demo';
 import { loadServer, needsServer } from '../src/server';
+import { IncomingCalls } from '../src/call/IncomingCalls';
+import { setupCalls } from '../src/call/session';
+
+// WebRTC natif (appels dans l'application) prêt avant le premier écran.
+setupCalls();
 
 // Un lien direct (notification, partage) garde l'accueil en dessous : le bouton retour y ramène.
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -49,6 +54,7 @@ export default function RootLayout() {
             <ServerGate />
             <OutboxRunner />
             <PushNotifications />
+            <IncomingCalls />
             <OfflineBar>
               <Stack
                 screenOptions={{
@@ -63,6 +69,10 @@ export default function RootLayout() {
                 <Stack.Screen name="serveur" options={{ title: t.server.title }} />
                 <Stack.Screen name="supprimer-compte" options={{ title: t.deletion.title }} />
                 <Stack.Screen name="messages/[orderId]" options={{ title: t.messages.open }} />
+                <Stack.Screen
+                  name="appel/[callId]"
+                  options={{ headerShown: false, presentation: 'fullScreenModal' }}
+                />
                 <Stack.Screen
                   name="connexion"
                   options={{ title: t.auth.title, presentation: 'modal' }}

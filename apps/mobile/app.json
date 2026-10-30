@@ -12,8 +12,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B0E15"
       },
-      "softwareKeyboardLayoutMode": "pan",
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
@@ -42,7 +41,7 @@
         {
           "cameraPermission": "Zandu utilise l'appareil photo pour photographier vos produits et vos pièces d'identité.",
           "photosPermission": "Zandu accède à vos photos pour illustrer vos produits.",
-          "microphonePermission": false
+          "microphonePermission": "Zandu utilise le micro pour les appels avec le vendeur, le livreur ou le client d'une commande."
         }
       ],
       [
@@ -58,6 +57,14 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
         }
+      ],
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "Zandu utilise le micro pour les appels avec le vendeur, le livreur ou le client d'une commande.",
+          "cameraPermission": "Zandu utilise l'appareil photo pour photographier vos produits et vos pièces d'identité."
+        }
       ]
     ],
     "icon": "./assets/icon.png",
@@ -70,7 +77,8 @@
       },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "fr",
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+        "UIBackgroundModes": ["audio"]
       }
     }
   }

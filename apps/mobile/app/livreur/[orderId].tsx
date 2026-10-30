@@ -42,6 +42,7 @@ import { Badge, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { RequireRole } from '../../src/ui/RequireRole';
 import { LiveMap } from '../../src/ui/LiveMap';
+import { useStartCall } from '../../src/call/useStartCall';
 import { MessagesButton } from '../../src/ui/MessagesButton';
 import { Text } from '../../src/ui/Text';
 
@@ -82,12 +83,14 @@ function Pickup({
   checked: number[];
   toggle(i: number): void;
 }) {
+  const startCall = useStartCall(m.orderId);
   return (
     <>
       <PersonCard
         name={m.pickup.shopName}
         line={`${m.pickup.zone}, ${m.pickup.city} · ${m.publicRef}`}
         phone={m.pickup.phone}
+        appCall={() => startCall.mutate('seller')}
       />
       {m.pickupCode ? (
         <ShowCode
@@ -142,6 +145,7 @@ function OnTheWay({
   sharing: ShareState;
   here: LatLng | null;
 }) {
+  const startCall = useStartCall(m.orderId);
   const point = m.destination.pickupPoint;
   return (
     <>
@@ -158,6 +162,7 @@ function OnTheWay({
             name={m.recipient.recipientName}
             line={`${m.destination.zone} · ${m.publicRef}`}
             phone={m.recipient.phone}
+            appCall={() => startCall.mutate('buyer')}
           />
           <Card style={styles.landmark}>
             <MapPin color={colors.danger} size={20} strokeWidth={1.8} />
@@ -341,6 +346,7 @@ function Return({
   intact: boolean;
   setIntact(v: boolean): void;
 }) {
+  const startCall = useStartCall(m.orderId);
   return (
     <>
       <Card>
@@ -352,6 +358,7 @@ function Return({
         name={m.pickup.shopName}
         line={`${m.pickup.zone}, ${m.pickup.city}`}
         phone={m.pickup.phone}
+        appCall={() => startCall.mutate('seller')}
       />
       {m.returnCode ? (
         <ShowCode

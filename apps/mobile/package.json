@@ -12,9 +12,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "15.0.2",
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/unbounded": "^0.4.1",
     "@expo/metro-runtime": "~58.0.14",
+    "@livekit/react-native": "3.1.0",
+    "@livekit/react-native-expo-plugin": "1.1.0",
+    "@livekit/react-native-webrtc": "150.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.104.3",
     "@zandu/api-client": "workspace:*",
@@ -36,6 +40,7 @@
     "expo-secure-store": "~58.0.2",
     "expo-splash-screen": "~58.0.12",
     "expo-status-bar": "~58.0.3",
+    "livekit-client": "2.23.0",
     "lucide-react-native": "^1.59.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
