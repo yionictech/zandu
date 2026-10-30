@@ -1,9 +1,9 @@
 // Configuration Expo : app.json, plus le fichier Firebase quand il est fourni (ADR-0018).
 // google-services.json n'est jamais versionné : l'APK de recette l'écrit depuis un secret GitHub.
 // Sans lui, l'application se construit sans notifications (WhatsApp/SMS prennent le relais).
-const { existsSync } = require('node:fs');
 const { join } = require('node:path');
-const { withAndroidManifest } = require('expo/config-plugins');
+const { existsSync, readFileSync, writeFileSync } = require('node:fs');
+const { withAndroidManifest, withDangerousMod } = require('expo/config-plugins');
 
 /**
  * APK de test (EXPO_PUBLIC_SERVER_PICKER=1, docs/exploitation/apk-de-test.md) : autorise le HTTP simple,
@@ -35,8 +35,30 @@ function checkStoreBuild(env) {
   if (problems.length) throw new Error(`Version des stores refusée :\n- ${problems.join('\n- ')}`);
 }
 
+/**
+ * Appels (WebRTC de LiveKit) : la version optimisée d'Android (R8) ne doit ni supprimer ni
+ * renommer les classes appelées depuis le code natif.
+ */
+const PROGUARD_CALLS = `
+# Appels dans l'application (LiveKit / WebRTC)
+-keep class livekit.org.webrtc.** { *; }
+-keep class livekit.org.jni_zero.** { *; }
+-dontwarn livekit.org.jni_zero.JniZeroJni
+`;
+const withCallsProguard = (config) =>
+  withDangerousMod(config, [
+    'android',
+    (mod) => {
+      const file = join(mod.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
+      const rules = existsSync(file) ? readFileSync(file, 'utf8') : '';
+      if (!rules.includes('livekit.org.webrtc')) writeFileSync(file, rules + PROGUARD_CALLS);
+      return mod;
+    },
+  ]);
+
 module.exports = ({ config }) => {
   checkStoreBuild(process.env);
+  config = withCallsProguard(config);
   // Carte Google Maps (docs/exploitation/google-maps.md) : une clé par système, sans clé la carte
   // en tuiles prend le relais.
   config = {
