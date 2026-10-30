@@ -80,15 +80,18 @@ export interface PaymentProvider {
   /** Relevé des mouvements exécutés entre `from` (inclus) et `to` (exclu). */
   fetchStatement(from: Date, to: Date): Promise<ProviderStatement>;
   /**
-   * Vérifie la signature (et la fraîcheur) d'un webhook puis le traduit.
-   * Renvoie null si la signature est invalide : la requête est rejetée.
+   * Vérifie la signature (et la fraîcheur) d'un webhook, ou relit l'opération chez l'agrégateur,
+   * puis le traduit. Renvoie null si la requête est invalide : elle est rejetée.
    */
   parseWebhook(
     rawBody: Buffer,
     headers: Record<string, string | string[] | undefined>,
     now: Date,
-  ): ProviderEvent | null;
+  ): WebhookOutcome | Promise<WebhookOutcome>;
 }
+
+/** Événement à traiter, null (rejet : signature ou contenu invalide) ou rappel sans effet à acquitter. */
+export type WebhookOutcome = ProviderEvent | null | 'ignored';
 
 export class ProviderRegistry {
   private readonly providers = new Map<string, PaymentProvider>();

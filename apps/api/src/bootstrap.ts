@@ -9,6 +9,13 @@ import {
   type NotificationSender,
 } from './modules/notifications/sender.js';
 import { ProviderRegistry, type PaymentProvider } from './modules/payments/provider.js';
+import {
+  CopySender,
+  InfobipSmsSender,
+  MessagingSender,
+  WhatsAppCloudSender,
+} from './modules/notifications/messaging.js';
+import { PawapayProvider } from './modules/payments/pawapay.js';
 import { SimulatorProvider } from './modules/payments/simulator.js';
 import { S3Storage } from './modules/storage/s3-storage.js';
 import { MemoryStorage, type ObjectStorage } from './modules/storage/storage.js';
@@ -17,11 +24,26 @@ import { MemoryStorage, type ObjectStorage } from './modules/storage/storage.js'
  * Assemble les dépendances réelles. Les adaptateurs de production (agrégateur choisi,
  * fournisseur WhatsApp/SMS) se branchent ici, derrière les mêmes interfaces.
  */
-function createMessaging(env: Config['env']): NotificationSender {
-  // Recette : pas encore de fournisseur, les SMS restent dans la boîte de réception protégée.
-  if (env !== 'production') return new DevNotificationSender();
-  // TODO(messagerie) : brancher l'adaptateur WhatsApp Business / passerelle SMS retenu.
-  throw new Error('Aucun fournisseur SMS/WhatsApp configuré pour la production');
+/**
+ * SMS et WhatsApp (D16). Sans fournisseur : boîte de réception de développement (recette
+ * comprise) ; la production refuse de démarrer. En recette avec fournisseur, les messages partent
+ * pour de vrai et restent aussi lisibles dans la boîte de réception des testeurs.
+ */
+function createMessaging(config: Config): NotificationSender {
+  const { sms, whatsapp } = config.messaging;
+  if (!sms) {
+    if (config.env !== 'production') return new DevNotificationSender();
+    throw new Error(
+      'Production : fournisseur SMS obligatoire (INFOBIP_BASE_URL, INFOBIP_API_KEY).',
+    );
+  }
+  const real = new MessagingSender(
+    new InfobipSmsSender(sms),
+    whatsapp ? new WhatsAppCloudSender(whatsapp) : null,
+    (error, message) =>
+      console.warn(`WhatsApp refusé (${message.template}), envoi par SMS :`, String(error)),
+  );
+  return config.env === 'production' ? real : new CopySender(real, new DevNotificationSender());
 }
 
 /**
@@ -29,7 +51,7 @@ function createMessaging(env: Config['env']): NotificationSender {
  * pour les essayer sur de vrais téléphones) ; sinon elles sont seulement journalisées.
  */
 function createNotifier(config: Config): NotificationSender {
-  const messaging = createMessaging(config.env);
+  const messaging = createMessaging(config);
   const push =
     config.push.provider === 'expo'
       ? new ExpoPushSender(config.push.expoAccessToken)
@@ -48,7 +70,13 @@ export function createContext(): AppContext {
   const providers: PaymentProvider[] = [];
   if (config.env !== 'production')
     providers.push(new SimulatorProvider(config.simulatorWebhookSecret, pool, systemClock));
-  // TODO(agrégateur) : ajouter l'adaptateur retenu (ex. PawapayProvider) une fois le contrat signé.
+  if (config.pawapay)
+    providers.push(
+      new PawapayProvider({
+        ...config.pawapay,
+        callbackUrl: `${config.publicApiUrl}/v1/webhooks/payments/pawapay`,
+      }),
+    );
   return {
     config,
     pool,

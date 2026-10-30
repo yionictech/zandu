@@ -25,6 +25,20 @@ const EnvSchema = z.object({
   APP_SECRET: z.string().min(32),
   PAYMENT_PROVIDER: z.string().default('simulator'),
   SIMULATOR_WEBHOOK_SECRET: z.string().min(16).default(DEV_WEBHOOK_SECRET),
+  /** SMS (D16) : Infobip ; sans lui, la production refuse de démarrer. */
+  INFOBIP_BASE_URL: z.union([z.literal(''), z.url()]).optional(),
+  INFOBIP_API_KEY: z.string().optional(),
+  SMS_SENDER: z.string().max(11).default('Zandu'),
+  /** WhatsApp (API Cloud de Meta), facultatif : sans lui, les avis partent en SMS. */
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  /** pawaPay (D1, docs/exploitation/points-bloquants.md) : jeton d'API du tableau de bord. */
+  PAWAPAY_API_TOKEN: z.union([z.literal(''), z.string().min(20)]).optional(),
+  /** https://api.sandbox.pawapay.io (bac à sable, par défaut) ou https://api.pawapay.io. */
+  PAWAPAY_BASE_URL: z.url().default('https://api.sandbox.pawapay.io'),
+  /** Clé privée EC P-256 (PEM, « \n » accepté) pour signer les demandes de paiement. */
+  PAWAPAY_SIGNING_KEY: z.string().optional(),
+  PAWAPAY_SIGNING_KEY_ID: z.string().optional(),
   SUPPORT_ALERT_PHONE: z.string().optional(),
   PAYMENT_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   CHECKOUT_MAX_MINUTES: z.coerce.number().int().positive().default(30),
@@ -146,6 +160,15 @@ export interface Config {
   handoverMaxAttempts: number;
   riderAbsentWaitMinutes: number;
   publicApiUrl: string;
+  messaging: {
+    sms: { baseUrl: string; apiKey: string; sender: string } | null;
+    whatsapp: { phoneNumberId: string; accessToken: string } | null;
+  };
+  pawapay: {
+    apiToken: string;
+    baseUrl: string;
+    signingKey: { pem: string; keyId: string } | null;
+  } | null;
   /** Compte de revue des stores : code fixe, aucun SMS envoyé. */
   storeReview: { phone: string; code: string } | null;
   /** null = toute origine (développement uniquement). */
@@ -179,6 +202,17 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
   if (env.NODE_ENV === 'production' && !isDeployed(deployment)) {
     throw new Error(`ZANDU_ENV=${deployment} est incompatible avec NODE_ENV=production.`);
   }
+  if (env.PAYMENT_PROVIDER === 'pawapay' && !env.PAWAPAY_API_TOKEN) {
+    throw new Error('PAYMENT_PROVIDER=pawapay : PAWAPAY_API_TOKEN est obligatoire.');
+  }
+  if (deployment === 'production' && env.PAWAPAY_API_TOKEN) {
+    if (!env.PAWAPAY_BASE_URL.startsWith('https://api.pawapay.io'))
+      throw new Error('En production : PAWAPAY_BASE_URL doit être https://api.pawapay.io.');
+    if (!env.PAWAPAY_SIGNING_KEY || !env.PAWAPAY_SIGNING_KEY_ID)
+      throw new Error(
+        'En production : les demandes pawaPay doivent être signées (PAWAPAY_SIGNING_KEY).',
+      );
+  }
   if (deployment === 'production' && env.PAYMENT_PROVIDER === 'simulator') {
     throw new Error('Le simulateur de paiement est interdit en production (PAYMENT_PROVIDER).');
   }
@@ -209,6 +243,29 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     appSecret: env.APP_SECRET,
     paymentProvider: env.PAYMENT_PROVIDER,
     simulatorWebhookSecret: env.SIMULATOR_WEBHOOK_SECRET,
+    messaging: {
+      sms:
+        env.INFOBIP_BASE_URL && env.INFOBIP_API_KEY
+          ? { baseUrl: env.INFOBIP_BASE_URL, apiKey: env.INFOBIP_API_KEY, sender: env.SMS_SENDER }
+          : null,
+      whatsapp:
+        env.WHATSAPP_PHONE_NUMBER_ID && env.WHATSAPP_ACCESS_TOKEN
+          ? { phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID, accessToken: env.WHATSAPP_ACCESS_TOKEN }
+          : null,
+    },
+    pawapay: env.PAWAPAY_API_TOKEN
+      ? {
+          apiToken: env.PAWAPAY_API_TOKEN,
+          baseUrl: env.PAWAPAY_BASE_URL,
+          signingKey:
+            env.PAWAPAY_SIGNING_KEY && env.PAWAPAY_SIGNING_KEY_ID
+              ? {
+                  pem: env.PAWAPAY_SIGNING_KEY.replace(/\\n/g, '\n'),
+                  keyId: env.PAWAPAY_SIGNING_KEY_ID,
+                }
+              : null,
+        }
+      : null,
     supportAlertPhone: env.SUPPORT_ALERT_PHONE ?? null,
     storeReview: parseReviewAccount(env.STORE_REVIEW_ACCOUNT),
     push: { provider: env.PUSH_PROVIDER, expoAccessToken: env.EXPO_ACCESS_TOKEN ?? null },

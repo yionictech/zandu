@@ -11,6 +11,7 @@ import { backofficeRoutes } from './modules/support/backoffice.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
+import { CopySender } from './modules/notifications/messaging.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
 import { deviceRoutes } from './modules/notifications/devices.routes.js';
 import { inboxRoutes } from './modules/notifications/inbox.routes.js';
@@ -95,8 +96,9 @@ export async function buildApp(
   await app.register(inboxRoutes(ctx));
   await app.register(accountDeletionRoutes(ctx));
 
-  const inbox =
+  const messaging =
     ctx.notifier instanceof RoutingNotificationSender ? ctx.notifier.messaging : ctx.notifier;
+  const inbox = messaging instanceof CopySender ? messaging.copy : messaging;
   if (ctx.config.env !== 'production' && inbox instanceof DevNotificationSender) {
     // En recette, l'API est en ligne : les codes ne se lisent qu'avec la clé de recette.
     await app.register(devMessagesRoutes(inbox, ctx.pool, ctx.config.recetteKey));

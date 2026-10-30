@@ -31,4 +31,4 @@
 
 **API** — [Contrat OpenAPI](api/openapi.yaml) · [Guide du développeur](developpement.md)
 
-**Exploitation** — [Mettre la recette en ligne](exploitation/mise-en-ligne-recette.md) · [Déploiement automatique (Hostinger)](exploitation/deploiement-automatique.md) · [Mise en production](exploitation/mise-en-production.md) · [Publication sur les stores](exploitation/publication-stores.md) · [Démonstration sans serveur](exploitation/demo-locale.md) · [APK de test](exploitation/apk-de-test.md)
+**Exploitation** — [Mettre la recette en ligne](exploitation/mise-en-ligne-recette.md) · [Déploiement automatique (Hostinger)](exploitation/deploiement-automatique.md) · [Mise en production](exploitation/mise-en-production.md) · [Points bloquants (D1, D2, D16)](exploitation/points-bloquants.md) · [Publication sur les stores](exploitation/publication-stores.md) · [Démonstration sans serveur](exploitation/demo-locale.md) · [APK de test](exploitation/apk-de-test.md)

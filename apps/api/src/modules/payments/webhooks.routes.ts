@@ -21,9 +21,10 @@ export function webhookRoutes(ctx: AppContext): FastifyPluginAsync {
       const { provider: code } = z.object({ provider: z.string().max(40) }).parse(request.params);
       if (!ctx.providers.has(code))
         throw new HttpError(404, 'unknown_provider', 'Agrégateur inconnu');
-      const event = ctx.providers
+      const event = await ctx.providers
         .get(code)
         .parseWebhook(request.body as Buffer, request.headers, ctx.clock.now());
+      if (event === 'ignored') return reply.status(200).send({ outcome: 'ignored' });
       if (!event) {
         request.log.warn({ provider: code }, 'Webhook à signature invalide rejeté');
         throw new HttpError(401, 'invalid_signature', 'Signature invalide');

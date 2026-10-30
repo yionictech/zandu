@@ -16,9 +16,17 @@ x-api-env: &api-env
   DATABASE_URL: postgres://zandu:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@postgres:5432/zandu
   APP_SECRET: ${APP_SECRET:?APP_SECRET manquant dans .env}
   RECETTE_KEY: ${RECETTE_KEY:?RECETTE_KEY manquant dans .env}
-  PAYMENT_PROVIDER: simulator
+  # Paiements : simulateur, ou bac à sable pawaPay dès qu'un jeton est fourni (« pawapay »).
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-simulator}
+  PAWAPAY_API_TOKEN: ${PAWAPAY_API_TOKEN:-}
+  PAWAPAY_BASE_URL: ${PAWAPAY_BASE_URL:-https://api.sandbox.pawapay.io}
   SIMULATOR_WEBHOOK_SECRET: ${SIMULATOR_WEBHOOK_SECRET:?SIMULATOR_WEBHOOK_SECRET manquant dans .env}
   SUPPORT_ALERT_PHONE: ${SUPPORT_ALERT_PHONE:-}
+  # SMS et WhatsApp réels (D16), facultatifs en recette : sinon, boîte de réception des testeurs.
+  INFOBIP_BASE_URL: ${INFOBIP_BASE_URL:-}
+  INFOBIP_API_KEY: ${INFOBIP_API_KEY:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
   # Notifications sur les téléphones des testeurs (ADR-0018) : « expo » une fois Firebase configuré.
   PUSH_PROVIDER: ${PUSH_PROVIDER:-none}
   EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
