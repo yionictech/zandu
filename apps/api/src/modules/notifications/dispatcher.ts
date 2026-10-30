@@ -1,6 +1,7 @@
 import { formatXaf } from '@zandu/domain';
 import type { AppContext } from '../../context.js';
 import { withTx, type Db } from '../../db/pool.js';
+import { conversationOf } from '../conversations/participants.js';
 import { PushTokenInvalidError, type Channel } from './sender.js';
 import { PUSH, pushBody, render } from './templates.js';
 
@@ -20,6 +21,8 @@ interface Message {
   variables: Record<string, string>;
   /** Écran de l'application ouvert en touchant la notification. */
   url?: string;
+  /** Notification sur le téléphone seulement (message de conversation) : rien sans application. */
+  pushOnly?: boolean;
 }
 
 const dateFormat = new Intl.DateTimeFormat('fr-FR', {
@@ -106,6 +109,31 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
     const o = await orderInfo(db, event.aggregate_id);
     const ref = o.public_ref;
     switch (event.topic) {
+      case 'order.message': {
+        const c = await conversationOf(db, event.aggregate_id);
+        const { rows } = await db.query<{ body: string; author_role: string }>(
+          'SELECT body, author_role::text AS author_role FROM order_messages WHERE id = $1',
+          [p.messageId],
+        );
+        const m = rows[0];
+        if (!m) return [];
+        const author =
+          m.author_role === 'support'
+            ? 'Support Zandu'
+            : (c.participants.find((x) => x.userId === p.authorId)?.name ?? 'Zandu');
+        const preview = m.body.length > 120 ? `${m.body.slice(0, 117)}…` : m.body;
+        return c.participants
+          .filter((x) => x.userId !== p.authorId)
+          .map((x) => ({
+            userId: x.userId,
+            recipient: '',
+            channel: 'push' as const,
+            template: 'order_message',
+            variables: { ref, author, preview },
+            url: `/messages/${event.aggregate_id}`,
+            pushOnly: true,
+          }));
+      }
       case 'order.paid':
         return [
           toBuyer(o, 'buyer_payment_confirmed', { ref, amount: formatXaf(o.total) }),
@@ -273,6 +301,8 @@ export async function dispatchOutbox(ctx: AppContext): Promise<number> {
       try {
         await tx.query('SAVEPOINT outbox_event');
         for (const m of await messagesFor(ctx, tx, event)) {
+          if (m.pushOnly && (m.userId === null || !(await activeDevices(tx, m.userId, now)).length))
+            continue;
           // Application installée et connectée : la notification d'abord, WhatsApp en secours.
           const push =
             m.channel === 'whatsapp' &&

@@ -34,6 +34,7 @@ import { CodeInput } from '../../../src/ui/CodeInput';
 import { Amount, Avatar, Card, Eyebrow, Note } from '../../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../../src/ui/Layout';
 import { RequireRole } from '../../../src/ui/RequireRole';
+import { MessagesButton } from '../../../src/ui/MessagesButton';
 import { Text } from '../../../src/ui/Text';
 
 type Detail = SellerOrder & {
@@ -684,6 +685,7 @@ function SellerOrderDetail({ id }: { id: string }) {
           ),
         }}
       />
+      <MessagesButton orderId={o.id} />
       {o.status === 'paid' ? (
         <ToAccept order={o} prep={chosenPrep} setPrep={setPrep} />
       ) : o.status === 'preparing' ? (

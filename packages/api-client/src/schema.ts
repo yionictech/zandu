@@ -766,6 +766,62 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/orders/{id}/messages': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Conversation de la commande (acheteur, vendeur, livreur)
+     * @description Réservée aux participants : l'acheteur, le titulaire de la boutique et le livreur affecté. Aucun numéro de téléphone n'y figure. La lire la marque comme lue.
+     */
+    get: operations['orderMessages'];
+    put?: never;
+    /** Écrire dans la conversation de la commande */
+    post: operations['sendOrderMessage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/conversations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Conversations avec des messages non lus */
+    get: operations['myConversations'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/orders/{id}/messages': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Conversation d'une commande (litige, incident) */
+    get: operations['supportOrderMessages'];
+    put?: never;
+    /** Écrire dans la conversation au nom du support (journalisé) */
+    post: operations['supportSendOrderMessage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/orders/{id}/cancel': {
     parameters: {
       query?: never;
@@ -2119,6 +2175,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** @enum {string} */
+    ConversationRole: 'buyer' | 'seller' | 'rider';
+    ConversationParticipant: {
+      role: components['schemas']['ConversationRole'];
+      /** @description Prénom et initiale, ou nom de la boutique */
+      name: string;
+    };
+    OrderMessageInput: {
+      body: string;
+    };
+    OrderMessage: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      role: 'buyer' | 'seller' | 'rider' | 'support';
+      name: string;
+      mine: boolean;
+      body: string;
+      /** Format: date-time */
+      createdAt: string;
+    };
     CustomerSummary: {
       /** Format: uuid */
       id: string;
@@ -4421,6 +4498,154 @@ export interface operations {
             /** @description Estimation (détour et vitesse d'une moto en ville compris) */
             etaMinutes: number | null;
           };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  orderMessages: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            publicRef: string;
+            me: components['schemas']['ConversationRole'];
+            /** @description Faux une fois la commande terminée ou annulée (lecture seule). */
+            canWrite: boolean;
+            participants: components['schemas']['ConversationParticipant'][];
+            items: components['schemas']['OrderMessage'][];
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  sendOrderMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OrderMessageInput'];
+      };
+    };
+    responses: {
+      /** @description Envoyé (notification aux autres participants) */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OrderMessage'];
+        };
+      };
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+      429: components['responses']['Error'];
+    };
+  };
+  myConversations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            totalUnread: number;
+            items: {
+              /** Format: uuid */
+              orderId: string;
+              publicRef: string;
+              unread: number;
+              /** Format: date-time */
+              lastMessageAt: string;
+            }[];
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  supportOrderMessages: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            publicRef: string;
+            participants: components['schemas']['ConversationParticipant'][];
+            items: components['schemas']['OrderMessage'][];
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  supportSendOrderMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OrderMessageInput'];
+      };
+    };
+    responses: {
+      /** @description Envoyé */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OrderMessage'];
         };
       };
       404: components['responses']['Error'];

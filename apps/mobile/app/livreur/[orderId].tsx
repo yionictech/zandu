@@ -42,6 +42,7 @@ import { Badge, Card, Eyebrow, Note } from '../../src/ui/kit';
 import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { RequireRole } from '../../src/ui/RequireRole';
 import { MapTiles } from '../../src/ui/MapTiles';
+import { MessagesButton } from '../../src/ui/MessagesButton';
 import { Text } from '../../src/ui/Text';
 
 type Action =
@@ -656,6 +657,7 @@ function Mission({ orderId }: { orderId: string }) {
         }}
       />
       {m.status !== 'returning' ? <RiderSteps step={current} /> : null}
+      {m.status === 'delivered' ? null : <MessagesButton orderId={orderId} />}
       {m.status === 'assigned' ? (
         <Pickup m={m} checked={checked} toggle={toggle} />
       ) : m.status === 'returning' ? (

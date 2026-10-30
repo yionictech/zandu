@@ -19,6 +19,23 @@ async function cancel(id: string, form: FormData) {
   );
 }
 
+async function writeMessage(id: string, form: FormData) {
+  'use server';
+  await act(`/commandes/${id}`, 'Message envoyé aux participants', (api) =>
+    api.POST('/v1/support/orders/{id}/messages', {
+      params: { path: { id } },
+      body: { body: field(form, 'body') },
+    }),
+  );
+}
+
+const ROLE: Record<string, string> = {
+  buyer: 'acheteur',
+  seller: 'vendeur',
+  rider: 'livreur',
+  support: 'support',
+};
+
 function MoneyBadge({ status }: { status: string }) {
   const [label, tone] = MONEY_STATUS[status] ?? [status, 'neutral' as const];
   return <Badge tone={tone}>{label}</Badge>;
@@ -35,6 +52,9 @@ export default async function OrderPage({
   const { id } = await params;
   const { ok, erreur } = await readParams(searchParams);
   const o = await load((api) => api.GET('/v1/support/orders/{id}', { params: { path: { id } } }));
+  const chat = await load((api) =>
+    api.GET('/v1/support/orders/{id}/messages', { params: { path: { id } } }),
+  );
   const [label, tone] = ORDER_STATUS[o.status];
   const [verification, verificationTone] = VERIFICATION[o.sellerContact.verificationStatus];
   return (
@@ -220,6 +240,42 @@ export default async function OrderPage({
             </form>
           </div>
         ) : null}
+      </section>
+      <section className="card" data-testid="order-messages">
+        <h2>Messages ({chat.items.length})</h2>
+        <p className="muted small">
+          Conversation entre{' '}
+          {chat.participants.map((p) => `${p.name} (${ROLE[p.role]})`).join(', ')}. Un message du
+          support est vu par tous et journalisé.
+        </p>
+        {chat.items.length ? (
+          <table>
+            <tbody>
+              {chat.items.map((m) => (
+                <tr key={m.id}>
+                  <td className="small">
+                    <strong>{m.name}</strong>
+                    <br />
+                    <span className="muted">{ROLE[m.role]}</span>
+                  </td>
+                  <td style={{ whiteSpace: 'pre-wrap' }}>{m.body}</td>
+                  <td className="small muted">{formatDateTime(m.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">Aucun message.</p>
+        )}
+        {FINAL.includes(o.status) ? null : (
+          <form action={writeMessage.bind(null, id)} className="stack">
+            <label>
+              Écrire au nom du support
+              <textarea name="body" minLength={1} maxLength={1000} rows={3} required />
+            </label>
+            <SubmitButton>Envoyer</SubmitButton>
+          </form>
+        )}
       </section>
     </>
   );

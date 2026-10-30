@@ -89,6 +89,20 @@ await as('buyer', `/commande/${orderId}`);
 await page.getByTestId('rider-on-the-way').waitFor();
 await shot('10-demo-acheteuse-livreur-en-route');
 
+// 3 bis. Messagerie de la commande : l'acheteuse écrit au livreur, qui répond.
+await page.getByTestId('open-messages').last().click();
+await page.getByTestId('message-input').last().fill('Je suis au portail bleu, derrière l’école.');
+await page.getByTestId('message-send').last().click();
+await page.getByTestId('message-mine').last().waitFor();
+await as('rider', `/messages/${orderId}`);
+await page.getByTestId('message-theirs').last().waitFor();
+await page.getByTestId('message-input').last().fill('Bien reçu, j’arrive dans 5 minutes.');
+await page.getByTestId('message-send').last().click();
+await page.getByTestId('message-mine').last().waitFor();
+await sleep(400);
+await shot('10b-demo-messagerie-livreur');
+await as('buyer', `/commande/${orderId}`);
+
 // 6. Le code de remise arrive dans les notifications de l'acheteuse ; le livreur le saisit
 await page.goto(`${WEB}/notifications`);
 const message = page.getByText('Code de remise de la commande', { exact: false }).first();

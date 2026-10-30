@@ -205,4 +205,14 @@ export interface DemoState {
   orders: DOrder[];
   payouts: DPayout[];
   uploads: Record<string, string>;
+  /** Messagerie de la commande (absente des démos enregistrées avant elle). */
+  chats?: Array<{
+    id: string;
+    orderId: string;
+    authorId: string;
+    role: 'buyer' | 'seller' | 'rider';
+    body: string;
+    createdAt: string;
+  }>;
+  chatReads?: Record<string, string>;
 }

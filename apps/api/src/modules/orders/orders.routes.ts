@@ -74,7 +74,7 @@ async function sellerOrderExtras(db: Db, orderId: string) {
 }
 
 /** « Junior Mabiala » → « Junior M. » */
-function shortName(full: string): string {
+export function shortName(full: string): string {
   const [first, ...rest] = full.split(/\s+/);
   const last = rest.at(-1);
   return last ? `${first} ${last[0]!.toUpperCase()}.` : first!;

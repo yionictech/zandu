@@ -13,6 +13,18 @@ export const fr = {
     seeAll: 'Tout voir',
     items: (n: number) => `${n} article${n > 1 ? 's' : ''}`,
   },
+  messages: {
+    title: (ref: string) => `Messages · ${ref}`,
+    open: 'Messages',
+    openHint: 'Écrire au vendeur, au livreur ou à l’acheteur',
+    with: (names: string) => `Avec ${names}`,
+    alone: 'Le livreur rejoindra la conversation quand il prendra votre colis.',
+    empty: 'Aucun message. Écrivez ici sans donner votre numéro : tout reste dans Zandu.',
+    placeholder: 'Votre message',
+    send: 'Envoyer',
+    closed: 'Commande terminée : la conversation reste lisible, mais on ne peut plus écrire.',
+    roles: { buyer: 'client', seller: 'vendeur', rider: 'livreur', support: 'support Zandu' },
+  },
   legal: {
     terms: 'Conditions d’utilisation',
     privacy: 'Confidentialité',

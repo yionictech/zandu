@@ -459,6 +459,17 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
     });
     expect(answer.sellerChoice).toBe('exchange');
 
+    // Messagerie de la commande : l'acheteur écrit, le vendeur voit un message non lu.
+    call(buyer, 'POST', '/v1/orders/{id}/messages', {
+      params: { id: disputed },
+      body: { body: 'Pouvez-vous passer demain matin ?' },
+      expect: 201,
+    });
+    expect(call(seller, 'GET', '/v1/me/conversations').totalUnread).toBe(1);
+    const thread = call(seller, 'GET', '/v1/orders/{id}/messages', { params: { id: disputed } });
+    expect(thread.items[0]).toMatchObject({ role: 'buyer', mine: false });
+    expect(call(seller, 'GET', '/v1/me/conversations').totalUnread).toBe(0);
+
     // Numéro Mobile Money finissant par 99 : refusé, comme le simulateur de la recette.
     const c = call(buyer, 'POST', '/v1/checkouts', {
       body: { items: [{ productId: products.items[0].id, quantity: 1 }], delivery },

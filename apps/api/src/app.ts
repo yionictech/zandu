@@ -11,6 +11,7 @@ import { backofficeRoutes } from './modules/support/backoffice.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
+import { messageRoutes, supportMessageRoutes } from './modules/conversations/messages.routes.js';
 import { CopySender } from './modules/notifications/messaging.js';
 import { devMessagesRoutes } from './modules/notifications/dev.routes.js';
 import { deviceRoutes } from './modules/notifications/devices.routes.js';
@@ -95,6 +96,8 @@ export async function buildApp(
   await app.register(deviceRoutes(ctx));
   await app.register(inboxRoutes(ctx));
   await app.register(accountDeletionRoutes(ctx));
+  await app.register(messageRoutes(ctx));
+  await app.register(supportMessageRoutes(ctx));
 
   const messaging =
     ctx.notifier instanceof RoutingNotificationSender ? ctx.notifier.messaging : ctx.notifier;

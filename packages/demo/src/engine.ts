@@ -851,6 +851,110 @@ export class DemoApi {
       return undefined;
     });
 
+    // Messagerie de la commande -------------------------------------------
+    const talk = (orderId: string, me: DUser) => {
+      const o = this.state.orders.find((x) => x.id === orderId);
+      if (!o) throw new DemoError(404, 'not_found', 'Commande introuvable');
+      const shop = this.state.shops.find((x) => x.id === o.sellerId)!;
+      const name = (id: string) => this.state.users.find((u) => u.id === id)?.fullName ?? null;
+      const people = [
+        { role: 'buyer' as const, userId: o.buyerId, name: shortName(name(o.buyerId)) ?? 'Client' },
+        { role: 'seller' as const, userId: shop.userId, name: shop.shopName },
+        ...(o.delivery
+          ? [
+              {
+                role: 'rider' as const,
+                userId: o.delivery.riderUserId,
+                name: shortName(name(o.delivery.riderUserId)) ?? 'Livreur Zandu',
+              },
+            ]
+          : []),
+      ];
+      const mine = people.find((p) => p.userId === me.id);
+      if (!mine) throw new DemoError(404, 'not_found', 'Commande introuvable');
+      const open = !['pending_payment', 'completed', 'cancelled', 'refunded'].includes(o.status);
+      return { o, people, mine, open };
+    };
+    const chatView =
+      (people: Array<{ userId: string; role: string; name: string }>, me: DUser) =>
+      (m: NonNullable<DemoState['chats']>[number]) => ({
+        id: m.id,
+        role: m.role,
+        name: people.find((p) => p.userId === m.authorId)?.name ?? 'Zandu',
+        mine: m.authorId === me.id,
+        body: m.body,
+        createdAt: m.createdAt,
+      });
+    this.on(
+      'GET',
+      '/v1/orders/{id}/messages',
+      ({ user, params }): Ok<'/v1/orders/{id}/messages', 'get'> => {
+        const me = user();
+        const { o, people, mine, open } = talk(params.id!, me);
+        (this.state.chatReads ??= {})[`${o.id}:${me.id}`] = this.iso();
+        return {
+          orderId: o.id,
+          publicRef: o.publicRef,
+          me: mine.role,
+          canWrite: open,
+          participants: people
+            .filter((p) => p.userId !== me.id)
+            .map(({ role, name }) => ({ role, name })),
+          items: (this.state.chats ?? [])
+            .filter((m) => m.orderId === o.id)
+            .map(chatView(people, me)),
+        };
+      },
+    );
+    this.on(
+      'POST',
+      '/v1/orders/{id}/messages',
+      ({ user, params, body }): Ok<'/v1/orders/{id}/messages', 'post', 201> => {
+        const me = user();
+        const { o, people, mine, open } = talk(params.id!, me);
+        if (!open) throw conflict('conversation_closed', 'Cette commande est terminée');
+        const text = String(body.body ?? '').trim();
+        if (!text) throw new DemoError(422, 'validation_error', 'Message vide');
+        const m = {
+          id: this.deps.newId(),
+          orderId: o.id,
+          authorId: me.id,
+          role: mine.role,
+          body: text.slice(0, 1000),
+          createdAt: this.iso(),
+        };
+        (this.state.chats ??= []).push(m);
+        (this.state.chatReads ??= {})[`${o.id}:${me.id}`] = m.createdAt;
+        return chatView(people, me)(m);
+      },
+      201,
+    );
+    this.on('GET', '/v1/me/conversations', ({ user }): Ok<'/v1/me/conversations', 'get'> => {
+      const me = user();
+      const byOrder = new Map<string, { unread: number; last: string }>();
+      for (const m of this.state.chats ?? []) {
+        if (m.authorId === me.id) continue;
+        try {
+          talk(m.orderId, me);
+        } catch {
+          continue;
+        }
+        const read = this.state.chatReads?.[`${m.orderId}:${me.id}`] ?? '';
+        if (m.createdAt <= read) continue;
+        const entry = byOrder.get(m.orderId) ?? { unread: 0, last: m.createdAt };
+        entry.unread++;
+        entry.last = m.createdAt > entry.last ? m.createdAt : entry.last;
+        byOrder.set(m.orderId, entry);
+      }
+      const items = [...byOrder].map(([orderId, e]) => ({
+        orderId,
+        publicRef: this.state.orders.find((o) => o.id === orderId)!.publicRef,
+        unread: e.unread,
+        lastMessageAt: e.last,
+      }));
+      return { totalUnread: items.reduce((n, i) => n + i.unread, 0), items };
+    });
+
     // Suppression de compte (exigence des stores) -------------------------
     const deletionBlockers = (me: DUser) => {
       const blockers: Array<{

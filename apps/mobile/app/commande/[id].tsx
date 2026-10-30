@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Lock, Package as PackageIcon, Phone, Star } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { MessagesButton } from '../../src/ui/MessagesButton';
 import { Text } from '../../src/ui/Text';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { displayPhone, formatDateTime, formatXaf } from '../../src/format';
@@ -250,6 +251,7 @@ export default function OrderScreen() {
       </Card>
 
       {o.status === 'in_delivery' ? <RiderOnTheWay orderId={o.id} /> : null}
+      {o.status === 'pending_payment' ? null : <MessagesButton orderId={o.id} />}
 
       {o.status === 'delivered' && o.disputeWindowEndsAt ? (
         <Card>

@@ -1423,6 +1423,126 @@ paths:
                     description: Estimation (détour et vitesse d'une moto en ville compris)
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/orders/{id}/messages:
+    get:
+      tags: [Commandes]
+      summary: Conversation de la commande (acheteur, vendeur, livreur)
+      description: >-
+        Réservée aux participants : l'acheteur, le titulaire de la boutique et le livreur affecté.
+        Aucun numéro de téléphone n'y figure. La lire la marque comme lue.
+      operationId: orderMessages
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, publicRef, me, canWrite, participants, items]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  publicRef: { type: string }
+                  me: { $ref: '#/components/schemas/ConversationRole' }
+                  canWrite:
+                    type: boolean
+                    description: Faux une fois la commande terminée ou annulée (lecture seule).
+                  participants:
+                    type: array
+                    items: { $ref: '#/components/schemas/ConversationParticipant' }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrderMessage' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Commandes]
+      summary: Écrire dans la conversation de la commande
+      operationId: sendOrderMessage
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderMessageInput' }
+      responses:
+        '201':
+          description: Envoyé (notification aux autres participants)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderMessage' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/me/conversations:
+    get:
+      tags: [Commandes]
+      summary: Conversations avec des messages non lus
+      operationId: myConversations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [totalUnread, items]
+                properties:
+                  totalUnread: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [orderId, publicRef, unread, lastMessageAt]
+                      properties:
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        unread: { type: integer }
+                        lastMessageAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/support/orders/{id}/messages:
+    get:
+      tags: [Support]
+      summary: Conversation d'une commande (litige, incident)
+      operationId: supportOrderMessages
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, publicRef, participants, items]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  publicRef: { type: string }
+                  participants:
+                    type: array
+                    items: { $ref: '#/components/schemas/ConversationParticipant' }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrderMessage' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Support]
+      summary: Écrire dans la conversation au nom du support (journalisé)
+      operationId: supportSendOrderMessage
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderMessageInput' }
+      responses:
+        '201':
+          description: Envoyé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderMessage' }
+        '404': { $ref: '#/components/responses/Error' }
+
   /v1/orders/{id}/cancel:
     post:
       tags: [Commandes]
@@ -3881,6 +4001,30 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    ConversationRole:
+      type: string
+      enum: [buyer, seller, rider]
+    ConversationParticipant:
+      type: object
+      required: [role, name]
+      properties:
+        role: { $ref: '#/components/schemas/ConversationRole' }
+        name: { type: string, description: 'Prénom et initiale, ou nom de la boutique' }
+    OrderMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 1000 }
+    OrderMessage:
+      type: object
+      required: [id, role, name, mine, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [buyer, seller, rider, support] }
+        name: { type: string }
+        mine: { type: boolean }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
     CustomerSummary:
       type: object
       required: [id, name, phone, status, createdAt, orders, paid, disputes]
