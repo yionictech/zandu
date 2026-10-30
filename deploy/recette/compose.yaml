@@ -3,6 +3,9 @@
 #   cp .env.example .env   # puis remplir
 #   docker compose up -d --build
 #
+# Déploiement automatique (docs/exploitation/deploiement-automatique.md) : les images sont
+# construites par GitHub (ZANDU_IMAGES=ghcr.io/…, ZANDU_VERSION=<commit>) et seulement tirées ici.
+#
 # Seul Caddy est exposé (ports 80 et 443) ; la base, le stockage et les services restent sur le
 # réseau interne. Les secrets viennent de .env, jamais du dépôt.
 name: zandu-recette
@@ -31,7 +34,7 @@ x-api-env: &api-env
   MEDIA_PUBLIC_BASE_URL: https://${MEDIA_HOST}/zandu-public
 
 x-api-image: &api-image
-  image: zandu-api:${ZANDU_VERSION:-recette}
+  image: ${ZANDU_IMAGES:-zandu}-api:${ZANDU_VERSION:-recette}
   build: { context: ../.., target: api }
 
 x-restart: &restart
@@ -107,7 +110,7 @@ services:
 
   web:
     <<: *restart
-    image: zandu-web:${ZANDU_VERSION:-recette}
+    image: ${ZANDU_IMAGES:-zandu}-web:${ZANDU_VERSION:-recette}
     build: { context: ../.., target: web }
     environment:
       ZANDU_ENV: recette
@@ -120,7 +123,7 @@ services:
 
   backoffice:
     <<: *restart
-    image: zandu-backoffice:${ZANDU_VERSION:-recette}
+    image: ${ZANDU_IMAGES:-zandu}-backoffice:${ZANDU_VERSION:-recette}
     build: { context: ../.., target: backoffice }
     environment:
       ZANDU_ENV: recette

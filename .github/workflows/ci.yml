@@ -67,3 +67,15 @@ jobs:
       - name: Journaux des services
         if: failure()
         run: ./deploy/recette/essai-local.sh journaux
+
+  # Déploiement automatique (docs/exploitation/deploiement-automatique.md) : après des tests verts,
+  # sur la branche choisie dans la variable RECETTE_BRANCH (Settings → Variables). Sans serveur
+  # configuré, le déploiement s'annonce et ne fait rien.
+  deployer-recette:
+    needs: [verify, recette]
+    if: github.event_name == 'push' && vars.RECETTE_BRANCH != '' && github.ref_name == vars.RECETTE_BRANCH
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/deployer-recette.yml
+    secrets: inherit

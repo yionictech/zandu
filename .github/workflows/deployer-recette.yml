@@ -1,0 +1,156 @@
+name: Déployer la recette
+
+# Mise en ligne automatique de la recette (docs/exploitation/deploiement-automatique.md) :
+# les images sont construites ici et publiées sur GitHub Packages, puis le serveur les tire.
+# - automatiquement par la CI, après des tests verts sur la branche RECETTE_BRANCH ;
+# - à la main : Actions → « Déployer la recette » → Run workflow.
+# Rien ne se passe tant que le serveur n'est pas configuré (secrets et variables RECETTE_*).
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: 'Charger les données de démonstration (3 boutiques, 12 produits)'
+        type: boolean
+        default: false
+      admin:
+        description: 'Nommer administrateur ce numéro (ex. 06 123 45 67), après sa première connexion'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deployer-recette
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HOTE: ${{ secrets.RECETTE_SSH_HOST }}
+      DOMAINE: ${{ vars.RECETTE_DOMAIN }}
+      IMAGES: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Serveur configuré ?
+        id: config
+        env:
+          CLE: ${{ secrets.RECETTE_SSH_KEY }}
+        run: |
+          if [ -z "$HOTE" ] || [ -z "$CLE" ] || [ -z "$DOMAINE" ] || [ -z "${{ vars.RECETTE_EMAIL }}" ]; then
+            echo "::notice::Recette non configurée (RECETTE_SSH_HOST, RECETTE_SSH_KEY, RECETTE_DOMAIN, RECETTE_EMAIL) : rien à déployer."
+            echo "pret=non" >> "$GITHUB_OUTPUT"
+          else
+            echo "pret=oui" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.pret == 'oui'
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.config.outputs.pret == 'oui'
+
+      - uses: docker/login-action@v3
+        if: steps.config.outputs.pret == 'oui'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image de l'API
+        if: steps.config.outputs.pret == 'oui'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          push: true
+          tags: ${{ env.IMAGES }}-api:${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Image du site
+        if: steps.config.outputs.pret == 'oui'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: true
+          tags: ${{ env.IMAGES }}-web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Image du back-office
+        if: steps.config.outputs.pret == 'oui'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: backoffice
+          push: true
+          tags: ${{ env.IMAGES }}-backoffice:${{ github.sha }}
+          cache-from: type=gha,scope=backoffice
+          cache-to: type=gha,mode=max,scope=backoffice
+
+      - name: Accès SSH au serveur
+        if: steps.config.outputs.pret == 'oui'
+        env:
+          CLE: ${{ secrets.RECETTE_SSH_KEY }}
+          CONNUS: ${{ secrets.RECETTE_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/recette && chmod 600 ~/.ssh/recette
+          if [ -n "$CONNUS" ]; then
+            printf '%s\n' "$CONNUS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::RECETTE_SSH_KNOWN_HOSTS absent : empreinte du serveur acceptée telle quelle."
+            ssh-keyscan -T 15 "$HOTE" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          printf 'Host recette\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/recette\n  ServerAliveInterval 30\n' \
+            "$HOTE" "${{ vars.RECETTE_SSH_USER || 'root' }}" > ~/.ssh/config
+
+      - name: Fichiers de la recette et préparation du serveur
+        if: steps.config.outputs.pret == 'oui'
+        env:
+          EMAIL: ${{ vars.RECETTE_EMAIL }}
+          RECETTE_KEY: ${{ secrets.RECETTE_KEY }}
+        run: |
+          tar czf - -C deploy/recette --exclude=.env --exclude=sauvegardes . \
+            | ssh recette 'mkdir -p /opt/zandu/recette && tar xzf - -C /opt/zandu/recette'
+          ssh recette "DOMAINE='$DOMAINE' EMAIL='$EMAIL' RECETTE_KEY='$RECETTE_KEY' /opt/zandu/recette/preparer-serveur.sh"
+
+      - name: Mise à jour des services
+        if: steps.config.outputs.pret == 'oui'
+        env:
+          JETON: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Le jeton (valable le temps de cette exécution) passe par l'entrée standard, jamais en argument.
+          printf '%s' "$JETON" | ssh recette \
+            "ZANDU_IMAGES='$IMAGES' ZANDU_VERSION='${{ github.sha }}' GHCR_USER='${{ github.actor }}' /opt/zandu/recette/deployer.sh"
+
+      - name: Données de démonstration
+        if: steps.config.outputs.pret == 'oui' && inputs.demo
+        run: ssh recette 'cd /opt/zandu/recette && docker compose run --rm migrate node dist/db/seed-demo.js'
+
+      - name: Premier administrateur
+        if: steps.config.outputs.pret == 'oui' && inputs.admin != ''
+        env:
+          NUMERO: ${{ inputs.admin }}
+        run: |
+          case "$NUMERO" in *[!0-9\ +]*) echo "::error::Numéro invalide"; exit 1 ;; esac
+          ssh recette "cd /opt/zandu/recette && docker compose run --rm migrate node dist/cli/grant-role.js '$NUMERO' admin"
+
+      - name: Vérification depuis internet
+        if: steps.config.outputs.pret == 'oui'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "https://api.recette.$DOMAINE/health" >/dev/null 2>&1; then
+              echo "✔ https://api.recette.$DOMAINE répond"
+              ssh recette 'cd /opt/zandu/recette && docker run --rm -v "$PWD:/recette:ro" node:22-bookworm-slim node /recette/verifier.mjs /recette/.env'
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::https://api.recette.$DOMAINE ne répond pas : vérifier les 4 enregistrements DNS (guide, étape 3)."
+          exit 1
