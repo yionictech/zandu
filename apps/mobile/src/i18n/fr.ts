@@ -180,6 +180,41 @@ export const fr = {
     deliveryBody: 'À domicile ou en point relais, moins cher',
     shareMessage: (title: string, price: string) => `${title} — ${price} sur Zandu`,
   },
+  stats: {
+    title: 'Statistiques',
+    link: 'Mes statistiques',
+    linkHint: 'Vues, ventes de la semaine, produits les plus vus et conseils pour vendre plus.',
+    periods: { '7d': '7 jours', '30d': '30 jours', '90d': '3 mois' },
+    views: 'Vues',
+    orders: 'Commandes',
+    sales: 'Ventes (FCFA)',
+    conversion: 'Commandes pour 100 vues',
+    weekly: 'Ventes par semaine',
+    thisWeek: 'Cette semaine',
+    top: 'Produits les plus vus',
+    topLine: (views: number, sold: number) =>
+      `${views} vue${views > 1 ? 's' : ''} · ${sold} vendu${sold > 1 ? 's' : ''}`,
+    speed: 'Votre réactivité',
+    acceptance: 'Commandes acceptées',
+    acceptDelay: 'Délai moyen pour accepter',
+    prepDelay: 'Délai moyen de préparation',
+    minutes: (n: number) =>
+      n < 60 ? `${n} min` : `${Math.floor(n / 60)} h ${String(n % 60).padStart(2, '0')}`,
+    tipsTitle: 'Conseils pour vendre plus',
+    noTips: 'Tout va bien : continuez comme ça !',
+    tips: {
+      answer_faster:
+        'Acceptez les commandes plus vite : un client rassuré commande à nouveau, et une commande non acceptée à temps est annulée.',
+      add_photos: 'Ajoutez au moins 3 photos à vos produits : ils se vendent mieux.',
+      improve_listing:
+        'Vos produits sont vus mais peu achetés : vérifiez le prix, la description et la qualité des photos.',
+      restock: 'Certains produits sont presque épuisés : réapprovisionnez-les.',
+      reply_reviews: 'Répondez aux avis de vos clients : les autres acheteurs les lisent.',
+      share_shop:
+        'Partagez le lien de votre boutique dans vos groupes WhatsApp pour avoir plus de visites.',
+    },
+    empty: '—',
+  },
   riderReview: {
     title: (name: string) => `Comment s’est passée la livraison avec ${name} ?`,
     hint: 'Seuls le livreur, sa société et le support Zandu voient votre note.',

@@ -217,6 +217,8 @@ export interface DemoState {
     createdAt: string;
   }>;
   chatReads?: Record<string, string>;
+  /** Vues des fiches produits (statistiques vendeur), par produit. */
+  productViews?: Record<string, number>;
   /** Avis sur les livreurs (absents des démos enregistrées avant eux). */
   riderReviews?: Array<{
     orderId: string;

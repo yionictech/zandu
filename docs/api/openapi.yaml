@@ -654,6 +654,35 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
+  /v1/products/{id}/view:
+    post:
+      tags: [Catalogue]
+      summary: Compter une vue de la fiche produit (statistiques du vendeur)
+      description: Un compteur par jour, rien sur la personne. Sans effet pour un produit non publié.
+      operationId: countProductView
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Comptée }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/stats:
+    get:
+      tags: [Vendeur]
+      summary: Statistiques de la boutique (vues, ventes, produits phares, réactivité, conseils)
+      operationId: sellerStats
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d], default: 30d }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerStats' }
+        '403': { $ref: '#/components/responses/Error' }
+
   /v1/seller/dashboard:
     get:
       tags: [Vendeur]
@@ -4190,6 +4219,69 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    SellerStats:
+      type: object
+      required:
+        [
+          period,
+          views,
+          orders,
+          sales,
+          unitsSold,
+          conversionPercent,
+          weekly,
+          topProducts,
+          acceptanceRatePercent,
+          averageAcceptMinutes,
+          averagePrepMinutes,
+          tips,
+          counts,
+        ]
+      properties:
+        period: { type: string, enum: [7d, 30d, 90d] }
+        views: { type: integer, description: Vues des fiches produits sur la période }
+        orders: { type: integer }
+        sales: { type: integer, description: Montant des articles vendus (FCFA) }
+        unitsSold: { type: integer }
+        conversionPercent:
+          type: [number, 'null']
+          description: Commandes pour 100 vues (null sans vue)
+        weekly:
+          type: array
+          description: 8 dernières semaines (lundi, heure de Brazzaville)
+          items:
+            type: object
+            required: [weekStart, orders, sales]
+            properties:
+              weekStart: { type: string, format: date }
+              orders: { type: integer }
+              sales: { type: integer }
+        topProducts:
+          type: array
+          items:
+            type: object
+            required: [productId, title, views, sold]
+            properties:
+              productId: { type: string, format: uuid }
+              title: { type: string }
+              views: { type: integer }
+              sold: { type: integer }
+        acceptanceRatePercent: { type: [integer, 'null'] }
+        averageAcceptMinutes: { type: [integer, 'null'] }
+        averagePrepMinutes: { type: [integer, 'null'] }
+        tips:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            enum: [answer_faster, add_photos, improve_listing, restock, reply_reviews, share_shop]
+        counts:
+          type: object
+          required: [fewPhotos, lowStock, unansweredReviews]
+          properties:
+            fewPhotos: { type: integer }
+            lowStock: { type: integer }
+            unansweredReviews: { type: integer }
     RiderReviewTag:
       type: string
       enum: [ponctuel, poli, soigneux, en_retard, impoli, colis_abime]

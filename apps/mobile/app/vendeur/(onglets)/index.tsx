@@ -229,6 +229,20 @@ export default function SellerDashboard() {
           </View>
         </View>
 
+        <Pressable
+          onPress={() => router.push('/vendeur/statistiques')}
+          accessibilityRole="button"
+          testID="seller-stats-link"
+        >
+          <Card>
+            <View style={styles.row}>
+              <Text style={styles.cardTitle}>{t.stats.link}</Text>
+              <Text style={styles.link}>{t.vendor.details}</Text>
+            </View>
+            <Text style={styles.muted}>{t.stats.linkHint}</Text>
+          </Card>
+        </Pressable>
+
         {low ? (
           <Card>
             <View style={styles.dotRow}>

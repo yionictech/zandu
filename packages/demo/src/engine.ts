@@ -967,6 +967,17 @@ export class DemoApi {
       return { totalUnread: items.reduce((n, i) => n + i.unread, 0), items };
     });
 
+    this.on(
+      'POST',
+      '/v1/products/{id}/view',
+      ({ params }) => {
+        (this.state.productViews ??= {})[params.id!] =
+          (this.state.productViews?.[params.id!] ?? 0) + 1;
+        return undefined;
+      },
+      204,
+    );
+
     // Avis sur le livreur ------------------------------------------------
     const riderReviewOf = (orderId: string, me: DUser) => {
       const o = this.state.orders.find((x) => x.id === orderId && x.buyerId === me.id);
@@ -1555,6 +1566,78 @@ export class DemoApi {
       201,
     );
 
+    this.on('GET', '/v1/seller/stats', ({ user }): Ok<'/v1/seller/stats', 'get'> => {
+      const shop = this.shopOf(user());
+      const products = this.state.products.filter((p) => p.sellerId === shop.id);
+      const sold = this.state.orders.filter(
+        (o) => o.sellerId === shop.id && o.paidAt && !['cancelled', 'refunded'].includes(o.status),
+      );
+      const views = products.reduce((n, p) => n + (this.state.productViews?.[p.id] ?? 0), 0);
+      const sales = sold.reduce(
+        (n, o) => n + o.items.reduce((m, i) => m + i.unitPrice * i.quantity, 0),
+        0,
+      );
+      const units = sold.reduce((n, o) => n + o.items.reduce((m, i) => m + i.quantity, 0), 0);
+      const monday = (d: Date) => {
+        const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
+        return x;
+      };
+      const thisWeek = monday(this.now());
+      const weekly = Array.from({ length: 8 }, (_, i) => {
+        const start = new Date(thisWeek.getTime() - (7 - i) * 7 * 86_400_000);
+        const inWeek = sold.filter(
+          (o) => monday(new Date(o.paidAt!)).getTime() === start.getTime(),
+        );
+        return {
+          weekStart: start.toISOString().slice(0, 10),
+          orders: inWeek.length,
+          sales: inWeek.reduce(
+            (n, o) => n + o.items.reduce((m, it) => m + it.unitPrice * it.quantity, 0),
+            0,
+          ),
+        };
+      });
+      const fewPhotos = products.filter(
+        (p) => p.status === 'published' && p.photos.length < 3,
+      ).length;
+      const lowStock = products.filter(
+        (p) => p.status === 'published' && p.stock <= p.lowStockThreshold,
+      ).length;
+      const tips: S['SellerStats']['tips'] = [];
+      if (fewPhotos) tips.push('add_photos');
+      if (lowStock) tips.push('restock');
+      if (views < 20) tips.push('share_shop');
+      return {
+        period: '30d',
+        views,
+        orders: sold.length,
+        sales,
+        unitsSold: units,
+        conversionPercent:
+          views && views >= sold.length ? Math.round((sold.length / views) * 1000) / 10 : null,
+        weekly,
+        topProducts: products
+          .filter((p) => p.status !== 'archived')
+          .map((p) => ({
+            productId: p.id,
+            title: p.title,
+            views: this.state.productViews?.[p.id] ?? 0,
+            sold: sold.reduce(
+              (n, o) =>
+                n + o.items.filter((i) => i.productId === p.id).reduce((m, i) => m + i.quantity, 0),
+              0,
+            ),
+          }))
+          .sort((a, b) => b.views - a.views || b.sold - a.sold)
+          .slice(0, 5),
+        acceptanceRatePercent: sold.length ? 100 : null,
+        averageAcceptMinutes: sold.length ? 12 : null,
+        averagePrepMinutes: sold.length ? 35 : null,
+        tips: tips.slice(0, 3),
+        counts: { fewPhotos, lowStock, unansweredReviews: 0 },
+      };
+    });
     this.on('GET', '/v1/seller/dashboard', ({ user }): Ok<'/v1/seller/dashboard', 'get'> => {
       const shop = this.shopOf(user());
       const today = congoDay(this.now());

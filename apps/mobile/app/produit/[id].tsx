@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Heart, Share2, ShoppingCart, Star, Truck } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, errorMessage, unwrap } from '../../src/api';
@@ -32,6 +32,10 @@ export default function ProductScreen() {
   const [added, setAdded] = useState(false);
   const [page, setPage] = useState(0);
 
+  // Statistiques du vendeur : une vue par ouverture de la fiche.
+  useEffect(() => {
+    void api.POST('/v1/products/{id}/view', { params: { path: { id } } }).catch(() => undefined);
+  }, [id]);
   const product = useQuery({
     queryKey: ['product', id],
     queryFn: async () => unwrap(await api.GET('/v1/products/{id}', { params: { path: { id } } })),

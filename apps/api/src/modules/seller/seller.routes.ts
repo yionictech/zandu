@@ -84,7 +84,7 @@ async function shopView(db: Db, userId: string | null) {
   return rows[0] ?? null;
 }
 
-async function shopOf(db: Db, userId: string | null): Promise<Shop> {
+export async function shopOf(db: Db, userId: string | null): Promise<Shop> {
   const { rows } = await db.query<Shop>(
     'SELECT id, kind, city, verification_status FROM seller_profiles WHERE user_id = $1',
     [userId],

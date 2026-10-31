@@ -350,6 +350,43 @@ export interface paths {
     patch: operations['updateMyShop'];
     trace?: never;
   };
+  '/v1/products/{id}/view': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Compter une vue de la fiche produit (statistiques du vendeur)
+     * @description Un compteur par jour, rien sur la personne. Sans effet pour un produit non publié.
+     */
+    post: operations['countProductView'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/stats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Statistiques de la boutique (vues, ventes, produits phares, réactivité, conseils) */
+    get: operations['sellerStats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/seller/dashboard': {
     parameters: {
       query?: never;
@@ -2301,6 +2338,48 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    SellerStats: {
+      /** @enum {string} */
+      period: '7d' | '30d' | '90d';
+      /** @description Vues des fiches produits sur la période */
+      views: number;
+      orders: number;
+      /** @description Montant des articles vendus (FCFA) */
+      sales: number;
+      unitsSold: number;
+      /** @description Commandes pour 100 vues (null sans vue) */
+      conversionPercent: number | null;
+      /** @description 8 dernières semaines (lundi, heure de Brazzaville) */
+      weekly: {
+        /** Format: date */
+        weekStart: string;
+        orders: number;
+        sales: number;
+      }[];
+      topProducts: {
+        /** Format: uuid */
+        productId: string;
+        title: string;
+        views: number;
+        sold: number;
+      }[];
+      acceptanceRatePercent: number | null;
+      averageAcceptMinutes: number | null;
+      averagePrepMinutes: number | null;
+      tips: (
+        | 'answer_faster'
+        | 'add_photos'
+        | 'improve_listing'
+        | 'restock'
+        | 'reply_reviews'
+        | 'share_shop'
+      )[];
+      counts: {
+        fewPhotos: number;
+        lowStock: number;
+        unansweredReviews: number;
+      };
+    };
     /** @enum {string} */
     RiderReviewTag: 'ponctuel' | 'poli' | 'soigneux' | 'en_retard' | 'impoli' | 'colis_abime';
     /** @description Note moyenne des 90 derniers jours */
@@ -3845,6 +3924,50 @@ export interface operations {
       };
       400: components['responses']['Error'];
       409: components['responses']['Error'];
+    };
+  };
+  countProductView: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Comptée */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['Error'];
+    };
+  };
+  sellerStats: {
+    parameters: {
+      query?: {
+        period?: '7d' | '30d' | '90d';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SellerStats'];
+        };
+      };
+      403: components['responses']['Error'];
     };
   };
   sellerDashboard: {

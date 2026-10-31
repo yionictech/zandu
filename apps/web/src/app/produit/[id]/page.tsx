@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { ChevronLeft, Share2, ShieldCheck, Star, Store, Truck } from 'lucide-react';
+import { headers } from 'next/headers';
 import Link from 'next/link';
-import { catalog, SITE_URL } from '@/lib/api';
+import { API_URL, catalog, SITE_URL } from '@/lib/api';
 import { formatDateTime, formatXaf } from '@/lib/format';
 import { CONDITION, GUARANTEE, REVIEW_TAGS } from '@/lib/labels';
 import { loadProduct } from '@/lib/product';
@@ -11,6 +12,18 @@ import { RememberProduct } from '@/components/RememberProduct';
 import { ShareButtons } from '@/components/ShareButtons';
 
 export const dynamic = 'force-dynamic';
+
+/** Robots d'aperçu (WhatsApp, Facebook…) et moteurs de recherche : pas une vue d'acheteur. */
+const BOT = /bot|crawl|spider|facebookexternalhit|whatsapp|telegram|slurp|preview|lighthouse/i;
+
+/** Statistiques du vendeur : une vue par affichage de la fiche, jamais bloquant. */
+async function countView(id: string): Promise<void> {
+  const agent = (await headers()).get('user-agent') ?? '';
+  if (BOT.test(agent)) return;
+  await fetch(`${API_URL}/v1/products/${id}/view`, { method: 'POST', cache: 'no-store' }).catch(
+    () => undefined,
+  );
+}
 
 type Params = Promise<{ id: string }>;
 
@@ -45,6 +58,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function ProductPage({ params }: { params: Params }) {
   const { id } = await params;
   const p = await loadProduct(id);
+  void countView(id);
   const reviews = await catalog((api) =>
     api.GET('/v1/products/{id}/reviews', { params: { path: { id }, query: { limit: 5 } } }),
   );

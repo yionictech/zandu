@@ -133,5 +133,10 @@ await as('seller', '/vendeur');
 await sleep(800);
 await shot('14-demo-vendeuse-apres-vente');
 
+// 8. Les statistiques de la vendeuse : vues, ventes de la semaine, conseils
+await page.goto(`${WEB}/vendeur/statistiques`);
+await page.getByTestId('stats-tips').waitFor();
+await shot('15-demo-vendeuse-statistiques');
+
 await browser.close();
 console.log(`Parcours démonstration : OK (commande ${ref}, sans serveur)`);
