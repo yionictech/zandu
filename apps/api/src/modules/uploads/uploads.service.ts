@@ -5,7 +5,7 @@ import { addHours, addSeconds } from '../../lib/clock.js';
 import { HttpError } from '../../lib/errors.js';
 import type { Bucket, UploadInstructions } from '../storage/storage.js';
 
-export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence';
+export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence' | 'message_photo';
 
 interface PurposeRule {
   bucket: Bucket;
@@ -36,6 +36,13 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRule> = {
   dispute_evidence: {
     bucket: 'private',
     prefix: 'disputes',
+    contentTypes: IMAGES,
+    maxBytes: 3 * 1024 * 1024,
+  },
+  // Photo envoyée dans la conversation d'une commande (colis, portail, défaut constaté).
+  message_photo: {
+    bucket: 'private',
+    prefix: 'messages',
     contentTypes: IMAGES,
     maxBytes: 3 * 1024 * 1024,
   },

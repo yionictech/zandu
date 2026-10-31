@@ -18,13 +18,14 @@ export function uploadRoutes(ctx: AppContext): FastifyPluginAsync {
     app.post('/v1/uploads', async (request, reply) => {
       const body = z
         .object({
-          purpose: z.enum(['product_photo', 'kyc_document', 'dispute_evidence']),
+          purpose: z.enum(['product_photo', 'kyc_document', 'dispute_evidence', 'message_photo']),
           contentType: z.string().max(100),
           sizeBytes: z.int().positive(),
         })
         .parse(request.body);
       const user = currentUser(request);
-      if (body.purpose !== 'dispute_evidence' && !user.roles.includes('seller')) {
+      const anyone = body.purpose === 'dispute_evidence' || body.purpose === 'message_photo';
+      if (!anyone && !user.roles.includes('seller')) {
         throw new HttpError(403, 'no_shop', "Ouvrez d'abord votre boutique");
       }
       const reserved = await withTx(ctx.pool, (tx) =>

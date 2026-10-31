@@ -4,16 +4,24 @@ import { ChevronRight, MessageCircle } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { api, unwrap } from '../api';
 import { t } from '../i18n/fr';
+import { useSession } from '../session';
 import { colors, font, radius, space } from '../theme';
 import { Text } from './Text';
 
 /** Conversations non lues de la personne connectée, partagées par tous les boutons « Messages ». */
 export function useConversations() {
+  const { user } = useSession();
   return useQuery({
     queryKey: ['conversations'],
     queryFn: async () => unwrap(await api.GET('/v1/me/conversations')),
     refetchInterval: 30_000,
+    enabled: !!user,
   });
+}
+
+/** Pastille des onglets : nombre de messages non lus, toutes commandes confondues. */
+export function useUnreadMessages(): number {
+  return useConversations().data?.totalUnread ?? 0;
 }
 
 /** Ouvre la conversation de la commande ; pastille avec le nombre de messages non lus. */

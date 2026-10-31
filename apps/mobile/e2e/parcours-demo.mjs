@@ -96,8 +96,8 @@ await page.getByTestId('message-send').last().click();
 await page.getByTestId('message-mine').last().waitFor();
 await as('rider', `/messages/${orderId}`);
 await page.getByTestId('message-theirs').last().waitFor();
-await page.getByTestId('message-input').last().fill('Bien reçu, j’arrive dans 5 minutes.');
-await page.getByTestId('message-send').last().click();
+// Réponse rapide du livreur, d'une touche ; « Vu » quand l'acheteuse a lu.
+await page.getByTestId('message-quick').getByText('Je suis en route').last().click();
 await page.getByTestId('message-mine').last().waitFor();
 await sleep(400);
 await shot('10b-demo-messagerie-livreur');

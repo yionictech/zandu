@@ -258,7 +258,23 @@ export default async function OrderPage({
                     <br />
                     <span className="muted">{ROLE[m.role]}</span>
                   </td>
-                  <td style={{ whiteSpace: 'pre-wrap' }}>{m.body}</td>
+                  <td style={{ whiteSpace: 'pre-wrap' }}>
+                    {m.kind === 'call' && m.call
+                      ? m.call.status === 'ended'
+                        ? `Appel · ${m.call.durationSeconds ?? 0} s`
+                        : m.call.status === 'declined'
+                          ? 'Appel refusé'
+                          : 'Appel sans réponse'
+                      : m.body}
+                    {m.photoUrl ? (
+                      <>
+                        {m.body ? <br /> : null}
+                        <a href={m.photoUrl} target="_blank" rel="noreferrer">
+                          Voir la photo
+                        </a>
+                      </>
+                    ) : null}
+                  </td>
                   <td className="small muted">{formatDateTime(m.createdAt)}</td>
                 </tr>
               ))}

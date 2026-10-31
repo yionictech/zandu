@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Bike, History, UserRound, type LucideIcon } from 'lucide-react-native';
 import { t } from '../../../src/i18n/fr';
 import { colors, fonts } from '../../../src/theme';
+import { useUnreadMessages } from '../../../src/ui/MessagesButton';
 import { RequireRole } from '../../../src/ui/RequireRole';
 
 const icon = (Glyph: LucideIcon) =>
@@ -14,6 +15,7 @@ const icon = (Glyph: LucideIcon) =>
  * le livreur partenaire est payé par sa société, pas par Zandu (D15, docs/ux/03 §4.1).
  */
 export default function RiderTabsLayout() {
+  const unread = useUnreadMessages();
   return (
     <RequireRole role="rider">
       <Tabs
@@ -27,12 +29,17 @@ export default function RiderTabsLayout() {
             backgroundColor: colors.bar,
             borderTopColor: colors.border,
           },
+          tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.onBrand },
           sceneStyle: { backgroundColor: colors.background },
         }}
       >
         <Tabs.Screen
           name="index"
-          options={{ title: t.rider.tabs.courses, tabBarIcon: icon(Bike) }}
+          options={{
+            title: t.rider.tabs.courses,
+            tabBarIcon: icon(Bike),
+            tabBarBadge: unread > 0 ? unread : undefined,
+          }}
         />
         <Tabs.Screen
           name="historique"

@@ -111,6 +111,20 @@ describe('Appels dans l’application (LiveKit)', () => {
       (await call(env, m.seller, { method: 'GET', url: `/v1/calls/${started.body.id}` })).body
         .status,
     ).toBe('ended');
+
+    // L'appel apparaît dans la conversation de la commande.
+    const thread = await call(env, m.seller, {
+      method: 'GET',
+      url: `/v1/orders/${orderId}/messages`,
+    });
+    expect(thread.body.items).toEqual([
+      expect.objectContaining({
+        kind: 'call',
+        role: 'buyer',
+        mine: false,
+        call: { status: 'ended', durationSeconds: 0 },
+      }),
+    ]);
   });
 
   it('sans réponse : manqué au bout de 45 s ; refus ; étrangers et livreur pas encore affecté', async () => {

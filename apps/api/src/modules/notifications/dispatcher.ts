@@ -111,8 +111,9 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
     switch (event.topic) {
       case 'order.message': {
         const c = await conversationOf(db, event.aggregate_id);
-        const { rows } = await db.query<{ body: string; author_role: string }>(
-          'SELECT body, author_role::text AS author_role FROM order_messages WHERE id = $1',
+        const { rows } = await db.query<{ body: string; author_role: string; photo: boolean }>(
+          `SELECT body, author_role::text AS author_role, photo_key IS NOT NULL AS photo
+           FROM order_messages WHERE id = $1`,
           [p.messageId],
         );
         const m = rows[0];
@@ -121,7 +122,8 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
           m.author_role === 'support'
             ? 'Support Zandu'
             : (c.participants.find((x) => x.userId === p.authorId)?.name ?? 'Zandu');
-        const preview = m.body.length > 120 ? `${m.body.slice(0, 117)}…` : m.body;
+        const text = m.body || (m.photo ? 'Photo' : '');
+        const preview = text.length > 120 ? `${text.slice(0, 117)}…` : text;
         return c.participants
           .filter((x) => x.userId !== p.authorId)
           .map((x) => ({

@@ -50,6 +50,29 @@ export const fr = {
     send: 'Envoyer',
     closed: 'Commande terminée : la conversation reste lisible, mais on ne peut plus écrire.',
     roles: { buyer: 'client', seller: 'vendeur', rider: 'livreur', support: 'support Zandu' },
+    photo: 'Envoyer une photo',
+    takePhoto: 'Prendre une photo',
+    choosePhoto: 'Choisir dans la galerie',
+    sendingPhoto: 'Envoi de la photo…',
+    seen: 'Vu',
+    close: 'Fermer',
+    /** Réponses rapides, selon qui écrit (une touche, envoyé tout de suite). */
+    quick: {
+      buyer: ['Je suis là dans 5 minutes', 'Pouvez-vous m’appeler ?', 'Merci !'],
+      seller: ['Votre commande est prête', 'Le colis part aujourd’hui', 'Merci pour votre achat !'],
+      rider: [
+        'Je suis en route',
+        'Je suis arrivé',
+        'Je suis devant le portail',
+        'Je ne trouve pas l’adresse, pouvez-vous me guider ?',
+      ],
+    },
+    call: {
+      missed: (name: string, mine: boolean) =>
+        mine ? 'Appel sans réponse' : `Appel manqué de ${name}`,
+      declined: (mine: boolean) => (mine ? 'Appel refusé' : 'Vous avez refusé l’appel'),
+      ended: (duration: string) => `Appel · ${duration}`,
+    },
   },
   legal: {
     terms: 'Conditions d’utilisation',

@@ -6,10 +6,18 @@ import { HttpError } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import { currentUser, requireAuth, requireStaff, staffActor } from '../auth/guards.js';
 import { publish } from '../notifications/outbox.js';
+import { consumeUpload } from '../uploads/uploads.service.js';
 import { conversationOf, isOpen, participantIn, type Conversation } from './participants.js';
 
 const IdParam = z.object({ id: z.uuid() });
-const Body = z.object({ body: z.string().trim().min(1).max(1000) });
+const Body = z
+  .object({
+    body: z.string().trim().max(1000).default(''),
+    photoUploadId: z.uuid().optional(),
+  })
+  .refine((b) => b.body.length > 0 || b.photoUploadId, 'Message vide');
+/** Lien de lecture d'une photo de conversation (espace privé). */
+const PHOTO_URL_SECONDS = 3600;
 /** Au-delà, c'est un robot ou une dispute : le support prend le relais. */
 const MAX_PER_MINUTE = 20;
 
@@ -18,32 +26,129 @@ interface MessageRow {
   author_id: string;
   author_role: 'buyer' | 'seller' | 'rider' | 'support';
   body: string;
+  photo_key: string | null;
   created_at: Date;
+}
+
+interface CallRow {
+  id: string;
+  caller_id: string;
+  status: 'ringing' | 'accepted' | 'declined' | 'missed' | 'ended';
+  created_at: Date;
+  answered_at: Date | null;
+  ended_at: Date | null;
 }
 
 async function messagesOf(db: Db, orderId: string): Promise<MessageRow[]> {
   const { rows } = await db.query<MessageRow>(
-    `SELECT id, author_id, author_role::text AS author_role, body, created_at
+    `SELECT id, author_id, author_role::text AS author_role, body, photo_key, created_at
      FROM order_messages WHERE order_id = $1 ORDER BY seq LIMIT 500`,
     [orderId],
   );
   return rows;
 }
 
-function view(c: Conversation, m: MessageRow, viewerId: string | null) {
-  const author = c.participants.find((p) => p.userId === m.author_id && p.role === m.author_role);
-  return {
-    id: m.id,
-    role: m.author_role,
-    name:
-      m.author_role === 'support'
-        ? 'Support Zandu'
-        : (author?.name ??
-          { buyer: 'Client', seller: 'Vendeur', rider: 'Ancien livreur' }[m.author_role]),
-    mine: viewerId !== null && m.author_id === viewerId,
-    body: m.body,
-    createdAt: m.created_at.toISOString(),
-  };
+interface TimelineItem {
+  id: string;
+  kind: 'message' | 'call';
+  role: MessageRow['author_role'];
+  name: string;
+  mine: boolean;
+  body: string;
+  photoUrl: string | null;
+  seen: boolean;
+  call: { status: 'declined' | 'missed' | 'ended'; durationSeconds: number | null } | null;
+  createdAt: string;
+}
+
+function authorName(c: Conversation, userId: string, role: MessageRow['author_role']): string {
+  if (role === 'support') return 'Support Zandu';
+  const author = c.participants.find((p) => p.userId === userId && p.role === role);
+  return author?.name ?? { buyer: 'Client', seller: 'Vendeur', rider: 'Ancien livreur' }[role];
+}
+
+/**
+ * Fil de la conversation : messages (texte, photo) et appels terminés, dans l'ordre. « Vu » : un
+ * autre participant a ouvert la conversation après l'envoi.
+ */
+async function timeline(
+  ctx: AppContext,
+  c: Conversation,
+  messages: MessageRow[],
+  viewerId: string | null,
+  withCalls: boolean,
+): Promise<TimelineItem[]> {
+  const { rows: reads } = await ctx.pool.query<{ user_id: string; last_read_at: Date }>(
+    'SELECT user_id, last_read_at FROM order_message_reads WHERE order_id = $1',
+    [c.orderId],
+  );
+  const items: Array<{ at: Date; item: TimelineItem }> = await Promise.all(
+    messages.map(async (m) => ({
+      at: m.created_at,
+      item: {
+        id: m.id,
+        kind: 'message',
+        role: m.author_role,
+        name: authorName(c, m.author_id, m.author_role),
+        mine: viewerId !== null && m.author_id === viewerId,
+        body: m.body,
+        photoUrl: m.photo_key
+          ? await ctx.storage.presignDownload({
+              bucket: 'private',
+              key: m.photo_key,
+              expiresInSeconds: PHOTO_URL_SECONDS,
+            })
+          : null,
+        seen: reads.some((r) => r.user_id !== m.author_id && r.last_read_at >= m.created_at),
+        call: null,
+        createdAt: m.created_at.toISOString(),
+      },
+    })),
+  );
+  if (withCalls) {
+    const { rows: calls } = await ctx.pool.query<CallRow>(
+      `SELECT id, caller_id, status::text AS status, created_at, answered_at, ended_at
+       FROM order_calls WHERE order_id = $1 AND status <> 'ringing' ORDER BY created_at LIMIT 200`,
+      [c.orderId],
+    );
+    for (const call of calls) {
+      const caller = c.participants.find((p) => p.userId === call.caller_id);
+      items.push({
+        at: call.created_at,
+        item: {
+          id: call.id,
+          kind: 'call',
+          role: caller?.role ?? 'buyer',
+          name: caller?.name ?? 'Zandu',
+          mine: viewerId !== null && call.caller_id === viewerId,
+          body: '',
+          photoUrl: null,
+          seen: false,
+          call: {
+            status: call.status === 'accepted' || call.status === 'ringing' ? 'ended' : call.status,
+            durationSeconds:
+              call.answered_at && call.ended_at
+                ? Math.max(
+                    0,
+                    Math.round((call.ended_at.getTime() - call.answered_at.getTime()) / 1000),
+                  )
+                : null,
+          },
+          createdAt: call.created_at.toISOString(),
+        },
+      });
+    }
+  }
+  return items.sort((a, b) => a.at.getTime() - b.at.getTime()).map((x) => x.item);
+}
+
+async function messageView(
+  ctx: AppContext,
+  c: Conversation,
+  m: MessageRow,
+  viewerId: string | null,
+) {
+  return (await timeline(ctx, c, [m], viewerId, false))[0]!;
 }
 
 async function post(
@@ -51,7 +156,7 @@ async function post(
   c: Conversation,
   authorId: string,
   role: MessageRow['author_role'],
-  body: string,
+  input: { body: string; photoUploadId?: string | undefined },
 ) {
   const now = ctx.clock.now();
   return withTx(ctx.pool, async (tx) => {
@@ -61,11 +166,18 @@ async function post(
     );
     if (recent[0]!.n >= MAX_PER_MINUTE)
       throw new HttpError(429, 'too_many_messages', 'Trop de messages, patientez une minute');
+    const photo = input.photoUploadId
+      ? await consumeUpload(ctx, tx, {
+          uploadId: input.photoUploadId,
+          userId: authorId,
+          purpose: 'message_photo',
+        })
+      : null;
     const { rows } = await tx.query<MessageRow>(
-      `INSERT INTO order_messages (order_id, author_id, author_role, body, created_at)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, author_id, author_role::text AS author_role, body, created_at`,
-      [c.orderId, authorId, role, body, now],
+      `INSERT INTO order_messages (order_id, author_id, author_role, body, photo_key, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, author_id, author_role::text AS author_role, body, photo_key, created_at`,
+      [c.orderId, authorId, role, input.body, photo?.storageKey ?? null, now],
     );
     await markRead(tx, c.orderId, authorId, now);
     await publish(
@@ -109,20 +221,20 @@ export function messageRoutes(ctx: AppContext): FastifyPluginAsync {
         participants: c.participants
           .filter((p) => p.userId !== user.id)
           .map(({ role, name }) => ({ role, name })),
-        items: items.map((m) => view(c, m, user.id)),
+        items: await timeline(ctx, c, items, user.id, true),
       };
     });
 
     app.post('/v1/orders/:id/messages', async (request, reply) => {
       const { id } = IdParam.parse(request.params);
-      const { body } = Body.parse(request.body);
+      const input = Body.parse(request.body);
       const user = currentUser(request);
       const c = await conversationOf(ctx.pool, id);
       const me = participantIn(c, user.id);
       if (!isOpen(c))
         throw new HttpError(409, 'conversation_closed', 'Cette commande est terminée');
-      const row = await post(ctx, c, user.id, me.role, body);
-      return reply.status(201).send(view(c, row, user.id));
+      const row = await post(ctx, c, user.id, me.role, input);
+      return reply.status(201).send(await messageView(ctx, c, row, user.id));
     });
 
     /** Conversations avec des messages non lus (pastilles des listes de commandes et de courses). */
@@ -173,16 +285,16 @@ export function supportMessageRoutes(ctx: AppContext): FastifyPluginAsync {
         orderId: id,
         publicRef: c.publicRef,
         participants: c.participants.map(({ role, name }) => ({ role, name })),
-        items: (await messagesOf(ctx.pool, id)).map((m) => view(c, m, null)),
+        items: await timeline(ctx, c, await messagesOf(ctx.pool, id), null, true),
       };
     });
 
     app.post('/v1/support/orders/:id/messages', async (request, reply) => {
       const { id } = IdParam.parse(request.params);
-      const { body } = Body.parse(request.body);
+      const { body } = z.object({ body: z.string().trim().min(1).max(1000) }).parse(request.body);
       const c = await conversationOf(ctx.pool, id);
       const user = currentUser(request);
-      const row = await post(ctx, c, user.id, 'support', body);
+      const row = await post(ctx, c, user.id, 'support', { body });
       await audit(
         ctx.pool,
         staffActor(request),
@@ -190,7 +302,7 @@ export function supportMessageRoutes(ctx: AppContext): FastifyPluginAsync {
         { type: 'order', id },
         { messageId: row.id },
       );
-      return reply.status(201).send(view(c, row, null));
+      return reply.status(201).send(await messageView(ctx, c, row, null));
     });
   };
 }

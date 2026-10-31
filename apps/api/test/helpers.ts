@@ -372,7 +372,7 @@ export async function buyAndDeliver(
 export async function uploadFile(
   env: TestEnv,
   session: Session,
-  purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence',
+  purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence' | 'message_photo',
   options: { contentType?: string; bytes?: number; declaredSize?: number; body?: Buffer } = {},
 ): Promise<string> {
   const contentType = options.contentType ?? 'image/jpeg';

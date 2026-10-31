@@ -6,7 +6,7 @@ import { DEMO } from './config';
 import { registerDemoUpload } from './demo';
 import { trackedFetch } from './network';
 
-export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence';
+export type UploadPurpose = 'product_photo' | 'kyc_document' | 'dispute_evidence' | 'message_photo';
 
 export interface LocalImage {
   uri: string;

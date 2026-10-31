@@ -881,8 +881,16 @@ export class DemoApi {
         id: m.id,
         role: m.role,
         name: people.find((p) => p.userId === m.authorId)?.name ?? 'Zandu',
+        kind: 'message' as const,
         mine: m.authorId === me.id,
         body: m.body,
+        photoUrl: m.photo ? photoUrl(m.photo) : null,
+        seen: people.some(
+          (p) =>
+            p.userId !== m.authorId &&
+            (this.state.chatReads?.[`${m.orderId}:${p.userId}`] ?? '') >= m.createdAt,
+        ),
+        call: null,
         createdAt: m.createdAt,
       });
     this.on(
@@ -914,13 +922,17 @@ export class DemoApi {
         const { o, people, mine, open } = talk(params.id!, me);
         if (!open) throw conflict('conversation_closed', 'Cette commande est terminée');
         const text = String(body.body ?? '').trim();
-        if (!text) throw new DemoError(422, 'validation_error', 'Message vide');
+        const photo = body.photoUploadId
+          ? this.state.uploads[String(body.photoUploadId)]
+          : undefined;
+        if (!text && !photo) throw new DemoError(422, 'validation_error', 'Message vide');
         const m = {
           id: this.deps.newId(),
           orderId: o.id,
           authorId: me.id,
           role: mine.role,
           body: text.slice(0, 1000),
+          ...(photo ? { photo } : {}),
           createdAt: this.iso(),
         };
         (this.state.chats ??= []).push(m);

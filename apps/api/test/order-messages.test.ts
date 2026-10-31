@@ -12,6 +12,7 @@ import {
   type Marketplace,
   type Session,
   type TestEnv,
+  uploadFile,
 } from './helpers.js';
 
 let env: TestEnv;
@@ -112,6 +113,34 @@ describe('Messagerie de la commande', () => {
     const closed = await read(m.buyer, orderId);
     expect(closed.body.canWrite).toBe(false);
     expect((await write(m.buyer, orderId, 'encore ?')).status).toBe(409);
+  });
+
+  it('photo seule ou avec texte, privée ; « Vu » quand l’autre a lu', async () => {
+    const orderId = await paidOrder();
+    const uploadId = await uploadFile(env, m.buyer, 'message_photo');
+    const sent = await call(env, m.buyer, {
+      method: 'POST',
+      url: `/v1/orders/${orderId}/messages`,
+      payload: { photoUploadId: uploadId },
+    });
+    expect(sent.status).toBe(201);
+    expect(sent.body).toMatchObject({ kind: 'message', body: '', seen: false, call: null });
+    expect(sent.body.photoUrl).toMatch(/messages\//);
+    // Un envoi ne sert qu'une fois ; un message vide est refusé.
+    expect(
+      (
+        await call(env, m.buyer, {
+          method: 'POST',
+          url: `/v1/orders/${orderId}/messages`,
+          payload: { photoUploadId: uploadId },
+        })
+      ).status,
+    ).toBe(409);
+    expect((await write(m.buyer, orderId, '   ')).status).toBe(400);
+
+    await read(m.seller, orderId); // la vendeuse ouvre la conversation
+    const mine = (await read(m.buyer, orderId)).body.items;
+    expect(mine[0]).toMatchObject({ mine: true, seen: true });
   });
 
   it('le support lit et répond ; trop de messages d’un coup est refusé', async () => {

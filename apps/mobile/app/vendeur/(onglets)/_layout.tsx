@@ -3,6 +3,7 @@ import { House, LayoutGrid, Package, Wallet, type LucideIcon } from 'lucide-reac
 import { t } from '../../../src/i18n/fr';
 import { useSellerOrders } from '../../../src/seller/queries';
 import { colors, fonts } from '../../../src/theme';
+import { useUnreadMessages } from '../../../src/ui/MessagesButton';
 import { RequireRole } from '../../../src/ui/RequireRole';
 
 const icon = (Glyph: LucideIcon) =>
@@ -13,7 +14,8 @@ const icon = (Glyph: LucideIcon) =>
 function SellerTabs() {
   // Pastille « Commandes » : commandes payées qui attendent d'être acceptées.
   const toAccept = useSellerOrders('new');
-  const count = toAccept.data?.length ?? 0;
+  // … et messages non lus des clients et des livreurs.
+  const count = (toAccept.data?.length ?? 0) + useUnreadMessages();
   return (
     <Tabs
       screenOptions={{

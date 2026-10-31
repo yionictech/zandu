@@ -1534,7 +1534,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/OrderMessageInput' }
+            schema: { $ref: '#/components/schemas/SupportMessageInput' }
       responses:
         '201':
           description: Envoyé
@@ -2341,7 +2341,11 @@ paths:
               type: object
               required: [purpose, contentType, sizeBytes]
               properties:
-                purpose: { type: string, enum: [product_photo, kyc_document, dispute_evidence] }
+                purpose:
+                  {
+                    type: string,
+                    enum: [product_photo, kyc_document, dispute_evidence, message_photo],
+                  }
                 contentType: { type: string, examples: [image/jpeg] }
                 sizeBytes: { type: integer, minimum: 1 }
       responses:
@@ -4136,18 +4140,44 @@ components:
         name: { type: string, description: 'Prénom et initiale, ou nom de la boutique' }
     OrderMessageInput:
       type: object
+      description: Texte, photo, ou les deux.
+      properties:
+        body: { type: string, maxLength: 1000 }
+        photoUploadId:
+          type: string
+          format: uuid
+          description: Envoi réservé avec l'usage « message_photo »
+    SupportMessageInput:
+      type: object
       required: [body]
       properties:
         body: { type: string, minLength: 1, maxLength: 1000 }
     OrderMessage:
+      description: Élément du fil de la conversation, message (texte, photo) ou appel terminé.
       type: object
-      required: [id, role, name, mine, body, createdAt]
+      required: [id, kind, role, name, mine, body, photoUrl, seen, call, createdAt]
       properties:
         id: { type: string, format: uuid }
+        kind: { type: string, enum: [message, call] }
         role: { type: string, enum: [buyer, seller, rider, support] }
         name: { type: string }
         mine: { type: boolean }
         body: { type: string }
+        photoUrl:
+          type: [string, 'null']
+          description: Lien de lecture de la photo, valable une heure
+        seen:
+          type: boolean
+          description: Un autre participant a ouvert la conversation après l'envoi (« Vu »)
+        call:
+          description: Appel (kind = call) — issue et durée
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [status, durationSeconds]
+              properties:
+                status: { type: string, enum: [declined, missed, ended] }
+                durationSeconds: { type: [integer, 'null'] }
         createdAt: { type: string, format: date-time }
     CustomerSummary:
       type: object

@@ -2311,17 +2311,39 @@ export interface components {
       /** @description Prénom et initiale, ou nom de la boutique */
       name: string;
     };
+    /** @description Texte, photo, ou les deux. */
     OrderMessageInput: {
+      body?: string;
+      /**
+       * Format: uuid
+       * @description Envoi réservé avec l'usage « message_photo »
+       */
+      photoUploadId?: string;
+    };
+    SupportMessageInput: {
       body: string;
     };
+    /** @description Élément du fil de la conversation, message (texte, photo) ou appel terminé. */
     OrderMessage: {
       /** Format: uuid */
       id: string;
+      /** @enum {string} */
+      kind: 'message' | 'call';
       /** @enum {string} */
       role: 'buyer' | 'seller' | 'rider' | 'support';
       name: string;
       mine: boolean;
       body: string;
+      /** @description Lien de lecture de la photo, valable une heure */
+      photoUrl: string | null;
+      /** @description Un autre participant a ouvert la conversation après l'envoi (« Vu ») */
+      seen: boolean;
+      /** @description Appel (kind = call) — issue et durée */
+      call: null | {
+        /** @enum {string} */
+        status: 'declined' | 'missed' | 'ended';
+        durationSeconds: number | null;
+      };
       /** Format: date-time */
       createdAt: string;
     };
@@ -4764,7 +4786,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['OrderMessageInput'];
+        'application/json': components['schemas']['SupportMessageInput'];
       };
     };
     responses: {
@@ -5736,7 +5758,7 @@ export interface operations {
       content: {
         'application/json': {
           /** @enum {string} */
-          purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence';
+          purpose: 'product_photo' | 'kyc_document' | 'dispute_evidence' | 'message_photo';
           /** @example image/jpeg */
           contentType: string;
           sizeBytes: number;

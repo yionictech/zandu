@@ -10,6 +10,7 @@ import {
 import { useCart } from '../../src/cart';
 import { t } from '../../src/i18n/fr';
 import { colors, fonts } from '../../src/theme';
+import { useUnreadMessages } from '../../src/ui/MessagesButton';
 import { darkHeader } from '../../src/ui/navigation';
 
 const icon = (Glyph: LucideIcon) =>
@@ -20,6 +21,7 @@ const icon = (Glyph: LucideIcon) =>
 /** Barre d'onglets sombre, onglet actif en citron (maquettes acheteur). */
 export default function TabsLayout() {
   const { count } = useCart();
+  const unread = useUnreadMessages();
   return (
     <Tabs
       screenOptions={{
@@ -53,7 +55,14 @@ export default function TabsLayout() {
           tabBarBadge: count > 0 ? count : undefined,
         }}
       />
-      <Tabs.Screen name="commandes" options={{ title: t.tabs.orders, tabBarIcon: icon(Package) }} />
+      <Tabs.Screen
+        name="commandes"
+        options={{
+          title: t.tabs.orders,
+          tabBarIcon: icon(Package),
+          tabBarBadge: unread > 0 ? unread : undefined,
+        }}
+      />
       <Tabs.Screen name="compte" options={{ title: t.tabs.account, tabBarIcon: icon(UserRound) }} />
     </Tabs>
   );

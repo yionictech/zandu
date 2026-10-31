@@ -212,6 +212,8 @@ export interface DemoState {
     authorId: string;
     role: 'buyer' | 'seller' | 'rider';
     body: string;
+    /** Photo jointe (référence demo-photo: ou adresse data:). */
+    photo?: string;
     createdAt: string;
   }>;
   chatReads?: Record<string, string>;
