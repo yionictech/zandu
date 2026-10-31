@@ -214,6 +214,7 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
               <th>Zone</th>
               <th className="num">Missions en cours</th>
               <th>Dernière position</th>
+              <th className="num">Note clients (90 j)</th>
             </tr>
           </thead>
           <tbody>
@@ -226,6 +227,15 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: S
                 <td className="num">{r.activeMissions}</td>
                 <td className="muted">
                   {r.lastPositionAt ? formatDateTime(r.lastPositionAt) : '—'}
+                </td>
+                <td className="num">
+                  {r.ratingAverage === null ? (
+                    <span className="muted">—</span>
+                  ) : (
+                    <Badge tone={r.ratingAverage < 3.5 ? 'danger' : 'trust'}>
+                      {r.ratingAverage.toFixed(1).replace('.', ',')} / 5 · {r.ratingCount}
+                    </Badge>
+                  )}
                 </td>
               </tr>
             ))}

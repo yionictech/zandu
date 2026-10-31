@@ -180,6 +180,24 @@ export const fr = {
     deliveryBody: 'À domicile ou en point relais, moins cher',
     shareMessage: (title: string, price: string) => `${title} — ${price} sur Zandu`,
   },
+  riderReview: {
+    title: (name: string) => `Comment s’est passée la livraison avec ${name} ?`,
+    hint: 'Seuls le livreur, sa société et le support Zandu voient votre note.',
+    tags: {
+      ponctuel: 'Ponctuel',
+      poli: 'Poli',
+      soigneux: 'Soigneux avec le colis',
+      en_retard: 'En retard',
+      impoli: 'Impoli',
+      colis_abime: 'Colis abîmé',
+    },
+    comment: 'Un mot pour le livreur (facultatif)',
+    send: 'Envoyer ma note',
+    thanks: (name: string, rating: number) => `Merci ! Vous avez donné ${rating}/5 à ${name}`,
+    average: (average: number, count: number) =>
+      `Note des clients : ${average.toFixed(1).replace('.', ',')}/5 (${count} avis, 90 jours)`,
+    none: 'Pas encore de note des clients',
+  },
   reviewTags: {
     conforme: 'Conforme à l’annonce',
     livreur_ponctuel: 'Livreur ponctuel',

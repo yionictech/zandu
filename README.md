@@ -48,7 +48,7 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   avec des données fictives (acheteuse, vendeuse, livreur à un toucher), validé contre le contrat
   d'API. Guide : [démonstration locale](docs/exploitation/demo-locale.md) ; APK branché sur un
   serveur de test : [APK de test](docs/exploitation/apk-de-test.md).
-- **279 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+- **281 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
   contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
@@ -92,7 +92,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 279 tests
+pnpm test            # 281 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

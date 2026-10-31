@@ -114,7 +114,11 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
         `SELECT r.id, u.phone, u.full_name AS "name", cp.name AS "partner", z.name AS "zone",
                 (SELECT count(*)::int FROM deliveries d
                   WHERE d.rider_id = r.id AND d.status IN ('assigned', 'picked_up', 'at_pickup_point', 'returning')) AS "activeMissions",
-                (SELECT max(p.recorded_at) FROM rider_positions p WHERE p.rider_id = r.id) AS "lastPositionAt"
+                (SELECT max(p.recorded_at) FROM rider_positions p WHERE p.rider_id = r.id) AS "lastPositionAt",
+                (SELECT round(avg(rv.rating), 1)::float FROM rider_reviews rv
+                  WHERE rv.rider_id = r.id AND rv.created_at > now() - interval '90 days') AS "ratingAverage",
+                (SELECT count(*)::int FROM rider_reviews rv
+                  WHERE rv.rider_id = r.id AND rv.created_at > now() - interval '90 days') AS "ratingCount"
          FROM riders r JOIN users u ON u.id = r.user_id
          JOIN courier_partners cp ON cp.id = r.courier_partner_id
          LEFT JOIN delivery_zones z ON z.id = r.zone_id

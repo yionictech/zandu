@@ -6,6 +6,7 @@ import { addHours, addMinutes } from '../../lib/clock.js';
 import { randomDigits, safeEqualHex } from '../../lib/crypto.js';
 import { HttpError, notFound } from '../../lib/errors.js';
 import { actor, currentUser, requireAuth, requireRole, requireStaff } from '../auth/guards.js';
+import { riderRating } from './rider-reviews.routes.js';
 import { publish } from '../notifications/outbox.js';
 import { applyOrderEvent, handoverHash, lockOrder } from './orders.service.js';
 
@@ -191,7 +192,7 @@ export function riderRoutes(ctx: AppContext): FastifyPluginAsync {
            WHERE r.id = $1`,
           [r.id, now()],
         );
-        return rows[0];
+        return { ...rows[0], rating: await riderRating(ctx.pool, r.id, now()) };
       });
 
       rider.get('/v1/rider/deliveries', async (request) => {

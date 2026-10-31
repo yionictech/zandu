@@ -217,4 +217,13 @@ export interface DemoState {
     createdAt: string;
   }>;
   chatReads?: Record<string, string>;
+  /** Avis sur les livreurs (absents des démos enregistrées avant eux). */
+  riderReviews?: Array<{
+    orderId: string;
+    riderUserId: string;
+    rating: number;
+    tags: string[];
+    comment: string | null;
+    createdAt: string;
+  }>;
 }

@@ -123,6 +123,11 @@ await page.getByText('Notez votre achat').last().waitFor();
 await page.getByLabel('5 étoiles').first().click();
 await page.getByText('Publier mon avis').click();
 await page.getByText('Merci pour votre avis !').waitFor();
+// … et le livreur (vu de lui et du support seulement).
+await page.getByTestId('rider-star-5').click();
+await page.getByText('Ponctuel').last().click();
+await page.getByTestId('rider-review-send').click();
+await page.getByTestId('rider-review-done').waitFor();
 await shot('13-demo-avis');
 await as('seller', '/vendeur');
 await sleep(800);

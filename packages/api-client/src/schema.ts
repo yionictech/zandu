@@ -927,6 +927,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/orders/{id}/rider-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Avis sur le livreur de ma commande (peut-on noter, déjà noté) */
+    get: operations['riderReviewStatus'];
+    put?: never;
+    /**
+     * Noter le livreur après la remise (une fois)
+     * @description Une note de 2 ou moins prévient le support.
+     */
+    post: operations['reviewRider'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/orders/{id}/cancel': {
     parameters: {
       query?: never;
@@ -2280,6 +2301,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** @enum {string} */
+    RiderReviewTag: 'ponctuel' | 'poli' | 'soigneux' | 'en_retard' | 'impoli' | 'colis_abime';
+    /** @description Note moyenne des 90 derniers jours */
+    RiderRating: {
+      average: number | null;
+      count: number;
+    };
     Call: {
       /** Format: uuid */
       id: string;
@@ -4946,6 +4974,76 @@ export interface operations {
       401: components['responses']['Error'];
     };
   };
+  riderReviewStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Remise à domicile faite par un livreur, pas encore notée */
+            canRate: boolean;
+            rider: null | {
+              name: string;
+            };
+            review: null | {
+              rating: number;
+              tags: components['schemas']['RiderReviewTag'][];
+              comment: string | null;
+              /** Format: date-time */
+              createdAt: string;
+            };
+          };
+        };
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  reviewRider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          rating: number;
+          tags?: components['schemas']['RiderReviewTag'][];
+          comment?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Enregistré */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            recorded: boolean;
+          };
+        };
+      };
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
   cancelOrder: {
     parameters: {
       query?: never;
@@ -5066,6 +5164,7 @@ export interface operations {
             /** @description Depuis minuit, heure de Brazzaville */
             deliveredToday: number;
             inProgress: number;
+            rating: components['schemas']['RiderRating'];
           };
         };
       };
@@ -6831,6 +6930,9 @@ export interface operations {
                * @description Dernière position partagée pendant une course en route
                */
               lastPositionAt: string | null;
+              /** @description Note moyenne donnée par les acheteurs (90 jours) */
+              ratingAverage: number | null;
+              ratingCount: number;
             }[];
           };
         };

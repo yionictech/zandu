@@ -33,6 +33,11 @@ export default function RiderProfile() {
           <View style={styles.flex}>
             <Text style={styles.name}>{r.fullName ?? displayPhone(r.phone)}</Text>
             <Text style={styles.muted}>{t.rider.deliveredTotal(r.deliveredTotal)}</Text>
+            <Text style={styles.muted} testID="rider-rating">
+              {r.rating.average !== null
+                ? t.riderReview.average(r.rating.average, r.rating.count)
+                : t.riderReview.none}
+            </Text>
             <View style={styles.badge}>
               <Badge label={t.rider.verified} tone="brand" />
             </View>

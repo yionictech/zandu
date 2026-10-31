@@ -30,6 +30,105 @@ const CODE_PENDING = [
 type Tag = 'conforme' | 'livreur_ponctuel' | 'bien_emballe';
 const TAGS: Tag[] = ['conforme', 'livreur_ponctuel', 'bien_emballe'];
 
+type RiderTag = 'ponctuel' | 'poli' | 'soigneux' | 'en_retard' | 'impoli' | 'colis_abime';
+const GOOD: RiderTag[] = ['ponctuel', 'poli', 'soigneux'];
+const BAD: RiderTag[] = ['en_retard', 'impoli', 'colis_abime'];
+
+/** « Notez votre livreur » : après une remise à domicile, une fois (vu du livreur et du support). */
+function RiderReviewForm({ orderId }: { orderId: string }) {
+  const queryClient = useQueryClient();
+  const [rating, setRating] = useState(0);
+  const [tags, setTags] = useState<RiderTag[]>([]);
+  const [comment, setComment] = useState('');
+  const key = ['order', orderId, 'rider-review'];
+  const status = useQuery({
+    queryKey: key,
+    queryFn: async () =>
+      unwrap(await api.GET('/v1/orders/{id}/rider-review', { params: { path: { id: orderId } } })),
+  });
+  const send = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST('/v1/orders/{id}/rider-review', {
+          params: { path: { id: orderId } },
+          body: { rating, tags, ...(comment.trim() ? { comment: comment.trim() } : {}) },
+        }),
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  const s = status.data;
+  if (!s?.rider || (!s.canRate && !s.review)) return null;
+  if (s.review)
+    return (
+      <Card testID="rider-review-done">
+        <Text style={styles.thanks}>{t.riderReview.thanks(s.rider.name, s.review.rating)}</Text>
+      </Card>
+    );
+  const choices = rating === 0 ? [] : rating >= 4 ? GOOD : [...BAD, ...GOOD];
+  return (
+    <Card testID="rider-review">
+      <Text style={styles.cardTitle}>{t.riderReview.title(s.rider.name)}</Text>
+      <View style={styles.stars}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <Pressable
+            key={n}
+            onPress={() => {
+              setRating(n);
+              setTags([]);
+            }}
+            accessibilityLabel={`${n} étoiles`}
+            style={styles.starTouch}
+            testID={`rider-star-${n}`}
+          >
+            <Star
+              size={32}
+              color={n <= rating ? colors.brand : colors.faint}
+              fill={n <= rating ? colors.brand : 'transparent'}
+            />
+          </Pressable>
+        ))}
+      </View>
+      {rating > 0 ? (
+        <>
+          <View style={styles.tags}>
+            {choices.map((tag) => (
+              <Chip
+                key={tag}
+                label={t.riderReview.tags[tag]}
+                selected={tags.includes(tag)}
+                onPress={() =>
+                  setTags(
+                    tags.includes(tag)
+                      ? tags.filter((x) => x !== tag)
+                      : tags.length < 3
+                        ? [...tags, tag]
+                        : tags,
+                  )
+                }
+              />
+            ))}
+          </View>
+          <Field
+            label={t.riderReview.comment}
+            value={comment}
+            onChangeText={setComment}
+            maxLength={500}
+            multiline
+          />
+          <Text style={styles.muted}>{t.riderReview.hint}</Text>
+          <ErrorText message={send.error ? errorMessage(send.error) : null} />
+          <Button
+            label={t.riderReview.send}
+            onPress={() => send.mutate()}
+            loading={send.isPending}
+            testID="rider-review-send"
+          />
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
 /** « Notez votre achat » : étoiles, étiquettes et avis (maquette « Colis remis »). */
 function ReviewForm({
   orderId,
@@ -295,6 +394,7 @@ export default function OrderScreen() {
             <ReviewForm key={item.itemId} orderId={o.id} item={item} shop={o.seller.shopName} />
           ))
         : null}
+      {done ? <RiderReviewForm orderId={o.id} /> : null}
 
       <Card>
         <Timeline history={o.history} />

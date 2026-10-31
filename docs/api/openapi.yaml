@@ -1640,6 +1640,77 @@ paths:
                     items: { $ref: '#/components/schemas/Call' }
         '401': { $ref: '#/components/responses/Error' }
 
+  /v1/orders/{id}/rider-review:
+    get:
+      tags: [Commandes]
+      summary: Avis sur le livreur de ma commande (peut-on noter, déjà noté)
+      operationId: riderReviewStatus
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [canRate, rider, review]
+                properties:
+                  canRate:
+                    type: boolean
+                    description: Remise à domicile faite par un livreur, pas encore notée
+                  rider:
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [name]
+                        properties:
+                          name: { type: string }
+                  review:
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [rating, tags, comment, createdAt]
+                        properties:
+                          rating: { type: integer }
+                          tags:
+                            type: array
+                            items: { $ref: '#/components/schemas/RiderReviewTag' }
+                          comment: { type: [string, 'null'] }
+                          createdAt: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Commandes]
+      summary: Noter le livreur après la remise (une fois)
+      description: Une note de 2 ou moins prévient le support.
+      operationId: reviewRider
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                tags:
+                  type: array
+                  maxItems: 3
+                  items: { $ref: '#/components/schemas/RiderReviewTag' }
+                comment: { type: string, maxLength: 500 }
+      responses:
+        '201':
+          description: Enregistré
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recorded]
+                properties:
+                  recorded: { type: boolean }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
   /v1/orders/{id}/cancel:
     post:
       tags: [Commandes]
@@ -1723,6 +1794,7 @@ paths:
                     deliveredTotal,
                     deliveredToday,
                     inProgress,
+                    rating,
                   ]
                 properties:
                   fullName: { type: [string, 'null'] }
@@ -1735,6 +1807,7 @@ paths:
                   deliveredToday:
                     { type: integer, description: 'Depuis minuit, heure de Brazzaville' }
                   inProgress: { type: integer }
+                  rating: { $ref: '#/components/schemas/RiderRating' }
         '403': { $ref: '#/components/responses/Error' }
 
   /v1/rider/history:
@@ -3390,7 +3463,18 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, phone, name, partner, zone, activeMissions, lastPositionAt]
+                      required:
+                        [
+                          id,
+                          phone,
+                          name,
+                          partner,
+                          zone,
+                          activeMissions,
+                          lastPositionAt,
+                          ratingAverage,
+                          ratingCount,
+                        ]
                       properties:
                         id: { type: string, format: uuid }
                         phone: { type: string }
@@ -3402,6 +3486,10 @@ paths:
                           type: [string, 'null']
                           format: date-time
                           description: Dernière position partagée pendant une course en route
+                        ratingAverage:
+                          type: [number, 'null']
+                          description: Note moyenne donnée par les acheteurs (90 jours)
+                        ratingCount: { type: integer }
         '403': { $ref: '#/components/responses/Error' }
 
   /v1/support/orders:
@@ -4102,6 +4190,16 @@ components:
                 items: { $ref: '#/components/schemas/Order' }
 
   schemas:
+    RiderReviewTag:
+      type: string
+      enum: [ponctuel, poli, soigneux, en_retard, impoli, colis_abime]
+    RiderRating:
+      type: object
+      description: Note moyenne des 90 derniers jours
+      required: [average, count]
+      properties:
+        average: { type: [number, 'null'] }
+        count: { type: integer }
     Call:
       type: object
       required:

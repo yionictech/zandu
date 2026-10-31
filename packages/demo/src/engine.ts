@@ -967,6 +967,59 @@ export class DemoApi {
       return { totalUnread: items.reduce((n, i) => n + i.unread, 0), items };
     });
 
+    // Avis sur le livreur ------------------------------------------------
+    const riderReviewOf = (orderId: string, me: DUser) => {
+      const o = this.state.orders.find((x) => x.id === orderId && x.buyerId === me.id);
+      if (!o) throw new DemoError(404, 'not_found', 'Commande introuvable');
+      const review = (this.state.riderReviews ?? []).find((r) => r.orderId === o.id) ?? null;
+      const delivered = o.delivery?.status === 'delivered' && o.deliveryMode === 'home';
+      return { o, review, delivered };
+    };
+    this.on(
+      'GET',
+      '/v1/orders/{id}/rider-review',
+      ({ user, params }): Ok<'/v1/orders/{id}/rider-review', 'get'> => {
+        const { o, review, delivered } = riderReviewOf(params.id!, user());
+        const rider = o.delivery
+          ? this.state.users.find((u) => u.id === o.delivery!.riderUserId)
+          : undefined;
+        return {
+          canRate: delivered && !review,
+          rider: o.delivery
+            ? { name: shortName(rider?.fullName ?? null) ?? 'Livreur Zandu' }
+            : null,
+          review: review
+            ? {
+                rating: review.rating,
+                tags: review.tags as never,
+                comment: review.comment,
+                createdAt: review.createdAt,
+              }
+            : null,
+        };
+      },
+    );
+    this.on(
+      'POST',
+      '/v1/orders/{id}/rider-review',
+      ({ user, params, body }): Ok<'/v1/orders/{id}/rider-review', 'post', 201> => {
+        const { o, review, delivered } = riderReviewOf(params.id!, user());
+        if (!delivered)
+          throw conflict('not_delivered', 'Vous pourrez noter le livreur après la remise');
+        if (review) throw conflict('already_reviewed', 'Vous avez déjà noté ce livreur');
+        (this.state.riderReviews ??= []).push({
+          orderId: o.id,
+          riderUserId: o.delivery!.riderUserId,
+          rating: Number(body.rating),
+          tags: Array.isArray(body.tags) ? body.tags.map(String) : [],
+          comment: body.comment ? String(body.comment) : null,
+          createdAt: this.iso(),
+        });
+        return { recorded: true };
+      },
+      201,
+    );
+
     // Appels : ils passent par un serveur d'appels, absent de la démonstration.
     this.on('POST', '/v1/orders/{id}/calls', () => {
       throw new DemoError(
@@ -1987,6 +2040,12 @@ export class DemoApi {
         inProgress: deliveries.filter((d) =>
           ['assigned', 'picked_up', 'returning'].includes(d.status),
         ).length,
+        rating: ((reviews) => ({
+          average: reviews.length
+            ? Math.round((reviews.reduce((n, r) => n + r.rating, 0) / reviews.length) * 10) / 10
+            : null,
+          count: reviews.length,
+        }))((this.state.riderReviews ?? []).filter((r) => r.riderUserId === me.id)),
       };
     });
     this.on('GET', '/v1/rider/deliveries', (ctx): Ok<'/v1/rider/deliveries', 'get'> => ({

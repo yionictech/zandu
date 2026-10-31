@@ -11,6 +11,7 @@ import { backofficeRoutes } from './modules/support/backoffice.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
+import { riderReviewRoutes } from './modules/orders/rider-reviews.routes.js';
 import { callRoutes } from './modules/conversations/calls.routes.js';
 import { messageRoutes, supportMessageRoutes } from './modules/conversations/messages.routes.js';
 import { CopySender } from './modules/notifications/messaging.js';
@@ -99,6 +100,7 @@ export async function buildApp(
   await app.register(accountDeletionRoutes(ctx));
   await app.register(messageRoutes(ctx));
   await app.register(callRoutes(ctx));
+  await app.register(riderReviewRoutes(ctx));
   await app.register(supportMessageRoutes(ctx));
 
   const messaging =
