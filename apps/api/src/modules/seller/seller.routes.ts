@@ -421,7 +421,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
       const { rows } = await ctx.pool.query(
         `SELECT id, title, description, price, stock, status, category_id AS "categoryId",
                 condition, low_stock_threshold AS "lowStockThreshold",
-                rejection_reason AS "rejectionReason", updated_at AS "updatedAt"
+                rejection_reason AS "rejectionReason", updated_at AS "updatedAt",
+                compare_at_price::int AS "compareAtPrice", sale_ends_at AS "saleEndsAt"
          FROM products WHERE id = $1 AND seller_id = $2`,
         [id, shop.id],
       );
@@ -552,7 +553,10 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
              published_at = CASE WHEN $7::product_status = 'published' THEN coalesce(published_at, $8::timestamptz)
                                  ELSE published_at END,
              condition = coalesce($9::product_condition, condition),
-             low_stock_threshold = coalesce($10, low_stock_threshold)
+             low_stock_threshold = coalesce($10, low_stock_threshold),
+             -- Prix remonté au niveau de l'ancien prix : la promotion s'arrête.
+             compare_at_price = CASE WHEN $5::bigint >= compare_at_price THEN NULL ELSE compare_at_price END,
+             sale_ends_at = CASE WHEN $5::bigint >= compare_at_price THEN NULL ELSE sale_ends_at END
            WHERE id = $1
            RETURNING id, title, price, stock, status`,
           [

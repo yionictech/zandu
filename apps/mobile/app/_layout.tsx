@@ -87,6 +87,7 @@ export default function RootLayout() {
                 <Stack.Screen name="vendeur/boutique" options={{ title: t.vendor.myShop }} />
                 <Stack.Screen name="vendeur/avis" options={{ title: t.vendor.reviewsTitle }} />
                 <Stack.Screen name="vendeur/statistiques" options={{ title: t.stats.title }} />
+                <Stack.Screen name="vendeur/promotions" options={{ title: t.promo.couponsTitle }} />
                 <Stack.Screen name="vendeur/horaires" options={{ title: t.vendor.hours }} />
                 <Stack.Screen name="vendeur/retrait" options={{ title: t.vendor.withdrawTitle }} />
                 <Stack.Screen name="vendeur/commande/[id]" options={{ title: t.orders.order }} />

@@ -16,6 +16,7 @@ import { Button } from '../../src/ui/Button';
 import { Chip, ErrorText, Field } from '../../src/ui/Form';
 import { Empty, Loading, Screen } from '../../src/ui/Layout';
 import { LocationPicker, type PinnedLocation } from '../../src/ui/LocationPicker';
+import { CouponField, type AppliedCoupon } from '../../src/ui/CouponField';
 
 const ADDRESS_KEY = 'zandu.lastAddress';
 
@@ -45,6 +46,7 @@ export default function DeliveryScreen() {
     landmark: '',
   });
   const [remember, setRemember] = useState(true);
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attempt = useRef<{ key: string; body: string } | null>(null);
@@ -102,6 +104,7 @@ export default function DeliveryScreen() {
         landmark: address.landmark.trim(),
         ...(address.mode === 'home' && address.location ? { location: address.location } : {}),
       },
+      ...(coupon ? { couponCode: coupon.code } : {}),
     };
     // Même clé tant que le contenu ne change pas : un renvoi après coupure ne crée pas de doublon.
     const serialized = JSON.stringify(body);
@@ -253,6 +256,12 @@ export default function DeliveryScreen() {
           />
         ) : null}
       </Card>
+
+      <CouponField
+        value={coupon}
+        onChange={setCoupon}
+        sellerIds={[...new Set(lines.map((l) => l.sellerId))]}
+      />
 
       <Pressable
         style={styles.remember}

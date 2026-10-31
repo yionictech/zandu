@@ -27,6 +27,13 @@ const CheckoutBody = z.object({
       })
       .optional(),
   }),
+  /** Code promo d'une boutique du panier (« GRACE10 »). */
+  couponCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{3,20}$/)
+    .optional(),
 });
 
 const idempotencyKey = (request: FastifyRequest): string | undefined => {

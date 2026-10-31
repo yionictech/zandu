@@ -683,6 +683,159 @@ paths:
               schema: { $ref: '#/components/schemas/SellerStats' }
         '403': { $ref: '#/components/responses/Error' }
 
+  /v1/coupons/{code}:
+    get:
+      tags: [Achat]
+      summary: Vérifier un code promo avant de payer
+      operationId: previewCoupon
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Utilisable par moi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, sellerId, shopName, percent, minSubtotal, endsAt]
+                properties:
+                  code: { type: string }
+                  sellerId: { type: string, format: uuid }
+                  shopName: { type: string }
+                  percent: { type: integer }
+                  minSubtotal: { type: integer }
+                  endsAt: { type: [string, 'null'], format: date-time }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/coupons:
+    get:
+      tags: [Vendeur]
+      summary: Codes promo de ma boutique
+      operationId: sellerCoupons
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          code,
+                          percent,
+                          minSubtotal,
+                          maxUses,
+                          endsAt,
+                          active,
+                          createdAt,
+                          uses,
+                          discountGiven,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        code: { type: string }
+                        percent: { type: integer }
+                        minSubtotal: { type: integer }
+                        maxUses: { type: [integer, 'null'] }
+                        endsAt: { type: [string, 'null'], format: date-time }
+                        active: { type: boolean }
+                        createdAt: { type: string, format: date-time }
+                        uses: { type: integer, description: Commandes payées avec ce code }
+                        discountGiven:
+                          { type: integer, description: Total des remises accordées (FCFA) }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Vendeur]
+      summary: Créer un code promo (remise payée par la boutique)
+      operationId: createSellerCoupon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, percent]
+              properties:
+                code: { type: string, pattern: '^[A-Za-z0-9]{3,20}$' }
+                percent: { type: integer, minimum: 5, maximum: 50 }
+                minSubtotal: { type: integer, minimum: 0 }
+                maxUses: { type: integer, minimum: 1 }
+                endsAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Créé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, code]
+                properties:
+                  id: { type: string, format: uuid }
+                  code: { type: string }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/coupons/{id}/disable:
+    post:
+      tags: [Vendeur]
+      summary: Arrêter un code promo
+      operationId: disableSellerCoupon
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Arrêté }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/seller/products/{id}/sale:
+    post:
+      tags: [Vendeur]
+      summary: Mettre un produit en promotion (prix barré)
+      description: >-
+        Le nouveau prix est calculé sur l'ancien (arrondi à 50 FCFA). Sans date de fin, la
+        promotion dure jusqu'à son arrêt ; avec une date, l'ancien prix revient tout seul.
+      operationId: startProductSale
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [percent]
+              properties:
+                percent: { type: integer, minimum: 5, maximum: 70 }
+                endsAt: { type: string, format: date-time }
+      responses:
+        '200':
+          description: En promotion
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [price, compareAtPrice, saleEndsAt]
+                properties:
+                  price: { type: integer }
+                  compareAtPrice: { type: integer }
+                  saleEndsAt: { type: [string, 'null'], format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Vendeur]
+      summary: Arrêter la promotion (l'ancien prix revient)
+      operationId: stopProductSale
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '204': { description: Arrêtée }
+
   /v1/seller/dashboard:
     get:
       tags: [Vendeur]
@@ -1308,6 +1461,13 @@ paths:
                       description: >-
                         Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un
                         point relais). Hors du Congo : 422 location_out_of_area.
+                couponCode:
+                  type: string
+                  pattern: '^[A-Za-z0-9]{3,20}$'
+                  description: >-
+                    Code promo d'une boutique du panier : remise sur ses articles, payée par le
+                    vendeur. 422 coupon_invalid, coupon_exhausted, coupon_already_used,
+                    coupon_min_subtotal ou coupon_not_applicable.
       responses:
         '201':
           description: Créé
@@ -4989,11 +5149,17 @@ components:
           rejectionReason,
           updatedAt,
           photos,
+          compareAtPrice,
+          saleEndsAt,
         ]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         description: { type: string }
+        compareAtPrice:
+          type: [integer, 'null']
+          description: Ancien prix pendant une promotion (prix barré)
+        saleEndsAt: { type: [string, 'null'], format: date-time }
         price: { $ref: '#/components/schemas/Amount' }
         stock: { type: integer }
         status: { $ref: '#/components/schemas/ProductStatus' }
@@ -5234,6 +5400,8 @@ components:
           completedAt,
           cancelledAt,
           cancelReason,
+          discountTotal,
+          couponCode,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -5273,6 +5441,10 @@ components:
         completedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
         cancelReason: { type: [string, 'null'] }
+        discountTotal:
+          $ref: '#/components/schemas/Amount'
+          description: Remise du code promo de la boutique, déjà déduite de itemsSubtotal
+        couponCode: { type: [string, 'null'] }
     Order:
       description: Commande vue par l'acheteur (et le support), coordonnées de livraison comprises.
       allOf:

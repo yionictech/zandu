@@ -21,6 +21,7 @@ import { ErrorText } from '../../../src/ui/Form';
 import { Failure, Loading, Screen, Section } from '../../../src/ui/Layout';
 import { PhotoStrip, type PhotoItem } from '../../../src/ui/PhotoStrip';
 import { RequireRole } from '../../../src/ui/RequireRole';
+import { SaleCard } from '../../../src/seller/SaleCard';
 
 const MAX_PHOTOS = 6;
 
@@ -213,6 +214,22 @@ function EditProduct({ id }: { id: string }) {
       <Section>
         <ProductForm values={form} onChange={(patch) => setForm((f) => ({ ...f!, ...patch }))} />
       </Section>
+      {p.status === 'published' ? (
+        <SaleCard
+          productId={id}
+          price={p.price}
+          compareAtPrice={p.compareAtPrice}
+          saleEndsAt={p.saleEndsAt}
+          onChange={() => {
+            void (async () => {
+              await queryClient.invalidateQueries({ queryKey: ['seller'] });
+              const fresh = queryClient.getQueryData<SellerProduct>(sellerKeys.product(id));
+              if (fresh) setForm(toForm(fresh));
+              setNotice(t.promo.saved);
+            })();
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }

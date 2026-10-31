@@ -43,6 +43,12 @@ await page.getByTestId('checkout-landmark').fill("Tié-Tié, derrière l'école 
 await page.getByTestId('checkout-pin').click();
 await page.getByTestId('checkout-pin-map').waitFor();
 await shot('03-demo-livraison');
+// Code promo : la démonstration n'en connaît aucun, le refus s'affiche sous le champ.
+await page.getByTestId('checkout-coupon').scrollIntoViewIfNeeded();
+await page.getByTestId('checkout-coupon').fill('BIENVENUE10');
+await page.getByTestId('checkout-coupon-apply').click();
+await page.getByText(/code/i).last().waitFor();
+await shot('03b-demo-code-promo');
 await page.getByTestId('checkout-continue').click();
 await page.getByTestId('payment-pay').click();
 await page.getByTestId('payment-waiting').waitFor();

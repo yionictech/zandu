@@ -16,6 +16,7 @@ import {
 import { processRefunds } from '../modules/payments/refunds.service.js';
 import { processPayouts, sweepSellerBalances } from '../modules/payouts/payouts.service.js';
 import { reconcileStatements } from '../modules/reconciliation/reconciliation.service.js';
+import { endSales } from '../modules/seller/promotions.routes.js';
 
 /** Échéances de commande : vendeur silencieux (annulation + remboursement), fin de la fenêtre de litige. */
 async function orderDeadlines(ctx: AppContext): Promise<number> {
@@ -65,6 +66,7 @@ export const SWEEPERS: ReadonlyArray<[string, (ctx: AppContext) => Promise<numbe
   ['sendNotifications', sendNotifications],
   // En dernier : le traitement d'image est le plus lent, l'argent et les messages passent avant.
   ['processProductMedia', processProductMedia],
+  ['endSales', endSales],
 ];
 
 export async function runSweepers(

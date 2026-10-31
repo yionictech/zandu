@@ -242,6 +242,19 @@ export default function SellerDashboard() {
             <Text style={styles.muted}>{t.stats.linkHint}</Text>
           </Card>
         </Pressable>
+        <Pressable
+          onPress={() => router.push('/vendeur/promotions')}
+          accessibilityRole="button"
+          testID="seller-coupons-link"
+        >
+          <Card>
+            <View style={styles.row}>
+              <Text style={styles.cardTitle}>{t.promo.couponsLink}</Text>
+              <Text style={styles.link}>{t.vendor.details}</Text>
+            </View>
+            <Text style={styles.muted}>{t.promo.couponsHint}</Text>
+          </Card>
+        </Pressable>
 
         {low ? (
           <Card>

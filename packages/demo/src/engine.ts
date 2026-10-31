@@ -320,7 +320,7 @@ export class DemoApi {
       condition: p.condition,
       title: p.title,
       price: p.price,
-      compareAtPrice: null,
+      compareAtPrice: p.compareAtPrice ?? null,
       stock: p.stock,
       city: p.city,
       categoryId: p.categoryId,
@@ -340,6 +340,8 @@ export class DemoApi {
   private core(o: DOrder): S['OrderCore'] {
     const itemsSubtotal = this.subtotal(o);
     return {
+      discountTotal: 0,
+      couponCode: null,
       id: o.id,
       publicRef: o.publicRef,
       checkoutId: o.checkoutId,
@@ -535,6 +537,8 @@ export class DemoApi {
 
   private sellerProductView(p: DProduct): S['SellerProduct'] {
     return {
+      compareAtPrice: p.compareAtPrice ?? null,
+      saleEndsAt: null,
       id: p.id,
       title: p.title,
       description: p.description,
@@ -977,6 +981,10 @@ export class DemoApi {
       },
       204,
     );
+
+    this.on('GET', '/v1/coupons/{code}', () => {
+      throw new DemoError(422, 'coupon_invalid', 'Codes promo : pas disponibles en démonstration');
+    });
 
     // Avis sur le livreur ------------------------------------------------
     const riderReviewOf = (orderId: string, me: DUser) => {
@@ -1566,6 +1574,83 @@ export class DemoApi {
       201,
     );
 
+    // Promotions (prix barrés) et codes promo de la boutique.
+    this.on(
+      'POST',
+      '/v1/seller/products/{id}/sale',
+      (ctx): Ok<'/v1/seller/products/{id}/sale', 'post'> => {
+        const shop = this.shopOf(ctx.user());
+        const p = this.state.products.find((x) => x.id === ctx.params.id && x.sellerId === shop.id);
+        if (!p) throw notFound('Produit');
+        const original = p.compareAtPrice ?? p.price;
+        const raw = (original * (100 - Number(ctx.body.percent))) / 100;
+        p.compareAtPrice = original;
+        p.price = Math.max(50, Math.round(raw / 50) * 50);
+        return {
+          price: p.price,
+          compareAtPrice: original,
+          saleEndsAt: (ctx.body.endsAt as string) ?? null,
+        };
+      },
+    );
+    this.on(
+      'DELETE',
+      '/v1/seller/products/{id}/sale',
+      (ctx) => {
+        const shop = this.shopOf(ctx.user());
+        const p = this.state.products.find((x) => x.id === ctx.params.id && x.sellerId === shop.id);
+        if (p?.compareAtPrice) {
+          p.price = p.compareAtPrice;
+          p.compareAtPrice = null;
+        }
+        return undefined;
+      },
+      204,
+    );
+    this.on('GET', '/v1/seller/coupons', ({ user }): Ok<'/v1/seller/coupons', 'get'> => {
+      const shop = this.shopOf(user());
+      return {
+        items: (this.state.coupons ?? [])
+          .filter((c) => c.sellerId === shop.id)
+          .map(({ sellerId: _s, ...c }) => c),
+      };
+    });
+    this.on(
+      'POST',
+      '/v1/seller/coupons',
+      ({ user, body }): Ok<'/v1/seller/coupons', 'post', 201> => {
+        const shop = this.shopOf(user());
+        const code = String(body.code ?? '').toUpperCase();
+        if ((this.state.coupons ?? []).some((c) => c.code === code))
+          throw conflict('code_taken', 'Ce code est déjà pris : choisissez-en un autre');
+        const id = this.deps.newId();
+        (this.state.coupons ??= []).unshift({
+          id,
+          sellerId: shop.id,
+          code,
+          percent: Number(body.percent),
+          minSubtotal: Number(body.minSubtotal ?? 0),
+          maxUses: body.maxUses ? Number(body.maxUses) : null,
+          endsAt: (body.endsAt as string) ?? null,
+          active: true,
+          createdAt: this.iso(),
+          uses: 0,
+          discountGiven: 0,
+        });
+        return { id, code };
+      },
+      201,
+    );
+    this.on(
+      'POST',
+      '/v1/seller/coupons/{id}/disable',
+      (ctx) => {
+        const c = (this.state.coupons ?? []).find((x) => x.id === ctx.params.id);
+        if (c) c.active = false;
+        return undefined;
+      },
+      204,
+    );
     this.on('GET', '/v1/seller/stats', ({ user }): Ok<'/v1/seller/stats', 'get'> => {
       const shop = this.shopOf(user());
       const products = this.state.products.filter((p) => p.sellerId === shop.id);

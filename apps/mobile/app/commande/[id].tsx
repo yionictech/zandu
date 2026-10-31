@@ -417,6 +417,12 @@ export default function OrderScreen() {
             <Text style={styles.value}>{formatXaf(item.lineTotal)}</Text>
           </View>
         ))}
+        {o.discountTotal > 0 ? (
+          <View style={styles.row} testID="order-discount">
+            <Text style={styles.muted}>{t.promo.discount(o.couponCode ?? '')}</Text>
+            <Text style={styles.value}>− {formatXaf(o.discountTotal)}</Text>
+          </View>
+        ) : null}
         <View style={styles.row}>
           <Text style={styles.muted}>{t.orders.deliveryFee}</Text>
           <Text style={styles.value}>{formatXaf(o.deliveryFee)}</Text>

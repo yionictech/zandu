@@ -11,6 +11,7 @@ import { backofficeRoutes } from './modules/support/backoffice.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
+import { promotionRoutes } from './modules/seller/promotions.routes.js';
 import { productViewRoutes, sellerStatsRoutes } from './modules/seller/stats.routes.js';
 import { riderReviewRoutes } from './modules/orders/rider-reviews.routes.js';
 import { callRoutes } from './modules/conversations/calls.routes.js';
@@ -104,6 +105,7 @@ export async function buildApp(
   await app.register(riderReviewRoutes(ctx));
   await app.register(productViewRoutes(ctx));
   await app.register(sellerStatsRoutes(ctx));
+  await app.register(promotionRoutes(ctx));
   await app.register(supportMessageRoutes(ctx));
 
   const messaging =

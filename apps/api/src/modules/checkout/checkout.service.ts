@@ -2,6 +2,7 @@ import {
   isInCongo,
   lineCommission,
   parseCongoMobile,
+  prorate,
   resolveCommissionRate,
   sum,
   type CommissionRule,
@@ -16,6 +17,7 @@ import { orderViews } from '../orders/orders.service.js';
 
 export interface CheckoutInput {
   items: Array<{ productId: string; quantity: number }>;
+  couponCode?: string | undefined;
   delivery: {
     mode: 'home' | 'pickup_point';
     zoneId: string;
@@ -135,6 +137,14 @@ export async function createCheckout(
         );
     }
 
+    const coupon = input.couponCode ? await usableCoupon(tx, input.couponCode, buyerId, now) : null;
+    if (coupon && !products.some((p) => p.seller_id === coupon.seller_id))
+      throw new HttpError(
+        422,
+        'coupon_not_applicable',
+        'Ce code promo ne concerne aucune boutique de votre panier',
+      );
+
     const rules = await loadCommissionRules(tx);
     const categoryPaths = await loadCategoryPaths(tx);
 
@@ -157,9 +167,29 @@ export async function createCheckout(
           { sellerId },
         );
       }
-      const lines = sellerProducts.map((p) => {
+      const gross = sellerProducts.map((p) => p.price * quantities.get(p.id)!);
+      const grossSubtotal = sum(gross);
+      // Code promo de cette boutique : remise répartie sur les lignes au prorata (le reste sur la
+      // dernière), payée par le vendeur. La commission porte sur le montant après remise.
+      const applies = coupon?.seller_id === sellerId;
+      if (applies && grossSubtotal < coupon!.min_subtotal)
+        throw new HttpError(
+          422,
+          'coupon_min_subtotal',
+          `Ce code promo demande au moins ${coupon!.min_subtotal} FCFA d'achats dans cette boutique`,
+          { minSubtotal: coupon!.min_subtotal },
+        );
+      const discountTotal = applies ? Math.floor((grossSubtotal * coupon!.percent) / 100) : 0;
+      let left = discountTotal;
+      const lines = sellerProducts.map((p, index) => {
         const quantity = quantities.get(p.id)!;
-        const lineTotal = p.price * quantity;
+        const lineGross = gross[index]!;
+        const discount =
+          index === sellerProducts.length - 1
+            ? left
+            : prorate(discountTotal, lineGross, grossSubtotal);
+        left -= discount;
+        const lineTotal = lineGross - discount;
         const rateBps = resolveCommissionRate(
           rules,
           { sellerId, categoryPath: categoryPaths.get(p.category_id) ?? [] },
@@ -168,6 +198,7 @@ export async function createCheckout(
         return {
           product: p,
           quantity,
+          discount,
           lineTotal,
           rateBps,
           commission: lineCommission(lineTotal, rateBps),
@@ -175,6 +206,8 @@ export async function createCheckout(
       });
       drafts.push({
         sellerId,
+        couponId: applies ? coupon!.id : null,
+        discountTotal,
         lines,
         itemsSubtotal: sum(lines.map((l) => l.lineTotal)),
         commissionTotal: sum(lines.map((l) => l.commission)),
@@ -208,8 +241,9 @@ export async function createCheckout(
     for (const d of drafts) {
       const { rows: orderRows } = await tx.query<{ id: string }>(
         `INSERT INTO orders (public_ref, checkout_id, buyer_id, seller_id, items_subtotal, delivery_fee, courier_share,
-                             commission_total, total, delivery_mode, delivery_zone_id, pickup_point_id, shipping_address, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+                             commission_total, total, delivery_mode, delivery_zone_id, pickup_point_id, shipping_address, created_at,
+                             coupon_id, discount_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
         [
           publicOrderRef(),
           checkoutId,
@@ -225,14 +259,16 @@ export async function createCheckout(
           input.delivery.pickupPointId ?? null,
           address,
           now,
+          d.couponId,
+          d.discountTotal,
         ],
       );
       const orderId = orderRows[0]!.id;
       for (const l of d.lines) {
         await tx.query(
           `INSERT INTO order_items (order_id, product_id, title_snapshot, unit_price, quantity, line_total,
-                                    commission_rate_bps, commission_amount)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                                    commission_rate_bps, commission_amount, discount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             orderId,
             l.product.id,
@@ -242,6 +278,7 @@ export async function createCheckout(
             l.lineTotal,
             l.rateBps,
             l.commission,
+            l.discount,
           ],
         );
         await tx.query('UPDATE products SET stock = stock - $2 WHERE id = $1', [
@@ -320,4 +357,46 @@ export async function checkoutView(db: Db, checkoutId: string, buyerId: string) 
     paidAt: c.paid_at,
     orders: await orderViews(db, 'o.checkout_id = $1', [checkoutId]),
   };
+}
+
+export interface CouponRow {
+  id: string;
+  seller_id: string;
+  code: string;
+  percent: number;
+  min_subtotal: number;
+  shop_name: string;
+  ends_at: Date | null;
+}
+
+/**
+ * Code promo utilisable : actif, pas expiré, boutique ouverte, pas épuisé, et pas déjà utilisé
+ * par cet acheteur (une commande payée ou en attente de paiement compte comme une utilisation).
+ */
+export async function usableCoupon(
+  db: Db,
+  code: string,
+  buyerId: string | null,
+  now: Date,
+): Promise<CouponRow> {
+  const { rows } = await db.query<
+    CouponRow & { max_uses: number | null; uses: number; mine: number }
+  >(
+    `SELECT c.id, c.seller_id, c.code, c.percent, c.min_subtotal::int AS min_subtotal, c.ends_at,
+            c.max_uses, s.shop_name,
+            (SELECT count(*)::int FROM orders o WHERE o.coupon_id = c.id
+               AND (o.paid_at IS NOT NULL OR o.status = 'pending_payment')) AS uses,
+            (SELECT count(*)::int FROM orders o WHERE o.coupon_id = c.id AND o.buyer_id = $2
+               AND (o.paid_at IS NOT NULL OR o.status = 'pending_payment')) AS mine
+     FROM shop_coupons c JOIN seller_profiles s ON s.id = c.seller_id
+     WHERE c.code = $1 AND c.active AND s.is_open AND (c.ends_at IS NULL OR c.ends_at > $3)`,
+    [code.toUpperCase(), buyerId, now],
+  );
+  const coupon = rows[0];
+  if (!coupon) throw new HttpError(422, 'coupon_invalid', 'Code promo inconnu ou expiré');
+  if (coupon.max_uses !== null && coupon.uses >= coupon.max_uses)
+    throw new HttpError(422, 'coupon_exhausted', 'Ce code promo a déjà été entièrement utilisé');
+  if (coupon.mine > 0)
+    throw new HttpError(422, 'coupon_already_used', 'Vous avez déjà utilisé ce code promo');
+  return coupon;
 }

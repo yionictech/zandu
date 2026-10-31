@@ -91,6 +91,11 @@ function Items({ order }: { order: SellerOrder }) {
           </View>
         </View>
       ))}
+      {order.discountTotal > 0 ? (
+        <Text style={styles.small}>
+          {t.promo.discount(order.couponCode ?? '')} : − {formatXaf(order.discountTotal)}
+        </Text>
+      ) : null}
     </>
   );
 }

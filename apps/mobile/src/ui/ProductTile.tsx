@@ -18,7 +18,17 @@ export function ProductTile({ product }: { product: ProductCard }) {
           <Text style={styles.title} numberOfLines={2}>
             {product.title}
           </Text>
-          <Text style={styles.price}>{formatXaf(product.price)}</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>{formatXaf(product.price)}</Text>
+            {product.compareAtPrice && product.compareAtPrice > product.price ? (
+              <Text style={styles.sale} testID="product-sale">
+                −{Math.round((1 - product.price / product.compareAtPrice) * 100)} %
+              </Text>
+            ) : null}
+          </View>
+          {product.compareAtPrice && product.compareAtPrice > product.price ? (
+            <Text style={styles.was}>{formatXaf(product.compareAtPrice)}</Text>
+          ) : null}
           <View style={styles.sellerRow}>
             {product.seller.verified ? (
               <>
@@ -51,6 +61,17 @@ const styles = StyleSheet.create({
   body: { paddingTop: space.sm, gap: 4 },
   title: { fontSize: font.small, color: colors.text, minHeight: 34, lineHeight: 17 },
   price: { fontSize: font.body, fontWeight: '800', color: colors.text },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sale: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.onBrand,
+    backgroundColor: colors.brand,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    overflow: 'hidden',
+  },
+  was: { fontSize: 12, color: colors.faint, textDecorationLine: 'line-through' },
   sellerRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   verified: { fontSize: 12, color: colors.trust, fontWeight: '600', flexShrink: 0 },
   seller: { fontSize: 12, color: colors.muted, flexShrink: 1 },

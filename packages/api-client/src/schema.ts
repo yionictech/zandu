@@ -387,6 +387,79 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/coupons/{code}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Vérifier un code promo avant de payer */
+    get: operations['previewCoupon'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/coupons': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Codes promo de ma boutique */
+    get: operations['sellerCoupons'];
+    put?: never;
+    /** Créer un code promo (remise payée par la boutique) */
+    post: operations['createSellerCoupon'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/coupons/{id}/disable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Arrêter un code promo */
+    post: operations['disableSellerCoupon'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/seller/products/{id}/sale': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mettre un produit en promotion (prix barré)
+     * @description Le nouveau prix est calculé sur l'ancien (arrondi à 50 FCFA). Sans date de fin, la promotion dure jusqu'à son arrêt ; avec une date, l'ancien prix revient tout seul.
+     */
+    post: operations['startProductSale'];
+    /** Arrêter la promotion (l'ancien prix revient) */
+    delete: operations['stopProductSale'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/seller/dashboard': {
     parameters: {
       query?: never;
@@ -2918,6 +2991,10 @@ export interface components {
       id: string;
       title: string;
       description: string;
+      /** @description Ancien prix pendant une promotion (prix barré) */
+      compareAtPrice: number | null;
+      /** Format: date-time */
+      saleEndsAt: string | null;
       price: components['schemas']['Amount'];
       stock: number;
       status: components['schemas']['ProductStatus'];
@@ -3115,6 +3192,9 @@ export interface components {
       /** Format: date-time */
       cancelledAt: string | null;
       cancelReason: string | null;
+      /** @description Remise du code promo de la boutique, déjà déduite de itemsSubtotal */
+      discountTotal: components['schemas']['Amount'];
+      couponCode: string | null;
     };
     /** @description Commande vue par l'acheteur (et le support), coordonnées de livraison comprises. */
     Order: components['schemas']['OrderCore'] & {
@@ -3970,6 +4050,192 @@ export interface operations {
       403: components['responses']['Error'];
     };
   };
+  previewCoupon: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        code: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Utilisable par moi */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            /** Format: uuid */
+            sellerId: string;
+            shopName: string;
+            percent: number;
+            minSubtotal: number;
+            /** Format: date-time */
+            endsAt: string | null;
+          };
+        };
+      };
+      422: components['responses']['Error'];
+    };
+  };
+  sellerCoupons: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              id: string;
+              code: string;
+              percent: number;
+              minSubtotal: number;
+              maxUses: number | null;
+              /** Format: date-time */
+              endsAt: string | null;
+              active: boolean;
+              /** Format: date-time */
+              createdAt: string;
+              /** @description Commandes payées avec ce code */
+              uses: number;
+              /** @description Total des remises accordées (FCFA) */
+              discountGiven: number;
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  createSellerCoupon: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          code: string;
+          percent: number;
+          minSubtotal?: number;
+          maxUses?: number;
+          /** Format: date-time */
+          endsAt?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Créé */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            id: string;
+            code: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  disableSellerCoupon: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Arrêté */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components['responses']['Error'];
+    };
+  };
+  startProductSale: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          percent: number;
+          /** Format: date-time */
+          endsAt?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description En promotion */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            price: number;
+            compareAtPrice: number;
+            /** Format: date-time */
+            saleEndsAt: string | null;
+          };
+        };
+      };
+      404: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  stopProductSale: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Arrêtée */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   sellerDashboard: {
     parameters: {
       query?: never;
@@ -4625,6 +4891,8 @@ export interface operations {
             /** @description Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un point relais). Hors du Congo : 422 location_out_of_area. */
             location?: components['schemas']['GeoPoint'];
           };
+          /** @description Code promo d'une boutique du panier : remise sur ses articles, payée par le vendeur. 422 coupon_invalid, coupon_exhausted, coupon_already_used, coupon_min_subtotal ou coupon_not_applicable. */
+          couponCode?: string;
         };
       };
     };

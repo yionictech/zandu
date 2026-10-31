@@ -278,6 +278,8 @@ export interface OrderView {
   completedAt: Date | null;
   cancelledAt: Date | null;
   cancelReason: string | null;
+  discountTotal: number;
+  couponCode: string | null;
 }
 
 type OrderViewRow = OrderRow & {
@@ -286,11 +288,14 @@ type OrderViewRow = OrderRow & {
   zone_name: string;
   zone_city: string;
   pickup_point: { name: string; landmark: string } | null;
+  discount_total: number;
+  coupon_code: string | null;
 };
 
 async function queryOrders(db: Db, where: string, params: unknown[]): Promise<OrderViewRow[]> {
   const { rows } = await db.query<OrderViewRow>(
     `SELECT o.*, s.shop_name, z.name AS zone_name, z.city AS zone_city,
+            (SELECT c.code FROM shop_coupons c WHERE c.id = o.coupon_id) AS coupon_code,
             (SELECT json_build_object('name', pp.name, 'landmark', pp.landmark)
              FROM pickup_points pp WHERE pp.id = o.pickup_point_id) AS pickup_point,
             (SELECT json_agg(json_build_object(
@@ -332,6 +337,8 @@ function toOrderView(r: OrderViewRow): OrderView {
     completedAt: r.completed_at,
     cancelledAt: r.cancelled_at,
     cancelReason: r.cancel_reason,
+    discountTotal: Number(r.discount_total),
+    couponCode: r.coupon_code,
   };
 }
 

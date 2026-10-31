@@ -48,6 +48,8 @@ export interface DProduct {
   description: string;
   price: number;
   stock: number;
+  /** Prix barré pendant une promotion (absent des démos enregistrées avant). */
+  compareAtPrice?: number | null;
   condition: S['ProductCondition'];
   lowStockThreshold: number;
   status: S['ProductStatus'];
@@ -217,6 +219,19 @@ export interface DemoState {
     createdAt: string;
   }>;
   chatReads?: Record<string, string>;
+  coupons?: Array<{
+    id: string;
+    sellerId: string;
+    code: string;
+    percent: number;
+    minSubtotal: number;
+    maxUses: number | null;
+    endsAt: string | null;
+    active: boolean;
+    createdAt: string;
+    uses: number;
+    discountGiven: number;
+  }>;
   /** Vues des fiches produits (statistiques vendeur), par produit. */
   productViews?: Record<string, number>;
   /** Avis sur les livreurs (absents des démos enregistrées avant eux). */
