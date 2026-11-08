@@ -45,6 +45,8 @@ export type OrderEvent =
   | { type: 'seller_rejected'; reason: string }
   | { type: 'seller_acceptance_timeout' }
   | { type: 'seller_marked_ready' }
+  | { type: 'parcel_confirmed' }
+  | { type: 'sender_cancelled' }
   | { type: 'support_cancelled'; reason: string }
   | { type: 'rider_picked_up' }
   | { type: 'arrived_at_pickup_point' }
@@ -136,6 +138,10 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderEventType, TransitionDef>> 
   seller_rejected: { from: ['paid', 'preparing'], to: ['cancelled'], actors: ['seller'] },
   seller_acceptance_timeout: { from: ['paid'], to: ['cancelled'], actors: ['system'] },
   seller_marked_ready: { from: ['preparing'], to: ['ready_for_pickup'], actors: ['seller'] },
+  // Envoi de colis entre particuliers : pas de vendeur, le colis est prêt dès le paiement, et
+  // l'expéditeur peut annuler (remboursé) tant que le livreur ne l'a pas enlevé.
+  parcel_confirmed: { from: ['paid'], to: ['ready_for_pickup'], actors: ['system'] },
+  sender_cancelled: { from: ['ready_for_pickup'], to: ['cancelled'], actors: ['buyer'] },
   support_cancelled: {
     from: ['paid', 'preparing', 'ready_for_pickup'],
     to: ['cancelled'],
@@ -239,6 +245,14 @@ export function transitionOrder(
 
     case 'buyer_cancelled':
       cancel('buyer_cancelled');
+      break;
+
+    case 'parcel_confirmed':
+      patch.sellerAcceptDeadline = null;
+      break;
+
+    case 'sender_cancelled':
+      cancel('sender_cancelled');
       break;
 
     case 'seller_accepted':

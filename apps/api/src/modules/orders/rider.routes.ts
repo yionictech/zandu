@@ -53,7 +53,13 @@ async function riderMissions(
   >(
     `SELECT d.order_id AS "orderId", d.status, o.status AS "orderStatus", o.public_ref AS "publicRef",
             o.delivery_mode AS "deliveryMode", o.shipping_address AS "recipient",
-            json_build_object('shopName', s.shop_name, 'phone', su.phone, 'city', s.city, 'zone', pz.name) AS "pickup",
+            o.kind::text AS "kind", o.parcel AS "parcel",
+            CASE WHEN o.kind = 'parcel'
+                 THEN json_build_object('shopName', o.pickup_address->>'name', 'phone', o.pickup_address->>'phone',
+                                        'city', pz.city, 'zone', pz.name, 'landmark', o.pickup_address->>'landmark',
+                                        'location', o.pickup_address->'location')
+                 ELSE json_build_object('shopName', s.shop_name, 'phone', su.phone, 'city', s.city, 'zone', pz.name)
+            END AS "pickup",
             json_build_object('city', dz.city, 'zone', dz.name,
                               'pickupPoint', CASE WHEN pp.id IS NULL THEN NULL
                                                   ELSE json_build_object('name', pp.name, 'landmark', pp.landmark) END,
@@ -72,7 +78,7 @@ async function riderMissions(
                FROM delivery_events e WHERE e.delivery_id = d.id AND e.kind IN ('call', 'sms')) AS "contacts"
      FROM deliveries d JOIN orders o ON o.id = d.order_id
      JOIN seller_profiles s ON s.id = o.seller_id JOIN users su ON su.id = s.user_id
-     JOIN delivery_zones pz ON pz.id = s.pickup_zone_id JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
+     JOIN delivery_zones pz ON pz.id = coalesce(o.pickup_zone_id, s.pickup_zone_id) JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
      LEFT JOIN pickup_points pp ON pp.id = o.pickup_point_id
      WHERE ${where}
      ORDER BY d.assigned_at`,
@@ -219,7 +225,7 @@ export function riderRoutes(ctx: AppContext): FastifyPluginAsync {
                   d.failure_reason AS reason
            FROM deliveries d JOIN orders o ON o.id = d.order_id
            JOIN seller_profiles s ON s.id = o.seller_id
-           JOIN delivery_zones pz ON pz.id = s.pickup_zone_id JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
+           JOIN delivery_zones pz ON pz.id = coalesce(o.pickup_zone_id, s.pickup_zone_id) JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
            WHERE d.rider_id = $1 AND d.status IN ('delivered', 'failed')
              AND coalesce(d.delivered_at, d.returned_at, d.updated_at)
                  >= (date_trunc('day', $2::timestamptz AT TIME ZONE 'Africa/Brazzaville')

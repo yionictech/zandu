@@ -45,6 +45,10 @@ export interface OrderRow {
   cancel_reason: string | null;
   version: number;
   created_at: Date;
+  kind: 'shop' | 'parcel';
+  pickup_zone_id: string | null;
+  pickup_address: Record<string, unknown> | null;
+  parcel: { size: string; description: string } | null;
 }
 
 export async function lockOrder(tx: Tx, orderId: string): Promise<OrderRow> {
@@ -280,6 +284,11 @@ export interface OrderView {
   cancelReason: string | null;
   discountTotal: number;
   couponCode: string | null;
+  /** « shop » : achat dans une boutique ; « parcel » : envoi de colis entre particuliers. */
+  kind: 'shop' | 'parcel';
+  /** Envoi de colis : où le livreur enlève le colis, et ce qu'il contient. */
+  pickupAddress: Record<string, unknown> | null;
+  parcel: { size: string; description: string } | null;
 }
 
 type OrderViewRow = OrderRow & {
@@ -290,12 +299,14 @@ type OrderViewRow = OrderRow & {
   pickup_point: { name: string; landmark: string } | null;
   discount_total: number;
   coupon_code: string | null;
+  pickup_zone_name: string | null;
 };
 
 async function queryOrders(db: Db, where: string, params: unknown[]): Promise<OrderViewRow[]> {
   const { rows } = await db.query<OrderViewRow>(
     `SELECT o.*, s.shop_name, z.name AS zone_name, z.city AS zone_city,
             (SELECT c.code FROM shop_coupons c WHERE c.id = o.coupon_id) AS coupon_code,
+            (SELECT pz.name FROM delivery_zones pz WHERE pz.id = o.pickup_zone_id) AS pickup_zone_name,
             (SELECT json_build_object('name', pp.name, 'landmark', pp.landmark)
              FROM pickup_points pp WHERE pp.id = o.pickup_point_id) AS pickup_point,
             (SELECT json_agg(json_build_object(
@@ -339,6 +350,9 @@ function toOrderView(r: OrderViewRow): OrderView {
     cancelReason: r.cancel_reason,
     discountTotal: Number(r.discount_total),
     couponCode: r.coupon_code,
+    kind: r.kind,
+    pickupAddress: r.pickup_address ? { ...r.pickup_address, zone: r.pickup_zone_name } : null,
+    parcel: r.parcel,
   };
 }
 

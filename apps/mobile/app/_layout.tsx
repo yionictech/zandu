@@ -80,6 +80,7 @@ export default function RootLayout() {
                 <Stack.Screen name="commande/livraison" options={{ title: t.checkout.title }} />
                 <Stack.Screen name="paiement/[checkoutId]" options={{ title: t.payment.title }} />
                 <Stack.Screen name="commande/[id]" options={{ title: t.orders.order }} />
+                <Stack.Screen name="envoi/nouveau" options={{ title: t.parcel.title }} />
                 <Stack.Screen name="litige/[orderId]" options={{ title: t.dispute.title }} />
                 <Stack.Screen name="vendeur/ouvrir" options={{ title: t.seller.openTitle }} />
                 <Stack.Screen name="vendeur/(onglets)" options={{ headerShown: false }} />

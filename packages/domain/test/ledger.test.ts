@@ -91,6 +91,36 @@ describe('grand livre — parcours complet d’une vente', () => {
     expect(book.trialBalance()).toBe(0);
   });
 
+  it('un envoi de colis ne crédite que le livreur et la marge livraison', () => {
+    const book = new Book();
+    book.post(
+      capturePayment({
+        paymentId: 'pp',
+        provider: PROVIDER,
+        orders: [{ orderId: 'e1', total: 2_500 }],
+      }),
+    );
+    const release = releaseEscrow({
+      orderId: 'e1',
+      sellerId: 'zandu',
+      courierPartnerId: 'c1',
+      itemsSubtotal: 0,
+      deliveryFee: 2_500,
+      courierShare: 2_000,
+      commissionTotal: 0,
+      refundedAmount: 0,
+    });
+    book.post(release.journal);
+    expect(release.sellerNet).toBe(0);
+    expect(release.journal.lines.some((l) => l.account === sellerPayableAccount('zandu'))).toBe(
+      false,
+    );
+    expect(book.escrowOf('e1')).toBe(0);
+    expect(book.balance(courierPayableAccount('c1'))).toBe(2_000);
+    expect(book.balance(PlatformAccounts.deliveryRevenue)).toBe(500);
+    expect(book.trialBalance()).toBe(0);
+  });
+
   it('un paiement pour deux vendeurs est ventilé en séquestre commande par commande', () => {
     const book = new Book();
     book.post(

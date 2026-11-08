@@ -178,8 +178,10 @@ export interface EscrowRelease {
  */
 export function releaseEscrow(input: EscrowReleaseInput): EscrowRelease {
   const { itemsSubtotal, deliveryFee, courierShare, commissionTotal, refundedAmount } = input;
-  assertPositiveAmount(itemsSubtotal, 'sous-total articles');
+  // Un envoi de colis n'a pas d'articles : seulement des frais de livraison.
+  assertAmount(itemsSubtotal, 'sous-total articles');
   assertAmount(deliveryFee, 'frais de livraison');
+  assertPositiveAmount(itemsSubtotal + deliveryFee, 'total commande');
   assertAmount(courierShare, 'part livreur');
   assertAmount(commissionTotal, 'commission');
   assertAmount(refundedAmount, 'montant remboursé');

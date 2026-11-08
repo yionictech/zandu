@@ -67,7 +67,11 @@ const share = (orderId: string, position = HERE) =>
 describe('Livreur en route (docs/ux/03 §4.2)', () => {
   it('position partagée seulement en route, visible du seul acheteur, effacée à la remise', async () => {
     const orderId = await assignedOrder();
-    expect((await tracking(orderId)).body).toEqual(NOT_ON_THE_WAY);
+    expect((await tracking(orderId)).body).toEqual({
+      ...NOT_ON_THE_WAY,
+      deliveryStatus: 'assigned',
+      pickupConfirmed: false,
+    });
     // Pas de position avant d'avoir le colis.
     expect((await share(orderId)).status).toBe(409);
 
@@ -99,7 +103,11 @@ describe('Livreur en route (docs/ux/03 §4.2)', () => {
       payload: { code },
     });
     expect((await env.pool.query('SELECT 1 FROM rider_positions')).rowCount).toBe(0);
-    expect((await tracking(orderId)).body).toEqual(NOT_ON_THE_WAY);
+    expect((await tracking(orderId)).body).toEqual({
+      ...NOT_ON_THE_WAY,
+      deliveryStatus: 'delivered',
+      pickupConfirmed: true,
+    });
   });
 
   it('coordonnées invalides refusées', async () => {

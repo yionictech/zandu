@@ -26,6 +26,7 @@ import { IconButton } from '../../src/ui/kit';
 import { Empty, Failure, Loading } from '../../src/ui/Layout';
 import { ProductTile } from '../../src/ui/ProductTile';
 import { Text } from '../../src/ui/Text';
+import { ServicesRow } from '../../src/ui/Services';
 import { TrustBanner } from '../../src/ui/Trust';
 import { useInbox } from '../../src/inbox';
 
@@ -143,6 +144,7 @@ export default function HomeScreen() {
             <Search color={colors.muted} size={20} strokeWidth={1.8} />
             <Text style={styles.searchText}>{t.home.searchPlaceholder}</Text>
           </Pressable>
+          <ServicesRow />
           <TrustBanner />
           <ScrollView
             horizontal

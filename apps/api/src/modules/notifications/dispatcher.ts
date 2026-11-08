@@ -46,13 +46,18 @@ interface OrderInfo {
   buyer_phone: string;
   seller_user_id: string;
   seller_phone: string;
+  kind: 'shop' | 'parcel';
+  recipient_phone: string;
+  sender_name: string | null;
 }
 
 async function orderInfo(db: Db, orderId: string): Promise<OrderInfo> {
   const { rows } = await db.query<OrderInfo>(
     `SELECT o.public_ref, o.total, o.items_subtotal, o.commission_total, o.refunded_amount,
             o.seller_accept_deadline, o.dispute_window_ends_at,
-            b.id AS buyer_id, b.phone AS buyer_phone, su.id AS seller_user_id, su.phone AS seller_phone
+            b.id AS buyer_id, b.phone AS buyer_phone, su.id AS seller_user_id, su.phone AS seller_phone,
+            o.kind::text AS kind, o.shipping_address->>'phone' AS recipient_phone,
+            o.pickup_address->>'name' AS sender_name
      FROM orders o
      JOIN users b ON b.id = o.buyer_id
      JOIN seller_profiles s ON s.id = o.seller_id
@@ -104,9 +109,63 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
         ]
       : [];
 
+  /**
+   * Envoi de colis : l'expéditeur suit son envoi ; le destinataire, souvent sans compte, reçoit
+   * le code de remise et l'arrivée du livreur par SMS. La boutique « Zandu Envois » ne reçoit
+   * rien. Messagerie et appels restent ceux de la commande (expéditeur, livreur).
+   */
+  const parcelMessages = async (o: OrderInfo): Promise<Message[]> => {
+    const ref = o.public_ref;
+    const sender = o.sender_name ?? 'un client Zandu';
+    const toRecipient = (template: string, variables: Record<string, string>): Message => ({
+      userId: null,
+      recipient: o.recipient_phone,
+      channel: 'sms',
+      template,
+      variables,
+    });
+    switch (event.topic) {
+      case 'order.paid':
+        return [toBuyer(o, 'parcel_paid', { ref, amount: formatXaf(o.total) })];
+      case 'order.handover_code':
+        return [
+          toRecipient('parcel_recipient_code', { ref, code: String(event.payload.code), sender }),
+        ];
+      case 'order.in_delivery':
+        return [
+          toBuyer(o, 'parcel_picked_up', { ref }),
+          toRecipient('parcel_recipient_on_way', { ref, sender }),
+        ];
+      case 'order.rider_arrived':
+        return [toRecipient('parcel_recipient_arrived', { ref })];
+      case 'order.delivered':
+        return [
+          toBuyer(o, 'parcel_delivered', { ref, deadline: formatDate(o.dispute_window_ends_at) }),
+        ];
+      case 'order.delivery_returning':
+        return [
+          toBuyer(o, 'parcel_returning', { ref }),
+          ...support(
+            `Envoi ${ref} non remis (${String(event.payload.reason)}) : retour à l'expéditeur`,
+          ),
+        ];
+      case 'order.cancelled': {
+        const refund = o.refunded_amount > 0 ? formatXaf(o.refunded_amount) : '';
+        return [toBuyer(o, 'order_cancelled', { ref, refund })];
+      }
+      case 'order.disputed':
+        return support(`Litige ouvert sur l'envoi ${ref}`);
+      default:
+        return [];
+    }
+  };
+
   const p = event.payload;
   if (event.topic.startsWith('order.')) {
     const o = await orderInfo(db, event.aggregate_id);
+    // Messages et appels : mêmes règles que les commandes (la boutique plateforme n'y est pas).
+    if (o.kind === 'parcel' && event.topic !== 'order.message' && event.topic !== 'order.call')
+      return parcelMessages(o);
     const ref = o.public_ref;
     switch (event.topic) {
       case 'order.message': {

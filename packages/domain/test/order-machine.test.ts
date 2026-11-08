@@ -216,8 +216,42 @@ describe('transitionOrder — garde-fous', () => {
 
   it('expose la liste des transitions autorisées (miroir de la table SQL)', () => {
     const pairs = allowedStatusTransitions().map(([a, b]) => `${a}>${b}`);
-    expect(pairs).toHaveLength(17);
+    expect(pairs).toHaveLength(18);
+    expect(pairs).toContain('paid>ready_for_pickup');
     expect(pairs).toContain('disputed>refunded');
     expect(pairs).not.toContain('completed>disputed');
+  });
+});
+
+describe('transitionOrder — envoi de colis', () => {
+  const parcel = (status: OrderStatus) =>
+    order(status, { itemsSubtotal: 0, deliveryFee: 2_500, total: 2_500 });
+
+  it('passe de payé à prêt à enlever sans vendeur', () => {
+    const r = run(parcel('paid'), { type: 'parcel_confirmed' }, 'system');
+    expect(r.to).toBe('ready_for_pickup');
+    expect(r.patch.sellerAcceptDeadline).toBeNull();
+    expect(() => run(parcel('paid'), { type: 'parcel_confirmed' }, 'buyer')).toThrow();
+  });
+
+  it("rembourse l'expéditeur qui annule avant l'enlèvement, plus après", () => {
+    const r = run(parcel('ready_for_pickup'), { type: 'sender_cancelled' }, 'buyer');
+    expect(r.to).toBe('cancelled');
+    expect(r.effects).toContainEqual({
+      type: 'refund_buyer',
+      amount: 2_500,
+      reason: 'sender_cancelled',
+    });
+    expect(() => run(parcel('in_delivery'), { type: 'sender_cancelled' }, 'buyer')).toThrow();
+  });
+
+  it("n'accepte pas de remboursement partiel sur un envoi (pas d'articles)", () => {
+    expect(() =>
+      run(
+        parcel('disputed'),
+        { type: 'dispute_resolved', resolution: { kind: 'refund_partial', amount: 500 } },
+        'support',
+      ),
+    ).toThrow();
   });
 });

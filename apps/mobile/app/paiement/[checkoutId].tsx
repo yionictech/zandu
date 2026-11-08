@@ -305,10 +305,30 @@ export default function PaymentScreen() {
             </View>
           </View>
         ) : null}
-        <View style={styles.row}>
-          <Text style={styles.label}>{t.payment.items}</Text>
-          <Text style={styles.value}>{formatXaf(c.itemsTotal)}</Text>
-        </View>
+        {firstOrder?.kind === 'parcel' && firstOrder.parcel ? (
+          <View style={styles.product} testID="payment-parcel">
+            <View style={styles.productIcon}>
+              <PackageIcon color={colors.brand} size={22} strokeWidth={1.8} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.productTitle} numberOfLines={1}>
+                {t.parcel.kind} · {t.parcel.sizes[firstOrder.parcel.size].label}
+              </Text>
+              <Text style={styles.muted} numberOfLines={1}>
+                {t.parcel.route(
+                  String(firstOrder.pickupAddress?.zone ?? ''),
+                  String(firstOrder.shippingAddress.recipientName),
+                )}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        {c.itemsTotal > 0 ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>{t.payment.items}</Text>
+            <Text style={styles.value}>{formatXaf(c.itemsTotal)}</Text>
+          </View>
+        ) : null}
         <View style={styles.row}>
           <Text style={styles.label}>{t.payment.delivery}</Text>
           <Text style={styles.value}>{formatXaf(c.deliveryTotal)}</Text>

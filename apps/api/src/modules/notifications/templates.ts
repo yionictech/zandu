@@ -47,6 +47,19 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : ${v.caller} vous appelle (commande ${v.ref}). Touchez pour répondre.`,
   order_message: (v) => `Zandu : ${v.author} (commande ${v.ref}) : ${v.preview}`,
   support_alert: (v) => `[Zandu support] ${v.message}`,
+  parcel_paid: (v) =>
+    `Zandu : envoi ${v.ref} payé (${v.amount}). Un livreur va venir chercher le colis ; votre argent reste bloqué jusqu'à la remise.`,
+  parcel_recipient_code: (v) =>
+    `Zandu : ${v.sender} vous envoie un colis (${v.ref}). Code de remise : ${v.code}. Donnez-le au livreur uniquement quand vous avez le colis en main.`,
+  parcel_picked_up: (v) => `Zandu : le livreur a votre colis ${v.ref}, il est en route.`,
+  parcel_recipient_on_way: (v) =>
+    `Zandu : le colis de ${v.sender} (${v.ref}) est en route vers vous. Gardez votre code de remise.`,
+  parcel_recipient_arrived: (v) =>
+    `Zandu : le livreur est arrivé avec votre colis ${v.ref}. Préparez votre code de remise.`,
+  parcel_delivered: (v) =>
+    `Zandu : colis ${v.ref} remis au destinataire. Un problème ? Signalez-le dans l'application avant ${v.deadline}.`,
+  parcel_returning: (v) =>
+    `Zandu : le destinataire n'a pas pu recevoir le colis ${v.ref}. Le livreur vous le rapporte.`,
   staff_access: (v) =>
     `Zandu back-office : ${v.message} Si vous n'êtes pas au courant, prévenez immédiatement un administrateur.`,
 };
@@ -76,6 +89,10 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   order_cancelled: { title: 'Commande annulée', fallback: true },
   buyer_refunded: { title: 'Remboursement envoyé', fallback: true },
   buyer_late_payment: { title: 'Paiement remboursé', fallback: true },
+  parcel_paid: { title: 'Envoi payé', fallback: false },
+  parcel_picked_up: { title: 'Colis enlevé', fallback: false },
+  parcel_delivered: { title: 'Colis remis', fallback: false },
+  parcel_returning: { title: 'Colis non remis', fallback: true },
 };
 
 /**

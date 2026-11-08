@@ -257,8 +257,8 @@ export async function applyCollectionSignal(
       payment.checkout_id,
       now,
     ]);
-    const { rows: orders } = await tx.query<{ id: string; total: number }>(
-      'SELECT id, total FROM orders WHERE checkout_id = $1 ORDER BY id FOR UPDATE',
+    const { rows: orders } = await tx.query<{ id: string; total: number; kind: string }>(
+      'SELECT id, total, kind::text AS kind FROM orders WHERE checkout_id = $1 ORDER BY id FOR UPDATE',
       [payment.checkout_id],
     );
     await postJournal(
@@ -272,6 +272,9 @@ export async function applyCollectionSignal(
     );
     for (const order of orders) {
       await applyOrderEvent(ctx, tx, order.id, { type: 'payment_succeeded' }, SYSTEM);
+      // Envoi de colis : pas de vendeur à attendre, le colis est prêt à être enlevé.
+      if (order.kind === 'parcel')
+        await applyOrderEvent(ctx, tx, order.id, { type: 'parcel_confirmed' }, SYSTEM);
     }
     return;
   }

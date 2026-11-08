@@ -143,6 +143,16 @@ export interface DOrder {
   history: Array<{ status: OrderStatus; event: string; at: string }>;
   delivery: DDelivery | null;
   dispute: DDispute | null;
+  /** Envoi de colis entre particuliers (absent : achat en boutique). */
+  kind?: 'shop' | 'parcel';
+  pickup?: {
+    name: string;
+    phone: string;
+    landmark: string;
+    zoneId: string;
+    location?: S['GeoPoint'];
+  } | null;
+  parcel?: { size: S['ParcelSize']; description: string } | null;
 }
 
 export interface DCheckout {

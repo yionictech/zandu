@@ -163,6 +163,7 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       const { rows } = await ctx.pool.query<{
         status: string;
         delivery_status: string | null;
+        pickup_confirmed: boolean;
         rider_name: string | null;
         rider_phone: string | null;
         lat: number | null;
@@ -171,7 +172,8 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
         recorded_at: Date | null;
         destination: LatLng | null;
       }>(
-        `SELECT o.status, d.status AS delivery_status, u.full_name AS rider_name, u.phone AS rider_phone,
+        `SELECT o.status, d.status AS delivery_status, coalesce(d.pickup_confirmed_at IS NOT NULL, false) AS pickup_confirmed,
+                u.full_name AS rider_name, u.phone AS rider_phone,
                 p.lat, p.lng, p.accuracy_m, p.recorded_at,
                 CASE WHEN o.pickup_point_id IS NULL THEN o.shipping_address->'location'
                      WHEN pp.lat IS NOT NULL THEN jsonb_build_object('lat', pp.lat, 'lng', pp.lng) END AS destination
@@ -197,6 +199,9 @@ export function orderRoutes(ctx: AppContext): FastifyPluginAsync {
       const position = fresh ? { lat: row.lat!, lng: row.lng! } : null;
       return {
         onTheWay,
+        // État de la course (envoi de colis : livreur attendu, colis rapporté…), null sans livraison.
+        deliveryStatus: row.delivery_status,
+        pickupConfirmed: row.pickup_confirmed,
         rider:
           onTheWay && row.rider_phone
             ? { name: name ? shortName(name) : 'Livreur Zandu', phone: row.rider_phone }

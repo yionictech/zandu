@@ -91,14 +91,15 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
     app.get('/v1/support/deliveries', async () => {
       const { rows } = await ctx.pool.query(
         `SELECT o.id AS "orderId", o.public_ref AS "publicRef", o.status AS "orderStatus",
-                o.delivery_mode AS "deliveryMode", s.shop_name AS "shopName", pz.name AS "pickupZone",
+                o.delivery_mode AS "deliveryMode", CASE WHEN o.kind = 'parcel' THEN 'Envoi · ' || (o.pickup_address->>'name') ELSE s.shop_name END AS "shopName",
+                o.kind AS "kind", pz.name AS "pickupZone",
                 dz.name AS "destinationZone", dz.city, pp.name AS "pickupPoint", o.paid_at AS "paidAt",
                 (SELECT max(h.created_at) FROM order_status_history h
                   WHERE h.order_id = o.id AND h.to_status = 'ready_for_pickup') AS "readyAt",
                 (SELECT coalesce(sum(oi.quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS "itemCount"
          FROM deliveries d JOIN orders o ON o.id = d.order_id
          JOIN seller_profiles s ON s.id = o.seller_id
-         JOIN delivery_zones pz ON pz.id = s.pickup_zone_id
+         JOIN delivery_zones pz ON pz.id = coalesce(o.pickup_zone_id, s.pickup_zone_id)
          JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
          LEFT JOIN pickup_points pp ON pp.id = o.pickup_point_id
          WHERE d.status = 'awaiting_assignment' AND o.status IN ('preparing', 'ready_for_pickup')

@@ -33,7 +33,8 @@ export const isOpen = (c: Conversation): boolean => OPEN.includes(c.status);
 
 /**
  * Qui parle sur une commande : l'acheteur, le vendeur (titulaire de la boutique) et le livreur
- * de la course en cours. Un livreur réassigné sort de la conversation.
+ * de la course en cours. Un livreur réassigné sort de la conversation. Pour un envoi de colis :
+ * l'expéditeur et le livreur.
  */
 export async function conversationOf(db: Db, orderId: string): Promise<Conversation> {
   const { rows } = await db.query<{
@@ -45,9 +46,10 @@ export async function conversationOf(db: Db, orderId: string): Promise<Conversat
     shop_name: string;
     rider_user_id: string | null;
     rider_name: string | null;
+    is_platform: boolean;
   }>(
     `SELECT o.public_ref, o.status::text AS status, o.buyer_id, b.full_name AS buyer_name,
-            s.user_id AS seller_user_id, s.shop_name, ru.id AS rider_user_id, ru.full_name AS rider_name
+            s.user_id AS seller_user_id, s.shop_name, s.is_platform, ru.id AS rider_user_id, ru.full_name AS rider_name
      FROM orders o
      JOIN users b ON b.id = o.buyer_id
      JOIN seller_profiles s ON s.id = o.seller_id
@@ -61,9 +63,12 @@ export async function conversationOf(db: Db, orderId: string): Promise<Conversat
   if (!row) throw notFound('Commande');
   const display = (name: string | null, fallback: string) =>
     name?.trim() ? shortName(name.trim()) : fallback;
+  // Envoi de colis : la boutique plateforme n'est pas une personne, l'expéditeur parle au livreur.
   const participants: Participant[] = [
     { role: 'buyer', userId: row.buyer_id, name: display(row.buyer_name, 'Client') },
-    { role: 'seller', userId: row.seller_user_id, name: row.shop_name },
+    ...(row.is_platform
+      ? []
+      : [{ role: 'seller' as const, userId: row.seller_user_id, name: row.shop_name }]),
   ];
   if (row.rider_user_id)
     participants.push({

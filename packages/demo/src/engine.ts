@@ -342,6 +342,17 @@ export class DemoApi {
     return {
       discountTotal: 0,
       couponCode: null,
+      kind: o.kind ?? 'shop',
+      pickupAddress: o.pickup
+        ? {
+            name: o.pickup.name,
+            phone: o.pickup.phone,
+            landmark: o.pickup.landmark,
+            zone: this.zone(o.pickup.zoneId).name,
+            ...(o.pickup.location ? { location: o.pickup.location } : {}),
+          }
+        : null,
+      parcel: o.parcel ?? null,
       id: o.id,
       publicRef: o.publicRef,
       checkoutId: o.checkoutId,
@@ -403,7 +414,7 @@ export class DemoApi {
   private mission(o: DOrder): S['RiderMission'] {
     const d = o.delivery!;
     const shop = this.shop(o.sellerId);
-    const seller = this.userById(shop.userId)!;
+    const seller = this.userById(shop.userId);
     const zone = this.zone(o.zoneId);
     const point = PICKUP_POINTS.find((p) => p.id === o.pickupPointId);
     return {
@@ -413,12 +424,23 @@ export class DemoApi {
       publicRef: o.publicRef,
       deliveryMode: o.deliveryMode,
       recipient: o.shippingAddress,
-      pickup: {
-        shopName: shop.shopName,
-        phone: seller.phone,
-        city: shop.city,
-        zone: this.zone(shop.pickupZoneId).name,
-      },
+      kind: o.kind ?? 'shop',
+      parcel: o.parcel ?? null,
+      pickup: o.pickup
+        ? {
+            shopName: o.pickup.name,
+            phone: o.pickup.phone,
+            city: this.zone(o.pickup.zoneId).city,
+            zone: this.zone(o.pickup.zoneId).name,
+            landmark: o.pickup.landmark,
+            location: o.pickup.location ?? null,
+          }
+        : {
+            shopName: shop.shopName,
+            phone: seller?.phone ?? '',
+            city: shop.city,
+            zone: this.zone(shop.pickupZoneId).name,
+          },
       destination: {
         city: zone.city,
         zone: zone.name,
@@ -577,6 +599,10 @@ export class DemoApi {
         if (p) p.stock = Math.max(0, p.stock - item.quantity);
       }
       this.moveTo(o, 'paid', 'payment_succeeded');
+      if (o.kind === 'parcel') {
+        this.parcelPaid(o);
+        continue;
+      }
       const buyer = this.userById(o.buyerId)!;
       this.notify(
         buyer.id,
@@ -594,6 +620,56 @@ export class DemoApi {
         `/vendeur/commande/${o.id}`,
       );
     }
+  }
+
+  /** Envoi payé : prêt à enlever, la course part au livreur de démonstration. */
+  private parcelPaid(o: DOrder): void {
+    o.sellerAcceptDeadline = null;
+    this.moveTo(o, 'ready_for_pickup', 'parcel_confirmed');
+    this.notify(
+      o.buyerId,
+      'parcel_paid',
+      'Envoi payé',
+      `Envoi ${o.publicRef} payé : un livreur va venir chercher le colis.`,
+      `/commande/${o.id}`,
+    );
+    this.assignRider(o);
+    this.notify(
+      this.userByPhone(DEMO_RIDER_PHONE).id,
+      'rider_new_mission',
+      'Nouvelle course',
+      `Course ${o.publicRef} : colis à récupérer chez ${o.pickup?.name ?? 'le client'}.`,
+      `/livreur/${o.id}`,
+    );
+  }
+
+  /** Boutique « Zandu Envois » qui porte les envois (comme sur le serveur). */
+  private platformShopId(zoneId: string): string {
+    const found = this.state.shops.find((x) => x.slug === 'zandu-envois');
+    if (found) return found.id;
+    const zone = this.zone(zoneId);
+    const shop: DShop = {
+      id: this.deps.newId(),
+      userId: 'zandu-envois',
+      shopName: 'Zandu Envois',
+      slug: 'zandu-envois',
+      kind: 'business',
+      city: zone.city,
+      pickupZoneId: zoneId,
+      payoutPhone: '+242000000001',
+      payoutOperator: 'mtn',
+      payoutAccountName: null,
+      verificationStatus: 'verified',
+      isOpen: true,
+      defaultPrepMinutes: 30,
+      openingHours: null,
+      weeklyHours: null,
+      soldCategoryIds: [],
+      termsAccepted: true,
+      kycDocuments: [],
+    };
+    this.state.shops.push(shop);
+    return shop.id;
   }
 
   private cancel(o: DOrder, event: string, reason: string, refund: boolean): void {
@@ -620,6 +696,7 @@ export class DemoApi {
   private complete(o: DOrder, event: string): void {
     o.completedAt = this.iso();
     this.moveTo(o, 'completed', event);
+    if (o.kind === 'parcel') return; // aucun vendeur à payer : le livreur et Zandu seulement
     const amount = this.sellerNet(o);
     this.state.payouts.unshift({
       id: this.deps.newId(),
@@ -640,6 +717,15 @@ export class DemoApi {
 
   private sendHandoverCode(o: DOrder): void {
     o.handoverCode = this.digits(6);
+    if (o.kind === 'parcel') {
+      // Le destinataire n'a pas forcément l'application : son code arrive par SMS.
+      this.sms(o.shippingAddress.phone, 'parcel_recipient_code', {
+        code: o.handoverCode,
+        ref: o.publicRef,
+        sender: o.pickup?.name ?? 'un client Zandu',
+      });
+      return;
+    }
     const buyer = this.userById(o.buyerId)!;
     this.sms(buyer.phone, 'buyer_handover_code', { code: o.handoverCode, ref: o.publicRef });
     this.notify(
@@ -863,7 +949,9 @@ export class DemoApi {
       const name = (id: string) => this.state.users.find((u) => u.id === id)?.fullName ?? null;
       const people = [
         { role: 'buyer' as const, userId: o.buyerId, name: shortName(name(o.buyerId)) ?? 'Client' },
-        { role: 'seller' as const, userId: shop.userId, name: shop.shopName },
+        ...(o.kind === 'parcel'
+          ? []
+          : [{ role: 'seller' as const, userId: shop.userId, name: shop.shopName }]),
         ...(o.delivery
           ? [
               {
@@ -1281,6 +1369,167 @@ export class DemoApi {
       },
       201,
     );
+    // Envois de colis ------------------------------------------------------
+    const SIZES = { small: [0, 0], medium: [500, 400], large: [1500, 1200] } as const;
+    const quote = (from: string, to: string, size: string) => {
+      const rate = deliveryRate(from, to, 'home');
+      const extra = SIZES[size as keyof typeof SIZES];
+      if (!rate || !extra)
+        throw new DemoError(
+          422,
+          'delivery_unavailable',
+          'Zandu ne livre pas encore entre ces quartiers',
+        );
+      return { price: rate.price + extra[0], courierShare: rate.courierShare + extra[1] };
+    };
+    const myParcel = (ctx: Ctx): DOrder => {
+      const me = ctx.user();
+      const o = this.state.orders.find(
+        (x) => x.id === ctx.params.id && x.buyerId === me.id && x.kind === 'parcel',
+      );
+      if (!o) throw notFound('Envoi');
+      return o;
+    };
+    this.on('GET', '/v1/parcels/quote', ({ user, query }): Ok<'/v1/parcels/quote', 'get'> => {
+      user();
+      const size = (query.get('size') ?? 'small') as S['ParcelSize'];
+      const q = quote(query.get('fromZoneId') ?? '', query.get('toZoneId') ?? '', size);
+      return { price: q.price, currency: 'XAF', size };
+    });
+    this.on('GET', '/v1/parcels', ({ user }): Ok<'/v1/parcels', 'get'> => {
+      const me = user();
+      return {
+        items: this.state.orders
+          .filter((o) => o.buyerId === me.id && o.kind === 'parcel')
+          .map((o) => this.orderView(o)),
+      };
+    });
+    this.on(
+      'POST',
+      '/v1/parcels',
+      ({ user, body }): Ok<'/v1/parcels', 'post', 201> => {
+        const sender = user();
+        type Place = {
+          name: string;
+          zoneId: string;
+          phone: string;
+          landmark: string;
+          location?: S['GeoPoint'];
+        };
+        const pickup = body.pickup as Place;
+        const recipient = body.recipient as Place;
+        const size = body.size as S['ParcelSize'];
+        const pickupPhone = parseCongoMobile(pickup.phone).e164;
+        const recipientPhone = parseCongoMobile(recipient.phone).e164;
+        if (pickupPhone === recipientPhone)
+          throw new DemoError(
+            422,
+            'same_phone',
+            "Le destinataire doit avoir un autre numéro que l'expéditeur",
+          );
+        for (const place of [pickup, recipient])
+          if (place.location && !isInCongo(place.location))
+            throw new DemoError(
+              422,
+              'location_out_of_area',
+              'Le repère sur la carte est hors du Congo',
+            );
+        const q = quote(pickup.zoneId, recipient.zoneId, size);
+        const checkout: DCheckout = {
+          id: this.deps.newId(),
+          buyerId: sender.id,
+          orderIds: [],
+          expiresAt: this.iso(PAYMENT_TTL_MS),
+          paidAt: null,
+          createdAt: this.iso(),
+        };
+        const order: DOrder = {
+          id: this.deps.newId(),
+          publicRef: this.publicRef(),
+          checkoutId: checkout.id,
+          buyerId: sender.id,
+          sellerId: this.platformShopId(pickup.zoneId),
+          status: 'pending_payment',
+          items: [],
+          deliveryFee: q.price,
+          courierShare: q.courierShare,
+          refundedAmount: 0,
+          deliveryMode: 'home',
+          zoneId: recipient.zoneId,
+          pickupPointId: null,
+          shippingAddress: {
+            recipientName: recipient.name.trim(),
+            phone: recipientPhone,
+            landmark: recipient.landmark.trim(),
+            ...(recipient.location ? { location: recipient.location } : {}),
+          },
+          handoverCode: '',
+          sellerAcceptDeadline: null,
+          readyPromisedAt: null,
+          disputeWindowEndsAt: null,
+          createdAt: this.iso(),
+          paidAt: null,
+          deliveredAt: null,
+          completedAt: null,
+          cancelledAt: null,
+          cancelReason: null,
+          history: [{ status: 'pending_payment', event: 'parcel_created', at: this.iso() }],
+          delivery: null,
+          dispute: null,
+          kind: 'parcel',
+          pickup: {
+            name: pickup.name.trim(),
+            phone: pickupPhone,
+            landmark: pickup.landmark.trim(),
+            zoneId: pickup.zoneId,
+            ...(pickup.location ? { location: pickup.location } : {}),
+          },
+          parcel: { size, description: String(body.description ?? '').trim() },
+        };
+        checkout.orderIds = [order.id];
+        this.state.orders.unshift(order);
+        this.state.checkouts.unshift(checkout);
+        return { checkoutId: checkout.id, orderId: order.id, total: q.price };
+      },
+      201,
+    );
+    this.on(
+      'POST',
+      '/v1/parcels/{id}/rider-pickup',
+      (ctx): Ok<'/v1/parcels/{id}/rider-pickup', 'post'> => {
+        const o = myParcel(ctx);
+        const d = o.delivery;
+        if (!d || d.status !== 'assigned')
+          throw conflict('no_rider_expected', 'Aucun livreur attendu pour ce colis');
+        if (ctx.body.code !== d.pickupCode)
+          throw new DemoError(422, 'invalid_pickup_code', 'Code de retrait incorrect');
+        d.pickupConfirmedAt ??= this.iso();
+        return { orderId: o.id, pickupConfirmedAt: d.pickupConfirmedAt };
+      },
+    );
+    this.on(
+      'POST',
+      '/v1/parcels/{id}/rider-return',
+      (ctx): Ok<'/v1/parcels/{id}/rider-return', 'post'> => {
+        const o = myParcel(ctx);
+        const d = o.delivery;
+        if (!d || d.status !== 'returning')
+          throw conflict('no_return_expected', 'Aucun retour en cours');
+        if (ctx.body.code !== d.returnCode)
+          throw new DemoError(422, 'invalid_return_code', 'Code de retour incorrect');
+        d.returnConfirmedAt ??= this.iso();
+        return { orderId: o.id, returnConfirmedAt: d.returnConfirmedAt };
+      },
+    );
+    this.on('POST', '/v1/parcels/{id}/cancel', (ctx): Ok<'/v1/parcels/{id}/cancel', 'post'> => {
+      const o = myParcel(ctx);
+      if (o.status !== 'ready_for_pickup' || o.delivery?.pickupConfirmedAt)
+        throw conflict('invalid_transition', 'Le livreur a déjà votre colis');
+      if (o.delivery) o.delivery.status = 'cancelled';
+      this.cancel(o, 'sender_cancelled', 'sender_cancelled', true);
+      return { id: o.id, status: o.status };
+    });
+
     this.on(
       'GET',
       '/v1/payments/{id}',
@@ -1331,6 +1580,8 @@ export class DemoApi {
       const dest = destination ? { lat: destination.lat, lng: destination.lng } : null;
       return {
         onTheWay,
+        deliveryStatus: o.delivery?.status ?? null,
+        pickupConfirmed: !!o.delivery?.pickupConfirmedAt,
         rider: rider
           ? { name: shortName(rider.fullName) ?? 'Livreur Zandu', phone: rider.phone }
           : null,

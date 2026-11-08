@@ -88,28 +88,34 @@ function Pickup({
     <>
       <PersonCard
         name={m.pickup.shopName}
-        line={`${m.pickup.zone}, ${m.pickup.city} · ${m.publicRef}`}
+        line={
+          m.kind === 'parcel'
+            ? `${t.rider.parcelBadge} · ${m.pickup.zone} · ${m.pickup.landmark ?? ''}`
+            : `${m.pickup.zone}, ${m.pickup.city} · ${m.publicRef}`
+        }
         phone={m.pickup.phone}
-        appCall={() => startCall.mutate('seller')}
+        appCall={() => startCall.mutate(m.kind === 'parcel' ? 'buyer' : 'seller')}
       />
       {m.pickupCode ? (
         <ShowCode
-          title={t.rider.pickupCodeTitle}
+          title={m.kind === 'parcel' ? t.rider.parcelPickupCodeTitle : t.rider.pickupCodeTitle}
           code={m.pickupCode}
-          hint={t.rider.pickupCodeHint}
+          hint={m.kind === 'parcel' ? t.rider.parcelPickupCodeHint : t.rider.pickupCodeHint}
           testID="rider-pickup-code"
         />
       ) : null}
       {m.pickupConfirmedAt ? (
-        <Note icon={CircleCheck}>{t.rider.pickupConfirmed}</Note>
+        <Note icon={CircleCheck}>
+          {m.kind === 'parcel' ? t.rider.parcelPickupConfirmed : t.rider.pickupConfirmed}
+        </Note>
       ) : (
         <Note icon={Hourglass} tone="waiting">
-          {t.rider.pickupWaiting}
+          {m.kind === 'parcel' ? t.rider.parcelPickupWaiting : t.rider.pickupWaiting}
         </Note>
       )}
       <Card>
         <Text style={styles.cardTitle}>{t.rider.checkParcel}</Text>
-        {[...m.items.map((i) => `${i.quantity} × ${i.title}`), t.rider.sealed].map((label, i) => (
+        {checkLabels(m).map((label, i) => (
           <CheckRow
             key={label}
             label={label}
@@ -122,6 +128,13 @@ function Pickup({
     </>
   );
 }
+
+/** Ce que le livreur vérifie à l'enlèvement : articles (ou contenu de l'envoi), emballage. */
+const checkLabels = (m: RiderMission): string[] => [
+  ...m.items.map((i) => `${i.quantity} × ${i.title}`),
+  ...(m.parcel ? [`${t.parcel.sizes[m.parcel.size].label} · ${m.parcel.description}`] : []),
+  t.rider.sealed,
+];
 
 /** Étape 2 : en route vers le client (ou le point relais). */
 /** Ce que le livreur partage : sa position, pendant la course seulement. */
@@ -358,7 +371,7 @@ function Return({
         name={m.pickup.shopName}
         line={`${m.pickup.zone}, ${m.pickup.city}`}
         phone={m.pickup.phone}
-        appCall={() => startCall.mutate('seller')}
+        appCall={() => startCall.mutate(m.kind === 'parcel' ? 'buyer' : 'seller')}
       />
       {m.returnCode ? (
         <ShowCode
@@ -529,7 +542,7 @@ function Mission({ orderId }: { orderId: string }) {
               : m.publicRef;
 
   const absentIn = m.absentAllowedAt ? new Date(m.absentAllowedAt).getTime() - now : 0;
-  const allChecked = checked.length === m.items.length + 1;
+  const allChecked = checked.length === checkLabels(m).length;
   const toggle = (i: number) =>
     setChecked((c) => (c.includes(i) ? c.filter((x) => x !== i) : [...c, i]));
 

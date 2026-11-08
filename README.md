@@ -48,8 +48,12 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
   avec des données fictives (acheteuse, vendeuse, livreur à un toucher), validé contre le contrat
   d'API. Guide : [démonstration locale](docs/exploitation/demo-locale.md) ; APK branché sur un
   serveur de test : [APK de test](docs/exploitation/apk-de-test.md).
-- **285 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), neuf parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **Envoi de colis entre particuliers** : un livreur Zandu enlève le colis chez l'expéditeur et le
+  remet au destinataire contre le code reçu par SMS ; prix selon les deux quartiers et la taille,
+  payé en séquestre, remboursé si l'envoi est annulé avant l'enlèvement. Guide :
+  [envoi de colis](docs/exploitation/envoi-de-colis.md).
+- **292 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), dix parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Nouvelle direction visuelle](docs/ux/captures/fondations-sombres.jpg)
@@ -92,7 +96,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 285 tests
+pnpm test            # 292 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

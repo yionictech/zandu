@@ -18,6 +18,9 @@ import { Failure, Loading, Screen } from '../../src/ui/Layout';
 import { statusColor } from '../../src/status';
 import { LiveMap } from '../../src/ui/LiveMap';
 import { Timeline } from '../../src/ui/Timeline';
+import { CodeInput } from '../../src/ui/CodeInput';
+import { DEMO, SERVER_PICKER } from '../../src/config';
+import { apiUrl, fetchOnServer, recetteHeaders } from '../../src/server';
 
 const CODE_PENDING = [
   'paid',
@@ -283,6 +286,173 @@ function RiderOnTheWay({ orderId }: { orderId: string }) {
   );
 }
 
+/**
+ * Envoi de colis vu par l'expéditeur : où en est la course, le code de retrait du livreur à
+ * saisir avant de lui donner le colis, le code de retour s'il le rapporte, et l'annulation
+ * (remboursée) tant que le livreur n'a pas le colis.
+ */
+function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }) {
+  const [code, setCode] = useState('');
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const tracking = useQuery({
+    queryKey: ['order', order.id, 'tracking'],
+    queryFn: async () =>
+      unwrap(await api.GET('/v1/orders/{id}/tracking', { params: { path: { id: order.id } } })),
+    refetchInterval: 8_000,
+  });
+  const act = useMutation({
+    mutationFn: async (kind: 'pickup' | 'return' | 'cancel') => {
+      const path = { params: { path: { id: order.id } } };
+      if (kind === 'cancel') return unwrap(await api.POST('/v1/parcels/{id}/cancel', path));
+      const params = { ...path, body: { code } };
+      return kind === 'pickup'
+        ? unwrap(await api.POST('/v1/parcels/{id}/rider-pickup', params))
+        : unwrap(await api.POST('/v1/parcels/{id}/rider-return', params));
+    },
+    onSuccess: () => {
+      setCode('');
+      setConfirmCancel(false);
+      void tracking.refetch();
+      onChange();
+    },
+    onError: () => setCode(''),
+  });
+  const parcel = order.parcel;
+  const pickup = order.pickupAddress;
+  const d = tracking.data;
+  const riderExpected = d?.deliveryStatus === 'assigned' && !d.pickupConfirmed;
+  const returning = d?.deliveryStatus === 'returning';
+  const canCancel = order.status === 'ready_for_pickup' && !d?.pickupConfirmed;
+  return (
+    <>
+      <Card testID="parcel-card">
+        <View style={styles.product}>
+          <View style={styles.productIcon}>
+            <PackageIcon color={colors.brand} size={22} strokeWidth={1.8} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>
+              {t.parcel.kind}
+              {parcel ? ` · ${t.parcel.sizes[parcel.size].label}` : ''}
+            </Text>
+            <Text style={styles.muted} numberOfLines={2}>
+              {parcel?.description}
+            </Text>
+          </View>
+        </View>
+        {pickup ? (
+          <>
+            <Eyebrow>{t.parcel.from}</Eyebrow>
+            <Text style={styles.body}>
+              {String(pickup.name)} · {String(pickup.zone ?? '')}
+            </Text>
+            <Text style={styles.muted}>{String(pickup.landmark)}</Text>
+          </>
+        ) : null}
+        <Text style={styles.muted}>
+          {t.parcel.recipientSms(displayPhone(String(order.shippingAddress.phone)))}
+        </Text>
+        {SERVER_PICKER || DEMO ? (
+          <RecipientTestCode phone={String(order.shippingAddress.phone)} />
+        ) : null}
+      </Card>
+
+      {order.status === 'ready_for_pickup' && d?.deliveryStatus === 'awaiting_assignment' ? (
+        <Note icon={Lock} tone="waiting">
+          {t.parcel.waitingRider}
+        </Note>
+      ) : null}
+      {riderExpected || returning ? (
+        <Card highlight testID="parcel-code">
+          <Eyebrow color={colors.brand}>
+            {returning ? t.parcel.returnTitle : t.parcel.riderCode}
+          </Eyebrow>
+          <Text style={styles.muted}>
+            {returning ? t.parcel.returnHint : t.parcel.riderCodeHint}
+          </Text>
+          <CodeInput
+            value={code}
+            onChange={setCode}
+            length={4}
+            label={returning ? t.parcel.returnTitle : t.parcel.riderCode}
+            testID="parcel-code-input"
+          />
+          <ErrorText message={act.error ? errorMessage(act.error) : null} />
+          <Button
+            label={returning ? t.parcel.confirmReturn : t.parcel.confirmCode}
+            onPress={() => act.mutate(returning ? 'return' : 'pickup')}
+            disabled={code.length !== 4}
+            loading={act.isPending}
+            testID="parcel-code-confirm"
+          />
+        </Card>
+      ) : null}
+      {d?.deliveryStatus === 'assigned' && d.pickupConfirmed ? (
+        <Note icon={Lock}>{t.parcel.handedOver}</Note>
+      ) : null}
+      {canCancel ? (
+        confirmCancel ? (
+          <Card>
+            <Text style={styles.body}>{t.orders.cancelConfirm}</Text>
+            <Button
+              label={t.common.confirm}
+              onPress={() => act.mutate('cancel')}
+              loading={act.isPending}
+              testID="parcel-cancel-confirm"
+            />
+            <Button
+              label={t.common.cancel}
+              variant="ghost"
+              onPress={() => setConfirmCancel(false)}
+            />
+          </Card>
+        ) : (
+          <Button
+            label={t.parcel.cancel}
+            variant="ghost"
+            onPress={() => setConfirmCancel(true)}
+            testID="parcel-cancel"
+          />
+        )
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Démonstration et APK de test : le SMS du destinataire ne part pas, on le lit dans la boîte de
+ * test (comme le code de connexion). Jamais dans la version des stores.
+ */
+function RecipientTestCode({ phone }: { phone: string }) {
+  const [code, setCode] = useState<string | null>(null);
+  const read = async () => {
+    try {
+      const res = await fetchOnServer(
+        `${apiUrl()}/dev/messages?recipient=${encodeURIComponent(phone)}`,
+        { headers: recetteHeaders() },
+      );
+      const { items } = (await res.json()) as {
+        items: Array<{ template: string; variables: { code?: string } }>;
+      };
+      setCode(items.find((m) => m.template === 'parcel_recipient_code')?.variables.code ?? '—');
+    } catch {
+      setCode('—');
+    }
+  };
+  return code ? (
+    <Text style={styles.body} testID="parcel-recipient-code">
+      {t.parcel.recipientCode(code)}
+    </Text>
+  ) : (
+    <Button
+      label={t.parcel.readRecipientCode}
+      variant="ghost"
+      onPress={() => void read()}
+      testID="parcel-read-recipient-code"
+    />
+  );
+}
+
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
@@ -328,9 +498,13 @@ export default function OrderScreen() {
   const o = order.data;
   const address = o.shippingAddress;
 
+  const isParcel = o.kind === 'parcel';
   const count = o.items.reduce((n, i) => n + i.quantity, 0);
-  const summary =
-    o.items.length === 1 ? `${o.items[0]!.quantity} × ${o.items[0]!.title}` : t.common.items(count);
+  const summary = isParcel
+    ? t.parcel.kind
+    : o.items.length === 1
+      ? `${o.items[0]!.quantity} × ${o.items[0]!.title}`
+      : t.common.items(count);
   const done = o.status === 'delivered' || o.status === 'completed';
 
   return (
@@ -353,12 +527,22 @@ export default function OrderScreen() {
         >
           {t.statusShort[o.status].toUpperCase()}
         </Text>
-        <Text style={styles.headline}>{t.orders.headline(o.status, o.seller.shopName)}</Text>
+        <Text style={styles.headline}>
+          {isParcel
+            ? t.parcel.route(
+                String(o.pickupAddress?.zone ?? ''),
+                String(o.shippingAddress.recipientName),
+              )
+            : t.orders.headline(o.status, o.seller.shopName)}
+        </Text>
         <Text style={styles.muted}>
-          {o.seller.shopName} · {formatDateTime(o.createdAt)}
+          {isParcel ? t.parcel.kind : o.seller.shopName} · {formatDateTime(o.createdAt)}
         </Text>
       </Card>
 
+      {isParcel && o.status !== 'pending_payment' ? (
+        <ParcelPanel order={o} onChange={refresh} />
+      ) : null}
       {o.status === 'in_delivery' ? <RiderOnTheWay orderId={o.id} /> : null}
       {o.status === 'pending_payment' ? null : <MessagesButton orderId={o.id} />}
 
@@ -389,7 +573,7 @@ export default function OrderScreen() {
       <ErrorText message={action.error ? errorMessage(action.error) : null} />
       {notice ? <Note icon={Lock}>{notice}</Note> : null}
 
-      {done
+      {done && !isParcel
         ? o.items.map((item) => (
             <ReviewForm key={item.itemId} orderId={o.id} item={item} shop={o.seller.shopName} />
           ))
@@ -436,7 +620,7 @@ export default function OrderScreen() {
         ) : null}
       </Card>
 
-      {CODE_PENDING.includes(o.status) ? (
+      {CODE_PENDING.includes(o.status) && !isParcel ? (
         <Button label={t.orders.newCode} variant="ghost" onPress={() => action.mutate('code')} />
       ) : null}
 

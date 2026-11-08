@@ -404,6 +404,98 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/parcels/quote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Prix d'un envoi de colis
+     * @description Tarif de livraison à domicile entre les deux quartiers, plus le supplément de taille.
+     */
+    get: operations['parcelQuote'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/parcels': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Mes envois de colis */
+    get: operations['myParcels'];
+    put?: never;
+    /**
+     * Envoyer un colis
+     * @description Crée l'envoi et le panier à payer (POST /v1/checkouts/{id}/payments, en séquestre). Une fois payé, l'envoi attend un livreur ; le destinataire reçoit son code de remise par SMS.
+     */
+    post: operations['createParcel'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/parcels/{id}/rider-pickup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirmer le code de retrait montré par le livreur */
+    post: operations['parcelConfirmRiderPickup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/parcels/{id}/rider-return': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Récupérer mon colis rapporté (code de retour du livreur) */
+    post: operations['parcelConfirmRiderReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/parcels/{id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Annuler un envoi pas encore enlevé (remboursé en entier) */
+    post: operations['cancelParcel'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/seller/coupons': {
     parameters: {
       query?: never;
@@ -3023,11 +3115,17 @@ export interface components {
       /** @enum {string} */
       deliveryMode: 'home' | 'pickup_point';
       recipient: components['schemas']['ShippingAddress'];
+      /** @enum {string} */
+      kind: 'shop' | 'parcel';
+      parcel: null | components['schemas']['ParcelContent'];
+      /** @description Boutique, ou expéditeur pour un envoi de colis (avec repère et carte) */
       pickup: {
         shopName: string;
         phone: string;
         city: string;
         zone: string;
+        landmark?: string | null;
+        location?: null | components['schemas']['GeoPoint'];
       };
       destination: {
         city: string;
@@ -3195,6 +3293,39 @@ export interface components {
       /** @description Remise du code promo de la boutique, déjà déduite de itemsSubtotal */
       discountTotal: components['schemas']['Amount'];
       couponCode: string | null;
+      /**
+       * @description shop = achat en boutique ; parcel = envoi de colis entre particuliers
+       * @enum {string}
+       */
+      kind: 'shop' | 'parcel';
+      /** @description Envoi de colis — où le livreur enlève le colis (null pour un achat) */
+      pickupAddress: null | components['schemas']['ParcelPickup'];
+      /** @description Envoi de colis — taille et contenu (null pour un achat) */
+      parcel: null | components['schemas']['ParcelContent'];
+    };
+    ParcelPickup: {
+      name: string;
+      phone: string;
+      landmark: string;
+      zone: string | null;
+      location?: components['schemas']['GeoPoint'];
+    };
+    ParcelContent: {
+      size: components['schemas']['ParcelSize'];
+      description: string;
+    };
+    /**
+     * @description small : enveloppe, sachet (2 kg) ; medium : carton à chaussures, sac (10 kg, +500 FCFA) ; large : gros carton sur la moto (25 kg, +1 500 FCFA)
+     * @enum {string}
+     */
+    ParcelSize: 'small' | 'medium' | 'large';
+    ParcelPlace: {
+      name: string;
+      /** Format: uuid */
+      zoneId: string;
+      landmark: string;
+      phone: string;
+      location?: components['schemas']['GeoPoint'];
     };
     /** @description Commande vue par l'acheteur (et le support), coordonnées de livraison comprises. */
     Order: components['schemas']['OrderCore'] & {
@@ -4080,6 +4211,169 @@ export interface operations {
         };
       };
       422: components['responses']['Error'];
+    };
+  };
+  parcelQuote: {
+    parameters: {
+      query: {
+        fromZoneId: string;
+        toZoneId: string;
+        size: components['schemas']['ParcelSize'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Prix */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            price: components['schemas']['Amount'];
+            /** @constant */
+            currency: 'XAF';
+            size: components['schemas']['ParcelSize'];
+          };
+        };
+      };
+      422: components['responses']['Error'];
+    };
+  };
+  myParcels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderList'];
+      401: components['responses']['Error'];
+    };
+  };
+  createParcel: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': components['parameters']['IdempotencyKey'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          size: components['schemas']['ParcelSize'];
+          description: string;
+          pickup: components['schemas']['ParcelPlace'];
+          recipient: components['schemas']['ParcelPlace'];
+        };
+      };
+    };
+    responses: {
+      /** @description Envoi créé, à payer */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            checkoutId: string;
+            /** Format: uuid */
+            orderId: string;
+            total: components['schemas']['Amount'];
+          };
+        };
+      };
+      422: components['responses']['Error'];
+    };
+  };
+  parcelConfirmRiderPickup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Code confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            pickupConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  parcelConfirmRiderReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Code confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            returnConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  cancelParcel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderStatusChange'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
     };
   };
   sellerCoupons: {
@@ -5046,6 +5340,10 @@ export interface operations {
         };
         content: {
           'application/json': {
+            /** @description Code de retrait du livreur confirmé (colis donné au livreur) */
+            pickupConfirmed?: boolean;
+            /** @description État de la course (null tant qu'il n'y a pas de livraison) */
+            deliveryStatus: null | components['schemas']['DeliveryStatus'];
             /** @description Colis pris en charge, en route vers vous */
             onTheWay: boolean;
             rider: {

@@ -43,6 +43,8 @@ tags:
     description: Boutique, produits, commandes à traiter, argent du vendeur
   - name: Achat
     description: Panier validé, paiement Mobile Money et suivi du paiement
+  - name: Envois
+    description: Envoi de colis entre particuliers avec les livreurs Zandu
   - name: Fichiers
     description: Envoi direct des photos et pièces vers le stockage, par URL signée
   - name: Commandes
@@ -709,6 +711,138 @@ paths:
                   minSubtotal: { type: integer }
                   endsAt: { type: [string, 'null'], format: date-time }
         '422': { $ref: '#/components/responses/Error' }
+
+  /v1/parcels/quote:
+    get:
+      tags: [Envois]
+      summary: Prix d'un envoi de colis
+      description: Tarif de livraison à domicile entre les deux quartiers, plus le supplément de taille.
+      operationId: parcelQuote
+      parameters:
+        - { name: fromZoneId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: toZoneId, in: query, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: size,
+            in: query,
+            required: true,
+            schema: { $ref: '#/components/schemas/ParcelSize' },
+          }
+      responses:
+        '200':
+          description: Prix
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [price, currency, size]
+                properties:
+                  price: { $ref: '#/components/schemas/Amount' }
+                  currency: { type: string, const: XAF }
+                  size: { $ref: '#/components/schemas/ParcelSize' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/parcels:
+    get:
+      tags: [Envois]
+      summary: Mes envois de colis
+      operationId: myParcels
+      responses:
+        '200': { $ref: '#/components/responses/OrderList' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Envois]
+      summary: Envoyer un colis
+      description: >-
+        Crée l'envoi et le panier à payer (POST /v1/checkouts/{id}/payments, en séquestre). Une
+        fois payé, l'envoi attend un livreur ; le destinataire reçoit son code de remise par SMS.
+      operationId: createParcel
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [size, description, pickup, recipient]
+              properties:
+                size: { $ref: '#/components/schemas/ParcelSize' }
+                description: { type: string, minLength: 2, maxLength: 120 }
+                pickup: { $ref: '#/components/schemas/ParcelPlace' }
+                recipient: { $ref: '#/components/schemas/ParcelPlace' }
+      responses:
+        '201':
+          description: Envoi créé, à payer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkoutId, orderId, total]
+                properties:
+                  checkoutId: { type: string, format: uuid }
+                  orderId: { type: string, format: uuid }
+                  total: { $ref: '#/components/schemas/Amount' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/parcels/{id}/rider-pickup:
+    post:
+      tags: [Envois]
+      summary: Confirmer le code de retrait montré par le livreur
+      operationId: parcelConfirmRiderPickup
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Code confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, pickupConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  pickupConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/parcels/{id}/rider-return:
+    post:
+      tags: [Envois]
+      summary: Récupérer mon colis rapporté (code de retour du livreur)
+      operationId: parcelConfirmRiderReturn
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Code confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, returnConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  returnConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/parcels/{id}/cancel:
+    post:
+      tags: [Envois]
+      summary: Annuler un envoi pas encore enlevé (remboursé en entier)
+      operationId: cancelParcel
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 
   /v1/seller/coupons:
     get:
@@ -1582,8 +1716,25 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [onTheWay, rider, position, destination, distanceMeters, etaMinutes]
+                required:
+                  [
+                    onTheWay,
+                    deliveryStatus,
+                    rider,
+                    position,
+                    destination,
+                    distanceMeters,
+                    etaMinutes,
+                  ]
                 properties:
+                  pickupConfirmed:
+                    type: boolean
+                    description: Code de retrait du livreur confirmé (colis donné au livreur)
+                  deliveryStatus:
+                    description: État de la course (null tant qu'il n'y a pas de livraison)
+                    oneOf:
+                      - type: 'null'
+                      - $ref: '#/components/schemas/DeliveryStatus'
                   onTheWay:
                     { type: boolean, description: 'Colis pris en charge, en route vers vous' }
                   rider:
@@ -5205,6 +5356,8 @@ components:
           returnedAt,
           failureReason,
           contacts,
+          kind,
+          parcel,
         ]
       properties:
         orderId: { type: string, format: uuid }
@@ -5213,14 +5366,25 @@ components:
         publicRef: { type: string }
         deliveryMode: { type: string, enum: [home, pickup_point] }
         recipient: { $ref: '#/components/schemas/ShippingAddress' }
+        kind: { type: string, enum: [shop, parcel] }
+        parcel:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ParcelContent'
         pickup:
           type: object
+          description: Boutique, ou expéditeur pour un envoi de colis (avec repère et carte)
           required: [shopName, phone, city, zone]
           properties:
             shopName: { type: string }
             phone: { type: string }
             city: { type: string }
             zone: { type: string }
+            landmark: { type: [string, 'null'] }
+            location:
+              oneOf:
+                - type: 'null'
+                - $ref: '#/components/schemas/GeoPoint'
         destination:
           type: object
           required: [city, zone, pickupPoint, location]
@@ -5402,6 +5566,9 @@ components:
           cancelReason,
           discountTotal,
           couponCode,
+          kind,
+          pickupAddress,
+          parcel,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -5445,6 +5612,50 @@ components:
           $ref: '#/components/schemas/Amount'
           description: Remise du code promo de la boutique, déjà déduite de itemsSubtotal
         couponCode: { type: [string, 'null'] }
+        kind:
+          type: string
+          enum: [shop, parcel]
+          description: shop = achat en boutique ; parcel = envoi de colis entre particuliers
+        pickupAddress:
+          description: Envoi de colis — où le livreur enlève le colis (null pour un achat)
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ParcelPickup'
+        parcel:
+          description: Envoi de colis — taille et contenu (null pour un achat)
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ParcelContent'
+    ParcelPickup:
+      type: object
+      required: [name, phone, landmark, zone]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        landmark: { type: string }
+        zone: { type: [string, 'null'] }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+    ParcelContent:
+      type: object
+      required: [size, description]
+      properties:
+        size: { $ref: '#/components/schemas/ParcelSize' }
+        description: { type: string }
+    ParcelSize:
+      type: string
+      enum: [small, medium, large]
+      description: >-
+        small : enveloppe, sachet (2 kg) ; medium : carton à chaussures, sac (10 kg, +500 FCFA) ;
+        large : gros carton sur la moto (25 kg, +1 500 FCFA)
+    ParcelPlace:
+      type: object
+      required: [name, zoneId, landmark, phone]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        zoneId: { type: string, format: uuid }
+        landmark: { type: string, minLength: 5, maxLength: 300 }
+        phone: { type: string }
+        location: { $ref: '#/components/schemas/GeoPoint' }
     Order:
       description: Commande vue par l'acheteur (et le support), coordonnées de livraison comprises.
       allOf:
