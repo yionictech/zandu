@@ -16,6 +16,7 @@ import { HttpError, notFound } from '../../lib/errors.js';
 import { claimIdempotency, completeIdempotency } from '../../lib/idempotency.js';
 import { postJournal } from '../ledger/ledger.repository.js';
 import { publish } from '../notifications/outbox.js';
+import { releaseCheckoutPoints } from '../loyalty/loyalty.service.js';
 import { applyOrderEvent } from '../orders/orders.service.js';
 import { applyDisbursementResult } from '../payouts/disbursements.js';
 import { payoutSpec } from '../payouts/payouts.service.js';
@@ -95,7 +96,9 @@ export async function initiatePayment(
       expires_at: Date;
       created_at: Date;
     }>(
-      'SELECT status, grand_total, expires_at, created_at FROM checkouts WHERE id = $1 AND buyer_id = $2 FOR UPDATE',
+      // Montant à payer : le total moins les points fidélité utilisés.
+      `SELECT status, grand_total - points_used AS grand_total, expires_at, created_at
+       FROM checkouts WHERE id = $1 AND buyer_id = $2 FOR UPDATE`,
       [checkoutId, buyerId],
     );
     const checkout = rows[0];
@@ -248,8 +251,8 @@ export async function applyCollectionSignal(
     );
   }
 
-  const { rows: checkouts } = await tx.query<{ status: string }>(
-    'SELECT status FROM checkouts WHERE id = $1 FOR UPDATE',
+  const { rows: checkouts } = await tx.query<{ status: string; points_used: number }>(
+    'SELECT status, points_used::int AS points_used FROM checkouts WHERE id = $1 FOR UPDATE',
     [payment.checkout_id],
   );
   if (!change.lateSuccess && checkouts[0]?.status === 'awaiting_payment') {
@@ -267,6 +270,7 @@ export async function applyCollectionSignal(
         paymentId,
         provider: payment.provider,
         orders: orders.map((o) => ({ orderId: o.id, total: o.total })),
+        loyaltyPoints: checkouts[0]!.points_used,
       }),
       ctx.clock.now(),
     );
@@ -462,6 +466,7 @@ export async function expireCheckouts(ctx: AppContext): Promise<number> {
       );
       if (locked.rows[0]?.status !== 'awaiting_payment' || active.rowCount) return;
       await tx.query(`UPDATE checkouts SET status = 'expired' WHERE id = $1`, [id]);
+      await releaseCheckoutPoints(ctx, tx, id);
       const { rows: orders } = await tx.query<{ id: string }>(
         'SELECT id FROM orders WHERE checkout_id = $1 ORDER BY id',
         [id],

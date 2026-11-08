@@ -148,7 +148,7 @@ export default function PaymentScreen() {
             <Check color={colors.onBrand} size={44} strokeWidth={3} />
           </View>
           <Text style={styles.heroTitle}>{t.payment.successTitle}</Text>
-          <Amount value={c.grandTotal} size="xl" />
+          <Amount value={c.amountToPay} size="xl" />
           {c.orders.map((o) => (
             <Text key={o.id} style={styles.ref}>
               {o.publicRef} · {o.seller.shopName}
@@ -264,7 +264,7 @@ export default function PaymentScreen() {
         <>
           <ErrorText message={error} />
           <Button
-            label={t.payment.pay(formatXaf(c.grandTotal))}
+            label={t.payment.pay(formatXaf(c.amountToPay))}
             onPress={() => {
               if (failure) setPaymentId(null);
               void pay();
@@ -333,9 +333,17 @@ export default function PaymentScreen() {
           <Text style={styles.label}>{t.payment.delivery}</Text>
           <Text style={styles.value}>{formatXaf(c.deliveryTotal)}</Text>
         </View>
+        {c.pointsUsed > 0 ? (
+          <View style={styles.row} testID="payment-points">
+            <Text style={styles.label}>{t.loyalty.paidWithPoints}</Text>
+            <Text style={styles.value}>− {formatXaf(c.pointsUsed)}</Text>
+          </View>
+        ) : null}
         <View style={[styles.row, styles.totalRow]}>
-          <Text style={styles.totalLabel}>{t.payment.total}</Text>
-          <Amount value={c.grandTotal} size="md" />
+          <Text style={styles.totalLabel}>
+            {c.pointsUsed > 0 ? t.loyalty.toPay : t.payment.total}
+          </Text>
+          <Amount value={c.amountToPay} size="md" />
         </View>
       </Card>
 

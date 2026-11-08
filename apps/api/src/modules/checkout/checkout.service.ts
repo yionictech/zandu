@@ -1,6 +1,8 @@
 import {
+  allocatePoints,
   DomainError,
   isInCongo,
+  redeemablePoints,
   resolveDishOptions,
   titleWithOptions,
   type ChosenOption,
@@ -18,12 +20,15 @@ import { addMinutes } from '../../lib/clock.js';
 import { publicOrderRef } from '../../lib/crypto.js';
 import { HttpError, notFound } from '../../lib/errors.js';
 import { claimIdempotency, completeIdempotency } from '../../lib/idempotency.js';
+import { lockPoints } from '../loyalty/loyalty.service.js';
 import { orderViews } from '../orders/orders.service.js';
 
 export interface CheckoutInput {
   /** options : une proposition par choix du plat (restaurants), dans l'ordre des choix. */
   items: Array<{ productId: string; quantity: number; options?: string[] | undefined }>;
   couponCode?: string | undefined;
+  /** Points fidélité à utiliser (500 au moins, la moitié des articles au plus). */
+  usePoints?: number | undefined;
   delivery: {
     mode: 'home' | 'pickup_point';
     zoneId: string;
@@ -267,9 +272,25 @@ export async function createCheckout(
 
     const itemsTotal = sum(drafts.map((d) => d.itemsSubtotal));
     const deliveryTotal = sum(drafts.map((d) => d.deliveryFee));
+    // Points fidélité : mis de côté tout de suite (rendus si le panier expire sans paiement).
+    let pointsUsed = 0;
+    if (input.usePoints) {
+      const balance = await lockPoints(tx, buyerId);
+      try {
+        pointsUsed = redeemablePoints(input.usePoints, balance, itemsTotal);
+      } catch (error) {
+        if (error instanceof DomainError)
+          throw new HttpError(422, error.code, error.message, error.details);
+        throw error;
+      }
+    }
+    const pointShares = allocatePoints(
+      pointsUsed,
+      drafts.map((d) => d.itemsSubtotal),
+    );
     const { rows: checkoutRows } = await tx.query<{ id: string }>(
-      `INSERT INTO checkouts (buyer_id, items_total, delivery_total, grand_total, expires_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      `INSERT INTO checkouts (buyer_id, items_total, delivery_total, grand_total, expires_at, created_at, points_used)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [
         buyerId,
         itemsTotal,
@@ -277,9 +298,16 @@ export async function createCheckout(
         itemsTotal + deliveryTotal,
         addMinutes(now, ctx.config.payments.ttlMinutes),
         now,
+        pointsUsed,
       ],
     );
     const checkoutId = checkoutRows[0]!.id;
+    if (pointsUsed > 0)
+      await tx.query(
+        `INSERT INTO loyalty_entries (user_id, points, kind, checkout_id, created_at)
+         VALUES ($1, $2, 'redeemed', $3, $4)`,
+        [buyerId, -pointsUsed, checkoutId, now],
+      );
     const address = {
       recipientName: input.delivery.recipientName,
       phone: recipientPhone.e164,
@@ -287,12 +315,12 @@ export async function createCheckout(
       ...(location ? { location } : {}),
     };
 
-    for (const d of drafts) {
+    for (const [index, d] of drafts.entries()) {
       const { rows: orderRows } = await tx.query<{ id: string }>(
         `INSERT INTO orders (public_ref, checkout_id, buyer_id, seller_id, items_subtotal, delivery_fee, courier_share,
                              commission_total, total, delivery_mode, delivery_zone_id, pickup_point_id, shipping_address, created_at,
-                             coupon_id, discount_total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+                             coupon_id, discount_total, points_used)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
         [
           publicOrderRef(),
           checkoutId,
@@ -310,6 +338,7 @@ export async function createCheckout(
           now,
           d.couponId,
           d.discountTotal,
+          pointShares[index]!,
         ],
       );
       const orderId = orderRows[0]!.id;
@@ -393,6 +422,7 @@ export async function checkoutView(db: Db, checkoutId: string, buyerId: string) 
     currency: string;
     expires_at: Date;
     paid_at: Date | null;
+    points_used: number;
   }>('SELECT * FROM checkouts WHERE id = $1 AND buyer_id = $2', [checkoutId, buyerId]);
   const c = rows[0];
   if (!c) throw notFound('Panier');
@@ -402,6 +432,8 @@ export async function checkoutView(db: Db, checkoutId: string, buyerId: string) 
     itemsTotal: c.items_total,
     deliveryTotal: c.delivery_total,
     grandTotal: c.grand_total,
+    pointsUsed: Number(c.points_used),
+    amountToPay: c.grand_total - Number(c.points_used),
     currency: c.currency,
     expiresAt: c.expires_at,
     paidAt: c.paid_at,

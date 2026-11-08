@@ -346,6 +346,10 @@ export function createDemoState(deps: EngineDeps): DemoState {
   const buyer = DEMO_ACCOUNTS.buyer;
   const seller = state.users.find((u) => u.phone === DEMO_ACCOUNTS.seller.phone)!;
   const sellerToken = api.signIn(seller);
+  // L'acheteuse a été invitée par la vendeuse : sa première commande terminée leur rapporte
+  // le bonus de parrainage (points fidélité visibles dès l'ouverture de la démonstration).
+  seller.referralCode = 'GRACE482';
+  state.users.find((u) => u.phone === buyer.phone)!.referredBy = seller.id;
   const pagnes = state.users.find((u) => u.phone === '+242061000002')!;
   const pagnesToken = api.signIn(pagnes);
   const rider = state.users.find((u) => u.phone === DEMO_ACCOUNTS.rider.phone)!;

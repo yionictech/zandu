@@ -18,6 +18,7 @@ import { assertAmount, assertPositiveAmount, prorate, sum } from './money.js';
  *   revenue:commission                 commissions de la plateforme
  *   revenue:delivery_margin            marge sur la livraison
  *   expense:payment_fees               frais Mobile Money / agrégateur
+ *   expense:loyalty_rewards            points fidélité utilisés (réduction payée par Zandu)
  */
 export const PlatformAccounts = {
   escrow: 'liability:escrow',
@@ -28,6 +29,7 @@ export const PlatformAccounts = {
   commissionRevenue: 'revenue:commission',
   deliveryRevenue: 'revenue:delivery_margin',
   paymentFees: 'expense:payment_fees',
+  loyaltyRewards: 'expense:loyalty_rewards',
 } as const;
 
 export const providerCashAccount = (provider: string): string => `asset:provider_cash:${provider}`;
@@ -67,7 +69,8 @@ export type JournalKind =
   | 'payout_settled'
   | 'payout_reversed'
   | 'provider_fee'
-  | 'reconciliation_adjustment';
+  | 'reconciliation_adjustment'
+  | 'loyalty_restored';
 
 export interface JournalLine {
   account: string;
@@ -114,16 +117,25 @@ function journal(
   return j;
 }
 
-/** Paiement confirmé : l'argent entre chez l'agrégateur et est bloqué en séquestre, commande par commande. */
+/**
+ * Paiement confirmé : l'argent entre chez l'agrégateur et est bloqué en séquestre, commande par
+ * commande. Points fidélité utilisés : Zandu paie cette part (charge), le séquestre reçoit le
+ * montant entier des commandes.
+ */
 export function capturePayment(input: {
   paymentId: string;
   provider: string;
   orders: ReadonlyArray<{ orderId: string; total: number }>;
+  loyaltyPoints?: number;
 }): Journal {
   input.orders.forEach((o) => assertPositiveAmount(o.total, 'total commande'));
-  const amount = sum(input.orders.map((o) => o.total));
+  const loyalty = input.loyaltyPoints ?? 0;
+  assertAmount(loyalty, 'points fidélité');
+  const amount = sum(input.orders.map((o) => o.total)) - loyalty;
+  assertPositiveAmount(amount, 'montant payé');
   return journal('payment_captured', `capture:${input.paymentId}`, { paymentId: input.paymentId }, [
     { account: providerCashAccount(input.provider), amount },
+    { account: PlatformAccounts.loyaltyRewards, amount: loyalty },
     ...input.orders.map((o) => ({
       account: PlatformAccounts.escrow,
       amount: -o.total,
@@ -232,6 +244,18 @@ export function releaseEscrow(input: EscrowReleaseInput): EscrowRelease {
     sellerNet,
     commission,
   };
+}
+
+/**
+ * Commande annulée ou remboursée après un paiement en points : la part payée en points sort du
+ * séquestre et revient à Zandu (la charge est annulée) ; les points sont recrédités au client.
+ */
+export function restoreLoyalty(input: { key: string; orderId: string; points: number }): Journal {
+  assertPositiveAmount(input.points, 'points');
+  return journal('loyalty_restored', `loyalty:${input.key}`, { orderId: input.orderId }, [
+    { account: PlatformAccounts.escrow, amount: input.points, orderId: input.orderId },
+    { account: PlatformAccounts.loyaltyRewards, amount: -input.points },
+  ]);
 }
 
 /** Remboursement décidé : l'argent quitte le séquestre (ou le compte d'attente) vers « en cours ». */

@@ -7,7 +7,7 @@ import { Text } from '../../src/ui/Text';
 import { Badge, Card, HeaderBadge } from '../../src/ui/kit';
 import { api, errorMessage, newIdempotencyKey, unwrap } from '../../src/api';
 import { useCart } from '../../src/cart';
-import { displayPhone, formatXaf, isValidCongoPhone } from '../../src/format';
+import { displayPhone, formatXaf, groupThousands, isValidCongoPhone } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { useSession } from '../../src/session';
 import { loadJson, saveJson } from '../../src/storage';
@@ -47,6 +47,7 @@ export default function DeliveryScreen() {
   });
   const [remember, setRemember] = useState(true);
   const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attempt = useRef<{ key: string; body: string } | null>(null);
@@ -68,6 +69,19 @@ export default function DeliveryScreen() {
     () => cart.lines.filter((l) => !selected || selected.includes(l.productId)),
     [cart.lines, selected],
   );
+  const linesTotal = lines.reduce((n, l) => n + l.price * l.quantity, 0);
+  // Points fidélité utilisables pour ce panier (0 sous le minimum) : réduction payée par Zandu.
+  const redeemable = useQuery({
+    queryKey: ['loyalty', 'redeemable', linesTotal],
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/v1/me/loyalty/redeemable', {
+          params: { query: { itemsTotal: linesTotal } },
+        }),
+      ),
+    enabled: !!user && linesTotal > 0,
+  });
+  const pointsMax = redeemable.data?.max ?? 0;
 
   if (!ready) return <Loading />;
   if (!user) {
@@ -109,6 +123,7 @@ export default function DeliveryScreen() {
         ...(address.mode === 'home' && address.location ? { location: address.location } : {}),
       },
       ...(coupon ? { couponCode: coupon.code } : {}),
+      ...(usePoints && pointsMax > 0 ? { usePoints: pointsMax } : {}),
     };
     // Même clé tant que le contenu ne change pas : un renvoi après coupure ne crée pas de doublon.
     const serialized = JSON.stringify(body);
@@ -267,6 +282,28 @@ export default function DeliveryScreen() {
         sellerIds={[...new Set(lines.map((l) => l.sellerId))]}
       />
 
+      {pointsMax > 0 ? (
+        <Pressable
+          style={[styles.remember, usePoints && styles.pointsOn]}
+          onPress={() => setUsePoints(!usePoints)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: usePoints }}
+          testID="checkout-points"
+        >
+          <View style={[styles.checkbox, usePoints && styles.checkboxOn]}>
+            {usePoints ? <Check color={colors.onBrand} size={16} strokeWidth={3} /> : null}
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.rememberText}>
+              {t.loyalty.useAtCheckout(groupThousands(String(pointsMax)))}
+            </Text>
+            <Text style={styles.pointsHint}>
+              {t.loyalty.useAtCheckoutHint(groupThousands(String(pointsMax)))}
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
+
       <Pressable
         style={styles.remember}
         onPress={() => setRemember(!remember)}
@@ -364,6 +401,8 @@ const styles = StyleSheet.create({
   },
   checkboxOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   rememberText: { flex: 1, color: colors.text, fontSize: font.small },
+  pointsOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  pointsHint: { color: colors.muted, fontSize: 12 },
   summary: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
   summaryText: { flex: 1, color: colors.muted, fontSize: 12 },
   summaryAmount: { color: colors.text, fontWeight: '700', fontSize: 12 },

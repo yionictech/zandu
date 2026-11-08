@@ -12,6 +12,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { checkoutRoutes } from './modules/checkout/checkout.routes.js';
 import { parcelRoutes } from './modules/parcels/parcels.routes.js';
+import { loyaltyRoutes } from './modules/loyalty/loyalty.routes.js';
 import { promotionRoutes } from './modules/seller/promotions.routes.js';
 import { productViewRoutes, sellerStatsRoutes } from './modules/seller/stats.routes.js';
 import { riderReviewRoutes } from './modules/orders/rider-reviews.routes.js';
@@ -108,6 +109,7 @@ export async function buildApp(
   await app.register(sellerStatsRoutes(ctx));
   await app.register(promotionRoutes(ctx));
   await app.register(parcelRoutes(ctx));
+  await app.register(loyaltyRoutes(ctx));
   await app.register(supportMessageRoutes(ctx));
 
   const messaging =

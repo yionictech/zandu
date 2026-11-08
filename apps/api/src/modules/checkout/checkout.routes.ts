@@ -18,6 +18,7 @@ const CheckoutBody = z.object({
     )
     .min(1)
     .max(50),
+  usePoints: z.int().min(0).max(10_000_000).optional(),
   delivery: z.object({
     mode: z.enum(['home', 'pickup_point']),
     zoneId: z.uuid(),

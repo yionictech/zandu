@@ -530,6 +530,26 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
       lineTotal: 12000,
     });
 
+    // Points fidélité : gagnés avec la commande terminée de la démonstration, utilisables.
+    const card = call(buyer, 'GET', '/v1/me/loyalty');
+    expect(card.points).toBeGreaterThan(0);
+    expect(card.referralCode).toMatch(/^[A-Z0-9]{6,12}$/);
+    call(buyer, 'GET', '/v1/me/loyalty/redeemable', { query: { itemsTotal: '12000' } });
+    call(buyer, 'POST', '/v1/checkouts', {
+      body: {
+        items: [{ productId: poulet.id, quantity: 1, options: ['Normal', 'Riz'] }],
+        delivery,
+        usePoints: 100,
+      },
+      expect: 422,
+    });
+    const fresh = login('+242064440000');
+    call(fresh, 'POST', '/v1/me/referral', { body: { code: card.referralCode } });
+    expect(call(fresh, 'GET', '/v1/me/loyalty')).toMatchObject({
+      referredBy: true,
+      canEnterCode: false,
+    });
+
     // Envoi de colis : prix, création, paiement ; la course part au livreur de démonstration.
     const zones = call<any[]>(null, 'GET', '/v1/delivery/zones');
     const lumumba = zones.find((z) => z.name.startsWith('Lumumba')).id;

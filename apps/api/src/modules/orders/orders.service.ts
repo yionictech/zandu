@@ -1,5 +1,6 @@
 import {
   releaseEscrow,
+  splitRefund,
   transitionOrder,
   type OrderEffect,
   type OrderEvent,
@@ -12,6 +13,7 @@ import { hmac, randomDigits } from '../../lib/crypto.js';
 import { notFound } from '../../lib/errors.js';
 import { audit } from '../admin/audit.js';
 import { postJournal } from '../ledger/ledger.repository.js';
+import { rewardCompletedOrder, restorePoints } from '../loyalty/loyalty.service.js';
 import { publish } from '../notifications/outbox.js';
 import { createRefund } from '../payments/refunds.service.js';
 import { schedulePayout } from '../payouts/payouts.service.js';
@@ -49,6 +51,7 @@ export interface OrderRow {
   pickup_zone_id: string | null;
   pickup_address: Record<string, unknown> | null;
   parcel: { size: string; description: string } | null;
+  points_used: number;
 }
 
 export async function lockOrder(tx: Tx, orderId: string): Promise<OrderRow> {
@@ -183,14 +186,25 @@ async function runEffects(
       }
 
       case 'refund_buyer': {
-        const paymentId = await effectivePaymentId(tx, order.checkout_id);
-        await createRefund(ctx, tx, {
-          paymentId,
-          orderId: order.id,
+        // Payée en partie avec des points : l'argent repart d'abord, les points sont recrédités.
+        const split = splitRefund({
+          total: order.total,
+          pointsUsed: Number(order.points_used),
+          refundedBefore: order.refunded_amount - effect.amount,
           amount: effect.amount,
-          reason: effect.reason,
-          decidedBy: actor.userId,
         });
+        if (split.cash > 0) {
+          const paymentId = await effectivePaymentId(tx, order.checkout_id);
+          await createRefund(ctx, tx, {
+            paymentId,
+            orderId: order.id,
+            amount: split.cash,
+            reason: effect.reason,
+            decidedBy: actor.userId,
+          });
+        }
+        if (split.points > 0)
+          await restorePoints(ctx, tx, order, split.points, `${order.id}:${order.refunded_amount}`);
         break;
       }
 
@@ -211,6 +225,7 @@ async function runEffects(
         });
         await postJournal(tx, release.journal, ctx.clock.now());
         sellerNet = release.sellerNet;
+        await rewardCompletedOrder(ctx, tx, { ...order, points_used: Number(order.points_used) });
         // F8 : reversement automatique après réception, dans la limite de la politique vendeur.
         // En « retrait à la demande » (Paramètres), l'argent reste disponible pour le vendeur.
         if (release.sellerNet > 0 && (await payoutSettings(tx)).mode === 'automatic') {
@@ -290,6 +305,8 @@ export interface OrderView {
   /** Envoi de colis : où le livreur enlève le colis, et ce qu'il contient. */
   pickupAddress: Record<string, unknown> | null;
   parcel: { size: string; description: string } | null;
+  /** Points fidélité utilisés pour cette commande (déjà déduits du montant payé). */
+  pointsUsed: number;
 }
 
 type OrderViewRow = OrderRow & {
@@ -355,6 +372,7 @@ function toOrderView(r: OrderViewRow): OrderView {
     kind: r.kind,
     pickupAddress: r.pickup_address ? { ...r.pickup_address, zone: r.pickup_zone_name } : null,
     parcel: r.parcel,
+    pointsUsed: Number(r.points_used),
   };
 }
 

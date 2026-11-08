@@ -55,8 +55,11 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **Repas et restaurants** : rayon « Repas » (restaurants de la ville, ouverts d'abord), plats avec
   choix du client (taille, accompagnement, suppléments), acceptation en 15 minutes. Guide :
   [repas et restaurants](docs/exploitation/repas-et-restaurants.md).
-- **300 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), onze parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **Points fidélité et parrainage** : 1 point par 100 FCFA payés, utilisables à la commande
+  (réduction payée par Zandu, le vendeur reçoit tout), 1 000 points au parrain et au filleul.
+  Guide : [fidélité et parrainage](docs/exploitation/fidelite-et-parrainage.md).
+- **310 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), douze parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Nouvelle direction visuelle](docs/ux/captures/fondations-sombres.jpg)
@@ -99,7 +102,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 300 tests
+pnpm test            # 310 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

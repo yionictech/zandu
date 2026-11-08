@@ -221,6 +221,44 @@ export const fr = {
     food: 'Repas',
     loyalty: 'Mes points',
   },
+  loyalty: {
+    title: 'Mes points',
+    balance: 'Mes points fidélité',
+    worth: (fcfa: string) => `= ${fcfa} FCFA de réduction sur vos prochains achats`,
+    howTitle: 'Comment ça marche',
+    howEarn: (fcfa: number) => `1 point pour ${fcfa} FCFA payés, quand la commande est terminée.`,
+    howSpend: (min: number, share: number) =>
+      `À la commande : ${min} points au moins, jusqu’à ${share} % des articles. 1 point = 1 FCFA.`,
+    howReferral: (bonus: number) =>
+      `Parrainage : ${bonus} points pour vous et pour chaque ami invité.`,
+    referralTitle: 'Invitez vos amis',
+    referralHint: (bonus: number, min: number) =>
+      `Votre ami saisit ce code avant sa première commande. Quand elle est terminée (${min} FCFA au moins), vous recevez chacun ${bonus} points.`,
+    referralCount: (n: number) => `${n} ami${n > 1 ? 's' : ''} parrainé${n > 1 ? 's' : ''}`,
+    share: 'Partager mon code',
+    shareMessage: (code: string, bonus: number) =>
+      `Je t’invite sur Zandu : paiement Mobile Money protégé jusqu’à la livraison. Mets mon code ${code} avant ta première commande : ${bonus} points offerts !`,
+    sponsorTitle: 'Un ami vous a invité ?',
+    sponsorHint: (bonus: number) =>
+      `Saisissez son code avant votre première commande : ${bonus} points pour vous deux.`,
+    sponsorCode: 'Code de parrainage',
+    sponsorSave: 'Valider le code',
+    sponsorDone:
+      'Code de parrainage enregistré : vos points arrivent avec votre première commande.',
+    history: 'Historique',
+    noHistory: 'Pas encore de points : ils arrivent avec votre première commande terminée.',
+    kinds: {
+      earned: 'Commande terminée',
+      referral_bonus: 'Parrainage',
+      redeemed: 'Utilisés à la commande',
+      released: 'Rendus (panier non payé)',
+      restored: 'Rendus (commande remboursée)',
+    },
+    useAtCheckout: (points: string) => `Utiliser ${points} points`,
+    useAtCheckoutHint: (fcfa: string) => `−${fcfa} FCFA, payés par Zandu`,
+    paidWithPoints: 'Points fidélité',
+    toPay: 'À payer',
+  },
   food: {
     title: 'Repas',
     intro: 'Plats préparés par les restaurants de votre ville, livrés chauds par un livreur Zandu.',

@@ -282,6 +282,21 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
   }
 
   switch (event.topic) {
+    case 'loyalty.earned':
+    case 'loyalty.referral_bonus': {
+      // Points gagnés : une simple nouvelle sur le téléphone (et dans le centre de notifications).
+      return [
+        {
+          userId: event.aggregate_id,
+          recipient: '',
+          channel: 'push',
+          template: event.topic === 'loyalty.earned' ? 'loyalty_earned' : 'loyalty_referral_bonus',
+          variables: { points: String(p.points) },
+          url: '/fidelite',
+          pushOnly: true,
+        },
+      ];
+    }
     case 'payout.succeeded':
     case 'refund.succeeded': {
       const { rows } = await db.query<{ id: string; phone: string }>(

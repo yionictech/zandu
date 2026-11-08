@@ -11,3 +11,4 @@ export * from './opening-hours.js';
 export * from './map-tiles.js';
 export * from './geo.js';
 export * from './dish-options.js';
+export * from './loyalty.js';

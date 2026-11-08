@@ -17,6 +17,8 @@ export interface DUser {
   fullName: string | null;
   roles: Role[];
   notificationsSeenAt: string | null;
+  referralCode?: string;
+  referredBy?: string | null;
 }
 
 export interface DShop {
@@ -158,6 +160,7 @@ export interface DOrder {
     location?: S['GeoPoint'];
   } | null;
   parcel?: { size: S['ParcelSize']; description: string } | null;
+  pointsUsed?: number;
 }
 
 export interface DCheckout {
@@ -167,6 +170,7 @@ export interface DCheckout {
   expiresAt: string;
   paidAt: string | null;
   createdAt: string;
+  pointsUsed?: number;
 }
 
 export interface DPayment {
@@ -222,6 +226,16 @@ export interface DemoState {
   orders: DOrder[];
   payouts: DPayout[];
   uploads: Record<string, string>;
+  /** Points fidélité (absents des démos enregistrées avant eux). */
+  loyalty?: Array<{
+    id: string;
+    userId: string;
+    points: number;
+    kind: 'earned' | 'referral_bonus' | 'redeemed' | 'released' | 'restored';
+    orderId: string | null;
+    checkoutId: string | null;
+    at: string;
+  }>;
   /** Messagerie de la commande (absente des démos enregistrées avant elle). */
   chats?: Array<{
     id: string;

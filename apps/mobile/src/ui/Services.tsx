@@ -1,5 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
-import { ChevronRight, Package, UtensilsCrossed, type LucideIcon } from 'lucide-react-native';
+import { ChevronRight, Gift, Package, UtensilsCrossed, type LucideIcon } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { t } from '../i18n/fr';
 import { colors, font, radius, space } from '../theme';
@@ -16,6 +16,7 @@ interface Service {
 const SERVICES: Service[] = [
   { key: 'food', label: t.services.food, icon: UtensilsCrossed, href: '/repas' },
   { key: 'parcel', label: t.services.parcel, icon: Package, href: '/envoi/nouveau' },
+  { key: 'loyalty', label: t.services.loyalty, icon: Gift, href: '/fidelite' },
 ];
 
 export function ServicesRow() {

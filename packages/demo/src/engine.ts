@@ -2,8 +2,13 @@ import type { components, paths } from '@zandu/api-client';
 import {
   arrivalMinutes,
   distanceMeters,
+  allocatePoints,
   DomainError,
+  earnedPoints,
   isInCongo,
+  LOYALTY,
+  maxRedeemable,
+  redeemablePoints,
   isOpenAt,
   lineCommission,
   normalizeDishOptions,
@@ -368,6 +373,7 @@ export class DemoApi {
     return {
       discountTotal: 0,
       couponCode: null,
+      pointsUsed: o.pointsUsed ?? 0,
       kind: o.kind ?? 'shop',
       pickupAddress: o.pickup
         ? {
@@ -508,6 +514,8 @@ export class DemoApi {
       itemsTotal,
       deliveryTotal,
       grandTotal: itemsTotal + deliveryTotal,
+      pointsUsed: c.pointsUsed ?? 0,
+      amountToPay: itemsTotal + deliveryTotal - (c.pointsUsed ?? 0),
       currency: 'XAF',
       expiresAt: c.expiresAt,
       paidAt: c.paidAt,
@@ -654,6 +662,71 @@ export class DemoApi {
     }
   }
 
+  // ------------------------------------------------------------ fidélité
+
+  /** Solde : les points d'un panier expiré sans paiement reviennent (comme sur le serveur). */
+  private points(userId: string): number {
+    return (this.state.loyalty ?? [])
+      .filter((e) => e.userId === userId)
+      .filter((e) => {
+        if (e.kind !== 'redeemed' || !e.checkoutId) return true;
+        const c = this.state.checkouts.find((x) => x.id === e.checkoutId);
+        return !c || !!c.paidAt || this.now().getTime() <= Date.parse(c.expiresAt);
+      })
+      .reduce((n, e) => n + e.points, 0);
+  }
+  private addPoints(
+    userId: string,
+    points: number,
+    kind: NonNullable<DemoState['loyalty']>[number]['kind'],
+    refs: { orderId?: string; checkoutId?: string } = {},
+  ): void {
+    if (points === 0) return;
+    (this.state.loyalty ??= []).unshift({
+      id: this.deps.newId(),
+      userId,
+      points,
+      kind,
+      orderId: refs.orderId ?? null,
+      checkoutId: refs.checkoutId ?? null,
+      at: this.iso(),
+    });
+  }
+  private referralCodeOf(user: DUser): string {
+    if (!user.referralCode) {
+      const letters = (user.fullName ?? '')
+        .normalize('NFD')
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase()
+        .slice(0, 6);
+      user.referralCode = `${letters.length >= 3 ? letters : 'ZANDU'}${this.digits(3)}`;
+    }
+    return user.referralCode;
+  }
+  /** Fin de commande : points sur l'argent payé et gardé, bonus de parrainage la 1re fois. */
+  private rewardOrder(o: DOrder): void {
+    const cash = this.subtotal(o) + o.deliveryFee - (o.pointsUsed ?? 0) - o.refundedAmount;
+    const earned = earnedPoints(cash);
+    if (earned > 0) {
+      this.addPoints(o.buyerId, earned, 'earned', { orderId: o.id });
+      this.notify(
+        o.buyerId,
+        'loyalty_earned',
+        'Points gagnés',
+        `+${earned} points fidélité pour la commande ${o.publicRef}.`,
+        '/fidelite',
+      );
+    }
+    const buyer = this.userById(o.buyerId);
+    const completed = this.state.orders.filter(
+      (x) => x.buyerId === o.buyerId && x.status === 'completed',
+    ).length;
+    if (buyer?.referredBy && completed === 1 && cash >= LOYALTY.referralMinOrder) {
+      this.addPoints(buyer.referredBy, LOYALTY.referralBonus, 'referral_bonus', { orderId: o.id });
+      this.addPoints(buyer.id, LOYALTY.referralBonus, 'referral_bonus', { orderId: o.id });
+    }
+  }
+
   /** Envoi payé : prêt à enlever, la course part au livreur de démonstration. */
   private parcelPaid(o: DOrder): void {
     o.sellerAcceptDeadline = null;
@@ -714,12 +787,13 @@ export class DemoApi {
     this.moveTo(o, 'cancelled', event);
     if (refund && o.paidAt) {
       o.refundedAmount = this.subtotal(o) + o.deliveryFee;
+      if (o.pointsUsed) this.addPoints(o.buyerId, o.pointsUsed, 'restored', { orderId: o.id });
       this.moveTo(o, 'refunded', 'refund_succeeded');
       this.notify(
         o.buyerId,
         'buyer_refunded',
         'Remboursement envoyé',
-        `Commande ${o.publicRef} : ${o.refundedAmount} FCFA renvoyés sur votre compte Mobile Money.`,
+        `Commande ${o.publicRef} : ${o.refundedAmount - (o.pointsUsed ?? 0)} FCFA renvoyés sur votre compte Mobile Money${o.pointsUsed ? `, ${o.pointsUsed} points recrédités` : ''}.`,
         `/commande/${o.id}`,
       );
     }
@@ -728,6 +802,7 @@ export class DemoApi {
   private complete(o: DOrder, event: string): void {
     o.completedAt = this.iso();
     this.moveTo(o, 'completed', event);
+    this.rewardOrder(o);
     if (o.kind === 'parcel') return; // aucun vendeur à payer : le livreur et Zandu seulement
     const amount = this.sellerNet(o);
     this.state.payouts.unshift({
@@ -1134,6 +1209,63 @@ export class DemoApi {
       204,
     );
 
+    // Fidélité ---------------------------------------------------------------
+    this.on('GET', '/v1/me/loyalty', ({ user }): Ok<'/v1/me/loyalty', 'get'> => {
+      const me = user();
+      return {
+        points: this.points(me.id),
+        referralCode: this.referralCodeOf(me),
+        referralCount: this.state.users.filter((u) => u.referredBy === me.id).length,
+        referredBy: !!me.referredBy,
+        canEnterCode:
+          !me.referredBy && !this.state.orders.some((o) => o.buyerId === me.id && o.paidAt),
+        history: (this.state.loyalty ?? [])
+          .filter((e) => e.userId === me.id)
+          .slice(0, 30)
+          .map((e) => ({
+            id: e.id,
+            points: e.points,
+            kind: e.kind,
+            at: e.at,
+            orderRef: this.state.orders.find((o) => o.id === e.orderId)?.publicRef ?? null,
+          })),
+        rules: {
+          fcfaPerPoint: LOYALTY.fcfaPerPoint,
+          referralBonus: LOYALTY.referralBonus,
+          referralMinOrder: LOYALTY.referralMinOrder,
+          minRedeem: LOYALTY.minRedeem,
+          maxSharePercent: LOYALTY.maxSharePercent,
+        },
+      };
+    });
+    this.on(
+      'GET',
+      '/v1/me/loyalty/redeemable',
+      ({ user, query }): Ok<'/v1/me/loyalty/redeemable', 'get'> => {
+        const points = this.points(user().id);
+        const max = maxRedeemable(points, Number(query.get('itemsTotal') ?? 0));
+        return { points, max: max >= LOYALTY.minRedeem ? max : 0, minRedeem: LOYALTY.minRedeem };
+      },
+    );
+    this.on('POST', '/v1/me/referral', ({ user, body }): Ok<'/v1/me/referral', 'post'> => {
+      const me = user();
+      const code = String(body.code ?? '')
+        .trim()
+        .toUpperCase();
+      if (me.referredBy)
+        throw conflict('already_referred', 'Vous avez déjà saisi un code de parrainage');
+      if (this.state.orders.some((o) => o.buyerId === me.id && o.paidAt))
+        throw conflict(
+          'referral_closed',
+          'Le code de parrainage se saisit avant la première commande',
+        );
+      const sponsor = this.state.users.find((u) => u.referralCode === code);
+      if (!sponsor) throw new DemoError(422, 'referral_unknown', 'Code de parrainage inconnu');
+      if (sponsor.id === me.id)
+        throw new DemoError(422, 'referral_self', 'Vous ne pouvez pas utiliser votre propre code');
+      me.referredBy = sponsor.id;
+      return { referred: true };
+    });
     this.on('GET', '/v1/coupons/{code}', () => {
       throw new DemoError(422, 'coupon_invalid', 'Codes promo : pas disponibles en démonstration');
     });
@@ -1397,6 +1529,26 @@ export class DemoApi {
             dispute: null,
           });
         }
+        // Points fidélité : mis de côté, répartis entre les commandes au prorata des articles.
+        if (body.usePoints) {
+          const itemsTotal = orders.reduce((n, o) => n + this.subtotal(o), 0);
+          let points: number;
+          try {
+            points = redeemablePoints(Number(body.usePoints), this.points(buyer.id), itemsTotal);
+          } catch (error) {
+            if (error instanceof DomainError) throw new DemoError(422, error.code, error.message);
+            throw error;
+          }
+          if (points > 0) {
+            const shares = allocatePoints(
+              points,
+              orders.map((o) => this.subtotal(o)),
+            );
+            orders.forEach((o, i) => (o.pointsUsed = shares[i]));
+            checkout.pointsUsed = points;
+            this.addPoints(buyer.id, -points, 'redeemed', { checkoutId: checkout.id });
+          }
+        }
         checkout.orderIds = orders.map((o) => o.id);
         this.state.orders.unshift(...orders);
         this.state.checkouts.unshift(checkout);
@@ -1432,7 +1584,7 @@ export class DemoApi {
           checkoutId: c.id,
           operator: body.operator === 'airtel' ? 'airtel' : 'mtn',
           msisdn,
-          amount: view.grandTotal,
+          amount: view.amountToPay,
           // Comme le simulateur de la recette : un numéro finissant par 99 est refusé.
           status: msisdn.endsWith('99') ? 'failed' : 'pending',
           createdAt: this.iso(),

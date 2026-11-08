@@ -404,6 +404,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/me/loyalty': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Mes points fidélité et mon code de parrainage */
+    get: operations['myLoyalty'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/loyalty/redeemable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Points utilisables pour un panier */
+    get: operations['redeemablePoints'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/me/referral': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Saisir le code de mon parrain (avant ma première commande) */
+    post: operations['enterReferralCode'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/restaurants': {
     parameters: {
       query?: never;
@@ -3323,6 +3374,8 @@ export interface components {
       /** @description Remise du code promo de la boutique, déjà déduite de itemsSubtotal */
       discountTotal: components['schemas']['Amount'];
       couponCode: string | null;
+      /** @description Points fidélité utilisés pour cette commande (payés par Zandu) */
+      pointsUsed: number;
       /**
        * @description shop = achat en boutique ; parcel = envoi de colis entre particuliers
        * @enum {string}
@@ -3378,6 +3431,10 @@ export interface components {
       shippingAddress: components['schemas']['ShippingAddress'];
     };
     Checkout: {
+      /** @description Points fidélité utilisés pour ce panier */
+      pointsUsed: number;
+      /** @description Montant du paiement Mobile Money (grandTotal − pointsUsed) */
+      amountToPay: components['schemas']['Amount'];
       /** Format: uuid */
       id: string;
       /** @enum {string} */
@@ -4260,6 +4317,111 @@ export interface operations {
           };
         };
       };
+      422: components['responses']['Error'];
+    };
+  };
+  myLoyalty: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description 1 point = 1 FCFA de réduction */
+            points: number;
+            /** @example PRISCA482 */
+            referralCode: string;
+            /** @description Personnes parrainées */
+            referralCount: number;
+            referredBy: boolean;
+            /** @description Code d'un parrain encore saisissable (avant la 1re commande) */
+            canEnterCode: boolean;
+            history: {
+              id: string;
+              points: number;
+              /** @enum {string} */
+              kind: 'earned' | 'referral_bonus' | 'redeemed' | 'released' | 'restored';
+              /** Format: date-time */
+              at: string;
+              orderRef: string | null;
+            }[];
+            rules: {
+              fcfaPerPoint: number;
+              referralBonus: number;
+              referralMinOrder: number;
+              minRedeem: number;
+              maxSharePercent: number;
+            };
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  redeemablePoints: {
+    parameters: {
+      query: {
+        itemsTotal: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK (max = 0 si moins que le minimum) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            points: number;
+            max: number;
+            minRedeem: number;
+          };
+        };
+      };
+      401: components['responses']['Error'];
+    };
+  };
+  enterReferralCode: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          code: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Parrain enregistré ; bonus à la fin de la première commande */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @constant */
+            referred: true;
+          };
+        };
+      };
+      409: components['responses']['Error'];
       422: components['responses']['Error'];
     };
   };
@@ -5279,6 +5441,8 @@ export interface operations {
             /** @description Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un point relais). Hors du Congo : 422 location_out_of_area. */
             location?: components['schemas']['GeoPoint'];
           };
+          /** @description Points fidélité à utiliser (1 point = 1 FCFA, payé par Zandu) : 500 au moins, la moitié des articles au plus. 422 points_too_few, points_insufficient ou points_too_many. */
+          usePoints?: number;
           /** @description Code promo d'une boutique du panier : remise sur ses articles, payée par le vendeur. 422 coupon_invalid, coupon_exhausted, coupon_already_used, coupon_min_subtotal ou coupon_not_applicable. */
           couponCode?: string;
         };

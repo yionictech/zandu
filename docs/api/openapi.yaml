@@ -45,6 +45,8 @@ tags:
     description: Panier validé, paiement Mobile Money et suivi du paiement
   - name: Envois
     description: Envoi de colis entre particuliers avec les livreurs Zandu
+  - name: Fidélité
+    description: Points fidélité (réductions payées par Zandu) et parrainage
   - name: Fichiers
     description: Envoi direct des photos et pièces vers le stockage, par URL signée
   - name: Commandes
@@ -716,6 +718,101 @@ paths:
                   percent: { type: integer }
                   minSubtotal: { type: integer }
                   endsAt: { type: [string, 'null'], format: date-time }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/me/loyalty:
+    get:
+      tags: [Fidélité]
+      summary: Mes points fidélité et mon code de parrainage
+      operationId: myLoyalty
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [points, referralCode, referralCount, referredBy, canEnterCode, history, rules]
+                properties:
+                  points: { type: integer, description: 1 point = 1 FCFA de réduction }
+                  referralCode: { type: string, examples: [PRISCA482] }
+                  referralCount: { type: integer, description: Personnes parrainées }
+                  referredBy: { type: boolean }
+                  canEnterCode:
+                    type: boolean
+                    description: Code d'un parrain encore saisissable (avant la 1re commande)
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, points, kind, at, orderRef]
+                      properties:
+                        id: { type: string }
+                        points: { type: integer }
+                        kind:
+                          type: string
+                          enum: [earned, referral_bonus, redeemed, released, restored]
+                        at: { type: string, format: date-time }
+                        orderRef: { type: [string, 'null'] }
+                  rules:
+                    type: object
+                    required:
+                      [fcfaPerPoint, referralBonus, referralMinOrder, minRedeem, maxSharePercent]
+                    properties:
+                      fcfaPerPoint: { type: integer }
+                      referralBonus: { type: integer }
+                      referralMinOrder: { type: integer }
+                      minRedeem: { type: integer }
+                      maxSharePercent: { type: integer }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/loyalty/redeemable:
+    get:
+      tags: [Fidélité]
+      summary: Points utilisables pour un panier
+      operationId: redeemablePoints
+      parameters:
+        - { name: itemsTotal, in: query, required: true, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: OK (max = 0 si moins que le minimum)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [points, max, minRedeem]
+                properties:
+                  points: { type: integer }
+                  max: { type: integer }
+                  minRedeem: { type: integer }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/me/referral:
+    post:
+      tags: [Fidélité]
+      summary: Saisir le code de mon parrain (avant ma première commande)
+      operationId: enterReferralCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^[A-Za-z0-9]{6,12}$' }
+      responses:
+        '200':
+          description: Parrain enregistré ; bonus à la fin de la première commande
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [referred]
+                properties:
+                  referred: { type: boolean, const: true }
+        '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
   /v1/restaurants:
@@ -1666,6 +1763,13 @@ paths:
                       description: >-
                         Repère posé sur la carte (facultatif, domicile seulement ; ignoré pour un
                         point relais). Hors du Congo : 422 location_out_of_area.
+                usePoints:
+                  type: integer
+                  minimum: 0
+                  description: >-
+                    Points fidélité à utiliser (1 point = 1 FCFA, payé par Zandu) : 500 au moins,
+                    la moitié des articles au plus. 422 points_too_few, points_insufficient ou
+                    points_too_many.
                 couponCode:
                   type: string
                   pattern: '^[A-Za-z0-9]{3,20}$'
@@ -5652,6 +5756,7 @@ components:
           kind,
           pickupAddress,
           parcel,
+          pointsUsed,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -5707,6 +5812,9 @@ components:
           $ref: '#/components/schemas/Amount'
           description: Remise du code promo de la boutique, déjà déduite de itemsSubtotal
         couponCode: { type: [string, 'null'] }
+        pointsUsed:
+          type: integer
+          description: Points fidélité utilisés pour cette commande (payés par Zandu)
         kind:
           type: string
           enum: [shop, parcel]
@@ -5785,8 +5893,24 @@ components:
     Checkout:
       type: object
       required:
-        [id, status, itemsTotal, deliveryTotal, grandTotal, currency, expiresAt, paidAt, orders]
+        [
+          id,
+          status,
+          itemsTotal,
+          deliveryTotal,
+          grandTotal,
+          pointsUsed,
+          amountToPay,
+          currency,
+          expiresAt,
+          paidAt,
+          orders,
+        ]
       properties:
+        pointsUsed: { type: integer, description: Points fidélité utilisés pour ce panier }
+        amountToPay:
+          $ref: '#/components/schemas/Amount'
+          description: Montant du paiement Mobile Money (grandTotal − pointsUsed)
         id: { type: string, format: uuid }
         status: { type: string, enum: [awaiting_payment, paid, expired] }
         itemsTotal: { $ref: '#/components/schemas/Amount' }

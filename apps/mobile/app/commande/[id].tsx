@@ -615,6 +615,12 @@ export default function OrderScreen() {
           <Text style={styles.totalLabel}>{t.orders.total}</Text>
           <Amount value={o.total} size="md" />
         </View>
+        {o.pointsUsed > 0 ? (
+          <View style={styles.row} testID="order-points">
+            <Text style={styles.muted}>{t.loyalty.paidWithPoints}</Text>
+            <Text style={styles.value}>− {formatXaf(o.pointsUsed)}</Text>
+          </View>
+        ) : null}
         {o.refundedAmount > 0 ? (
           <Text style={styles.refund}>Remboursé : {formatXaf(o.refundedAmount)}</Text>
         ) : null}

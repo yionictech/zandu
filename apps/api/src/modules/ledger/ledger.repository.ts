@@ -16,6 +16,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   [PlatformAccounts.commissionRevenue]: 'Commissions sur ventes',
   [PlatformAccounts.deliveryRevenue]: 'Marge sur frais de livraison',
   [PlatformAccounts.paymentFees]: 'Frais Mobile Money / agrégateur',
+  [PlatformAccounts.loyaltyRewards]: 'Points fidélité utilisés (réductions payées par Zandu)',
 };
 
 /** Crée le compte à la première utilisation (comptes vendeurs, livreurs, agrégateurs). */
