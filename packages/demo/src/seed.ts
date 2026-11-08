@@ -1,6 +1,9 @@
 import { DemoApi, DEMO_RIDER_PHONE, type EngineDeps } from './engine.js';
 import { CATEGORY_BY_SLUG, LUMUMBA, TIE_TIE } from './reference.js';
+import type { components } from '@zandu/api-client';
 import type { DemoState, DShop, DUser } from './state.js';
+
+type S = components['schemas'];
 
 /**
  * Données de départ de la démonstration : les trois boutiques et douze produits de
@@ -53,7 +56,47 @@ const SHOPS = [
     operator: 'airtel',
     categories: ['alimentation'],
   },
+  {
+    key: 'resto',
+    phone: '+242061000004',
+    owner: 'Clarisse Ntsimba',
+    name: 'Chez Maman Clarisse',
+    operator: 'mtn',
+    categories: ['repas'],
+  },
 ] as const;
+
+/** Plats du restaurant de démonstration, avec leurs choix. */
+const TAILLE = {
+  name: 'Taille',
+  choices: [
+    { label: 'Normal', extra: 0 },
+    { label: 'Grand', extra: 1500 },
+  ],
+};
+const ACCOMPAGNEMENT = {
+  name: 'Accompagnement',
+  choices: [
+    { label: 'Alloco', extra: 0 },
+    { label: 'Manioc', extra: 0 },
+    { label: 'Riz', extra: 0 },
+    { label: 'Frites', extra: 500 },
+  ],
+};
+const DISH_OPTIONS: Record<string, S['DishOptions']> = {
+  'poulet-dg': [TAILLE, ACCOMPAGNEMENT],
+  'poisson-braise': [TAILLE, ACCOMPAGNEMENT],
+  'saka-saka': [ACCOMPAGNEMENT],
+  'jus-bissap': [
+    {
+      name: 'Format',
+      choices: [
+        { label: '50 cl', extra: 0 },
+        { label: '1 L', extra: 700 },
+      ],
+    },
+  ],
+};
 
 const PRODUCTS: Array<
   [
@@ -66,6 +109,27 @@ const PRODUCTS: Array<
     description: string,
   ]
 > = [
+  // Plats du restaurant d'abord : les plus anciens, l'accueil montre les nouveautés des boutiques.
+  ['poulet-dg', 'resto', 'repas', 'Poulet DG', 4000, 40, 'Poulet, plantain mûr, légumes sautés.'],
+  [
+    'poisson-braise',
+    'resto',
+    'repas',
+    'Poisson braisé',
+    5000,
+    30,
+    'Capitaine braisé, piment et oignons à part.',
+  ],
+  [
+    'saka-saka',
+    'resto',
+    'repas',
+    'Saka-saka au poisson salé',
+    3000,
+    30,
+    'Feuilles de manioc pilées.',
+  ],
+  ['jus-bissap', 'resto', 'repas', 'Jus de bissap', 1000, 60, 'Fait maison, bien frais.'],
   [
     'samsung-galaxy-a15',
     'electro',
@@ -229,9 +293,14 @@ export function createDemoState(deps: EngineDeps): DemoState {
       payoutAccountName: s.owner,
       verificationStatus: 'verified',
       isOpen: true,
-      defaultPrepMinutes: 60,
-      openingHours: 'Lun-Sam 8h-19h',
-      weeklyHours: [null, ...Array.from({ length: 6 }, () => ({ open: '08:00', close: '19:00' }))],
+      defaultPrepMinutes: s.key === 'resto' ? 30 : 60,
+      // Le restaurant est ouvert tous les jours ; les boutiques du lundi au samedi.
+      openingHours: s.key === 'resto' ? 'Tous les jours 7h-23h' : 'Lun-Sam 8h-19h',
+      weeklyHours:
+        s.key === 'resto'
+          ? Array.from({ length: 7 }, () => ({ open: '07:00', close: '23:00' }))
+          : [null, ...Array.from({ length: 6 }, () => ({ open: '08:00', close: '19:00' }))],
+      ...(s.key === 'resto' ? { shopType: 'restaurant' as const } : {}),
       soldCategoryIds: s.categories.map((c) => CATEGORY_BY_SLUG[c]!),
       termsAccepted: true,
       kycDocuments: [],
@@ -262,6 +331,7 @@ export function createDemoState(deps: EngineDeps): DemoState {
       photos: [{ id: deps.newId(), url: `demo-photo:${slug}` }],
       createdAt: at,
       updatedAt: at,
+      ...(DISH_OPTIONS[slug] ? { options: DISH_OPTIONS[slug] } : {}),
     });
   });
 

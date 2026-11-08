@@ -1,3 +1,4 @@
+import { isOpenAt, type WeeklyHours } from '@zandu/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../../context.js';
@@ -106,7 +107,7 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
         shareImage: string | null;
         media: Array<{ key: string; width: number | null; height: number | null }>;
       }>(
-        `SELECT ${PRODUCT_CARD}, p.description,
+        `SELECT ${PRODUCT_CARD}, p.description, p.options, s.shop_type = 'restaurant' AS "isDish",
                 (SELECT coalesce(json_agg(json_build_object(
                           'key', ${variantKeySql('large')},
                           'width', coalesce((m.variants->'large'->>'width')::int, m.width),
@@ -152,6 +153,45 @@ export function catalogRoutes(ctx: AppContext): FastifyPluginAsync {
         [id, limit, offset],
       );
       return { items: rows };
+    });
+
+    /**
+     * Rayon « Repas » : restaurants de la ville, ouverts maintenant d'abord (congés exclus),
+     * avec temps de préparation habituel, note, nombre de plats et une photo de plat.
+     */
+    app.get('/v1/restaurants', async (request) => {
+      const { city } = z.object({ city: z.string().max(60).optional() }).parse(request.query);
+      const { rows } = await ctx.pool.query<{
+        weeklyHours: WeeklyHours | null;
+        coverImage: string | null;
+      }>(
+        `SELECT s.id, s.shop_name AS "shopName", s.slug, s.city, z.name AS zone,
+                s.verification_status = 'verified' AS verified,
+                s.rating_avg::float AS "ratingAvg", s.rating_count AS "ratingCount",
+                s.default_prep_minutes AS "prepMinutes", s.weekly_hours AS "weeklyHours",
+                s.opening_hours AS "openingHours",
+                (SELECT count(*)::int FROM products p
+                  WHERE p.seller_id = s.id AND p.status = 'published' AND p.stock > 0) AS "dishCount",
+                (SELECT ${COVER_KEY_SQL} FROM products p
+                  WHERE p.seller_id = s.id AND p.status = 'published' AND p.stock > 0
+                  ORDER BY p.published_at DESC LIMIT 1) AS "coverImage"
+         FROM seller_profiles s JOIN delivery_zones z ON z.id = s.pickup_zone_id
+         WHERE s.shop_type = 'restaurant' AND s.is_open AND s.verification_status <> 'suspended'
+           AND ($1::text IS NULL OR s.city = $1)
+         ORDER BY s.rating_avg DESC NULLS LAST, s.shop_name
+         LIMIT 100`,
+        [city ?? null],
+      );
+      const now = ctx.clock.now();
+      const items = rows
+        .filter((r) => (r as unknown as { dishCount: number }).dishCount > 0)
+        .map(({ weeklyHours, coverImage, ...r }) => ({
+          ...r,
+          openNow: isOpenAt(weeklyHours, now),
+          coverImage: coverImage ? ctx.storage.publicUrl(coverImage) : null,
+        }))
+        .sort((a, b) => Number(b.openNow) - Number(a.openNow));
+      return { items };
     });
 
     /** Vitrine publique d'une boutique (lien partagé par le vendeur sur WhatsApp). */

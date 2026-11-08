@@ -8,7 +8,14 @@ import { checkoutView, createCheckout } from './checkout.service.js';
 
 const CheckoutBody = z.object({
   items: z
-    .array(z.object({ productId: z.uuid(), quantity: z.int().min(1).max(100) }))
+    .array(
+      z.object({
+        productId: z.uuid(),
+        quantity: z.int().min(1).max(100),
+        /** Plat de restaurant : une proposition par choix (« Grand », « Alloco »). */
+        options: z.array(z.string().trim().min(1).max(40)).max(3).optional(),
+      }),
+    )
     .min(1)
     .max(50),
   delivery: z.object({

@@ -115,11 +115,11 @@ const delivery = {
 describe('Démonstration locale ⇄ contrat OpenAPI', () => {
   it('données de départ : catalogue, boutiques, commandes à traiter dans chaque espace', () => {
     const { call, login } = demo();
-    expect(call(null, 'GET', '/v1/categories')).toHaveLength(7);
+    expect(call(null, 'GET', '/v1/categories')).toHaveLength(8);
     const zones = call<any[]>(null, 'GET', '/v1/delivery/zones');
     expect(zones.find((z) => z.id === TIE_TIE).pickupPoints).toHaveLength(1);
     const all = call(null, 'GET', '/v1/products', { query: { limit: '50' } });
-    expect(all.items).toHaveLength(12);
+    expect(all.items).toHaveLength(16);
     expect(all.items[0].coverImage).toMatch(/^data:image\/jpeg;base64,/);
     const search = call(null, 'GET', '/v1/products', { query: { q: 'ecouteurs' } });
     expect(search.items.map((p: any) => p.title)).toEqual(['Écouteurs Bluetooth sans fil']);
@@ -497,5 +497,84 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
     call(fresh, 'GET', '/v1/me', { expect: 401 });
     call(buyer, 'POST', '/v1/auth/logout');
     call(buyer, 'GET', '/v1/me', { expect: 401 });
+  });
+
+  it('restaurants, plats à options et envoi de colis, comme le serveur', () => {
+    const { call, login, api } = demo();
+    const buyer = login(DEMO_ACCOUNTS.buyer.phone);
+    // 9 h à Pointe-Noire : le restaurant de démonstration est ouvert.
+    const restaurants = call(null, 'GET', '/v1/restaurants', { query: { city: 'Pointe-Noire' } });
+    expect(restaurants.items).toHaveLength(1);
+    expect(restaurants.items[0]).toMatchObject({ shopName: 'Chez Maman Clarisse', openNow: true });
+    const menu = call(null, 'GET', '/v1/products', {
+      query: { sellerId: restaurants.items[0].id, limit: '50' },
+    });
+    const poulet = menu.items.find((p: any) => p.title === 'Poulet DG');
+    const dish = call(null, 'GET', '/v1/products/{id}', { params: { id: poulet.id } });
+    expect(dish).toMatchObject({ isDish: true });
+    expect(dish.options.map((g: any) => g.name)).toEqual(['Taille', 'Accompagnement']);
+    call(buyer, 'POST', '/v1/checkouts', {
+      body: { items: [{ productId: poulet.id, quantity: 1 }], delivery },
+      expect: 422,
+    });
+    const co = call(buyer, 'POST', '/v1/checkouts', {
+      body: {
+        items: [{ productId: poulet.id, quantity: 2, options: ['Grand', 'Frites'] }],
+        delivery,
+      },
+      expect: 201,
+    });
+    expect(co.orders[0].items[0]).toMatchObject({
+      title: 'Poulet DG (Grand, Frites)',
+      unitPrice: 6000,
+      lineTotal: 12000,
+    });
+
+    // Envoi de colis : prix, création, paiement ; la course part au livreur de démonstration.
+    const zones = call<any[]>(null, 'GET', '/v1/delivery/zones');
+    const lumumba = zones.find((z) => z.name.startsWith('Lumumba')).id;
+    const quote = call(buyer, 'GET', '/v1/parcels/quote', {
+      query: { fromZoneId: lumumba, toZoneId: TIE_TIE, size: 'medium' },
+    });
+    const parcel = call(buyer, 'POST', '/v1/parcels', {
+      body: {
+        size: 'medium',
+        description: 'Documents',
+        pickup: {
+          name: 'Prisca N.',
+          zoneId: lumumba,
+          phone: '06 612 34 98',
+          landmark: 'Rond-point Lumumba',
+        },
+        recipient: {
+          name: 'Grâce M.',
+          zoneId: TIE_TIE,
+          phone: '05 512 12 12',
+          landmark: 'École Saint-Pierre',
+        },
+      },
+      expect: 201,
+    });
+    expect(parcel.total).toBe(quote.price);
+    const payment = call(buyer, 'POST', '/v1/checkouts/{id}/payments', {
+      params: { id: parcel.checkoutId },
+      body: { operator: 'mtn', phone: '06 612 34 98' },
+      expect: 201,
+    });
+    call(null, 'POST', '/dev/simulator/collections/{id}/{outcome}', {
+      params: { id: payment.id, outcome: 'approve' },
+    });
+    const sent = call(buyer, 'GET', '/v1/parcels');
+    expect(sent.items[0]).toMatchObject({ kind: 'parcel', status: 'ready_for_pickup' });
+    const tracking = call(buyer, 'GET', '/v1/orders/{id}/tracking', {
+      params: { id: parcel.orderId },
+    });
+    expect(tracking).toMatchObject({ deliveryStatus: 'assigned', pickupConfirmed: false });
+    expect(api.state.orders.find((o) => o.id === parcel.orderId)!.sellerId).toBeTruthy();
+    expect(
+      call(buyer, 'POST', '/v1/parcels/{id}/cancel', { params: { id: parcel.orderId } }),
+    ).toMatchObject({
+      status: 'refunded',
+    });
   });
 });

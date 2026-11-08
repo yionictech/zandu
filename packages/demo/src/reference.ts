@@ -41,6 +41,12 @@ export const CATEGORIES = [
     slug: 'alimentation',
     name: 'Alimentation et produits locaux',
   },
+  {
+    id: '10000000-0000-4000-8000-000000000008',
+    parentId: null,
+    slug: 'repas',
+    name: 'Repas et boissons',
+  },
 ] as const;
 
 export const CATEGORY_BY_SLUG: Record<string, string> = Object.fromEntries(

@@ -8,7 +8,8 @@ INSERT INTO categories (id, parent_id, slug, name, position) VALUES
   ('10000000-0000-4000-8000-000000000004', NULL, 'mode', 'Mode', 2),
   ('10000000-0000-4000-8000-000000000005', NULL, 'beaute', 'Beauté et soins', 3),
   ('10000000-0000-4000-8000-000000000006', NULL, 'maison', 'Maison et électroménager', 4),
-  ('10000000-0000-4000-8000-000000000007', NULL, 'alimentation', 'Alimentation et produits locaux', 5)
+  ('10000000-0000-4000-8000-000000000007', NULL, 'alimentation', 'Alimentation et produits locaux', 5),
+  ('10000000-0000-4000-8000-000000000008', NULL, 'repas', 'Repas et boissons', 6)
 ON CONFLICT DO NOTHING;
 
 -- Commission : 10 % par défaut, 8 % électronique (faible marge), 12 % mode et beauté.

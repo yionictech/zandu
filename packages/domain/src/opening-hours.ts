@@ -73,6 +73,21 @@ export function addOpenMinutes(
   throw new DomainError('invalid_hours', 'Échéance introuvable');
 }
 
+/** Ouvert à cet instant selon les horaires (heure du Congo) ; sans horaires : toujours ouvert. */
+export function isOpenAt(
+  week: WeeklyHours | null,
+  at: Date,
+  utcOffsetMinutes = CONGO_UTC_OFFSET_MINUTES,
+): boolean {
+  if (!week || !week.some(Boolean)) return true;
+  const local = at.getTime() + utcOffsetMinutes * MINUTE_MS;
+  const dayStart = Math.floor(local / DAY_MS) * DAY_MS;
+  const day = week[(new Date(dayStart).getUTCDay() + 6) % 7];
+  if (!day) return false;
+  const minute = (local - dayStart) / MINUTE_MS;
+  return minute >= minutesOf(day.open) && minute < minutesOf(day.close);
+}
+
 /** « Lun – Sam · 08:00 – 18:00 » ; plusieurs plages séparées par « ; » ; « Fermé » sinon. */
 export function weeklyHoursSummary(week: WeeklyHours): string {
   const groups: Array<{ from: number; to: number; hours: string }> = [];

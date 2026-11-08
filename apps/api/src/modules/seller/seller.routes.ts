@@ -5,6 +5,8 @@ import {
   sellerPayableAccount,
   assertWeeklyHours,
   DomainError,
+  MAX_CHOICES,
+  normalizeDishOptions,
   weeklyHoursSummary,
   type WeeklyHours,
 } from '@zandu/domain';
@@ -66,6 +68,26 @@ function hoursText(week: WeeklyHours | undefined): string | null {
   return weeklyHoursSummary(week).slice(0, 80);
 }
 
+/** Options d'un plat (restaurants) : vérifiées par le domaine, erreurs en 400. */
+const DishOptionsSchema = z
+  .array(
+    z.object({
+      name: z.string(),
+      choices: z.array(z.object({ label: z.string(), extra: z.int() })).max(MAX_CHOICES),
+    }),
+  )
+  .max(3);
+function dishOptions(groups: z.infer<typeof DishOptionsSchema> | null | undefined) {
+  if (groups === undefined) return undefined;
+  if (groups === null || groups.length === 0) return null;
+  try {
+    return normalizeDishOptions(groups);
+  } catch (error) {
+    if (error instanceof DomainError) throw new HttpError(400, error.code, error.message);
+    throw error;
+  }
+}
+
 export const PrepMinutes = z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)]);
 
 async function shopView(db: Db, userId: string | null) {
@@ -76,7 +98,8 @@ async function shopView(db: Db, userId: string | null) {
             s.verification_status AS "verificationStatus", s.rating_avg::float AS "ratingAvg",
             s.rating_count AS "ratingCount", s.is_open AS "isOpen",
             s.default_prep_minutes AS "defaultPrepMinutes", s.opening_hours AS "openingHours", s.weekly_hours AS "weeklyHours",
-            s.sold_category_ids AS "soldCategoryIds", s.terms_accepted_at IS NOT NULL AS "termsAccepted"
+            s.sold_category_ids AS "soldCategoryIds", s.terms_accepted_at IS NOT NULL AS "termsAccepted",
+            s.shop_type AS "shopType"
      FROM seller_profiles s JOIN delivery_zones z ON z.id = s.pickup_zone_id
      WHERE s.user_id = $1`,
     [userId],
@@ -264,6 +287,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           payoutOperator: z.enum(['mtn', 'airtel']).optional(),
           payoutAccountName: z.string().trim().min(2).max(80).optional(),
           acceptTerms: z.literal(true).optional(),
+          /** « restaurant » : plats préparés, rayon Repas, acceptation en 15 minutes. */
+          shopType: z.enum(['shop', 'restaurant']).optional(),
         })
         .refine((b) => Object.keys(b).length > 0, 'Aucune modification')
         .refine(
@@ -296,7 +321,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
              payout_msisdn_changed_at = CASE WHEN $12 THEN $11 ELSE payout_msisdn_changed_at END,
              city = coalesce($13, city),
              pickup_zone_id = coalesce($14, pickup_zone_id),
-             weekly_hours = coalesce($15::jsonb, weekly_hours)
+             weekly_hours = coalesce($15::jsonb, weekly_hours),
+             shop_type = coalesce($16, shop_type)
            WHERE id = $1`,
           [
             shop.id,
@@ -314,6 +340,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             body.city ?? null,
             body.pickupZoneId ?? null,
             body.weeklyHours ? JSON.stringify(body.weeklyHours) : null,
+            body.shopType ?? null,
           ],
         );
         if (payoutChanged) {
@@ -422,7 +449,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         `SELECT id, title, description, price, stock, status, category_id AS "categoryId",
                 condition, low_stock_threshold AS "lowStockThreshold",
                 rejection_reason AS "rejectionReason", updated_at AS "updatedAt",
-                compare_at_price::int AS "compareAtPrice", sale_ends_at AS "saleEndsAt"
+                compare_at_price::int AS "compareAtPrice", sale_ends_at AS "saleEndsAt", options
          FROM products WHERE id = $1 AND seller_id = $2`,
         [id, shop.id],
       );
@@ -446,8 +473,10 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           condition: Condition.default('new'),
           lowStockThreshold: z.int().min(0).max(1000).default(2),
           publish: z.boolean().default(true),
+          options: DishOptionsSchema.nullable().optional(),
         })
         .parse(request.body);
+      const options = dishOptions(body.options) ?? null;
       const shop = await shopOf(ctx.pool, actor(request, 'seller').userId);
       if (shop.verification_status === 'suspended') {
         throw new HttpError(403, 'seller_suspended', 'Boutique suspendue');
@@ -475,9 +504,9 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
         }
         const { rows } = await tx.query<{ id: string; status: string }>(
           `INSERT INTO products (seller_id, category_id, title, description, price, stock, city, status, published_at,
-                                 condition, low_stock_threshold)
+                                 condition, low_stock_threshold, options)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::product_status,
-                   CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END, $10, $11)
+                   CASE WHEN $8::product_status = 'published' THEN $9::timestamptz END, $10, $11, $12)
            RETURNING id, status`,
           [
             shop.id,
@@ -491,6 +520,7 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             ctx.clock.now(),
             body.condition,
             body.lowStockThreshold,
+            options === null ? null : JSON.stringify(options),
           ],
         );
         if (typeof key === 'string') await completeIdempotency(tx, userId, key, rows[0]!.id);
@@ -512,9 +542,12 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
           condition: Condition.optional(),
           lowStockThreshold: z.int().min(0).max(1000).optional(),
           status: z.enum(['archived', 'published']).optional(),
+          /** Options du plat ; null ou [] les retire. */
+          options: DishOptionsSchema.nullable().optional(),
         })
         .refine((b) => Object.keys(b).length > 0, 'Aucune modification')
         .parse(request.body);
+      const options = dishOptions(body.options);
       const a = actor(request, 'seller');
       return withTx(ctx.pool, async (tx) => {
         const shop = await shopOf(tx, a.userId);
@@ -556,7 +589,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
              low_stock_threshold = coalesce($10, low_stock_threshold),
              -- Prix remonté au niveau de l'ancien prix : la promotion s'arrête.
              compare_at_price = CASE WHEN $5::bigint >= compare_at_price THEN NULL ELSE compare_at_price END,
-             sale_ends_at = CASE WHEN $5::bigint >= compare_at_price THEN NULL ELSE sale_ends_at END
+             sale_ends_at = CASE WHEN $5::bigint >= compare_at_price THEN NULL ELSE sale_ends_at END,
+             options = CASE WHEN $11 THEN $12::jsonb ELSE options END
            WHERE id = $1
            RETURNING id, title, price, stock, status`,
           [
@@ -570,6 +604,8 @@ export function sellerRoutes(ctx: AppContext): FastifyPluginAsync {
             ctx.clock.now(),
             body.condition ?? null,
             body.lowStockThreshold ?? null,
+            options !== undefined,
+            options ? JSON.stringify(options) : null,
           ],
         );
         return rows[0];

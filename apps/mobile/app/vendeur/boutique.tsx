@@ -24,8 +24,11 @@ function MyShop() {
   const { signOut } = useSession();
   const shop = useShop();
   const update = useMutation({
-    mutationFn: async (body: { isOpen?: boolean; defaultPrepMinutes?: PrepMinutes }) =>
-      unwrap(await api.PATCH('/v1/seller/shop', { body })),
+    mutationFn: async (body: {
+      isOpen?: boolean;
+      defaultPrepMinutes?: PrepMinutes;
+      shopType?: 'shop' | 'restaurant';
+    }) => unwrap(await api.PATCH('/v1/seller/shop', { body })),
     onSuccess: (updated) => {
       queryClient.setQueryData(sellerKeys.shop, updated);
       void queryClient.invalidateQueries({ queryKey: ['seller'] });
@@ -43,6 +46,10 @@ function MyShop() {
       ? update.variables.defaultPrepMinutes
       : s.defaultPrepMinutes;
   const phone = displayPhone(s.payoutPhone);
+  const restaurant =
+    update.isPending && update.variables.shopType
+      ? update.variables.shopType === 'restaurant'
+      : s.shopType === 'restaurant';
 
   return (
     <Screen>
@@ -58,6 +65,22 @@ function MyShop() {
             label={t.vendor.shopOpen}
             disabled={update.isPending}
             testID="shop-open-toggle"
+          />
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.row}>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>{t.food.restaurant}</Text>
+            <Text style={styles.muted}>{t.food.restaurantHint}</Text>
+          </View>
+          <Toggle
+            value={restaurant}
+            onChange={(next) => update.mutate({ shopType: next ? 'restaurant' : 'shop' })}
+            label={t.food.restaurant}
+            disabled={update.isPending}
+            testID="shop-restaurant-toggle"
           />
         </View>
       </Card>

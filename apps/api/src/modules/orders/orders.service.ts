@@ -266,6 +266,7 @@ export interface OrderView {
     unitPrice: number;
     quantity: number;
     lineTotal: number;
+    options: Array<{ group: string; choice: string; extra: number }> | null;
   }>;
   itemsSubtotal: number;
   deliveryFee: number;
@@ -312,6 +313,7 @@ async function queryOrders(db: Db, where: string, params: unknown[]): Promise<Or
             (SELECT json_agg(json_build_object(
                 'itemId', oi.id, 'productId', oi.product_id, 'title', oi.title_snapshot,
                 'unitPrice', oi.unit_price, 'quantity', oi.quantity, 'lineTotal', oi.line_total,
+                'options', oi.options,
                 'reviewed', EXISTS (SELECT 1 FROM reviews r WHERE r.order_item_id = oi.id))
                 ORDER BY oi.title_snapshot)
              FROM order_items oi WHERE oi.order_id = o.id) AS items

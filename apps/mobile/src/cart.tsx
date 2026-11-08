@@ -21,15 +21,22 @@ export interface CartLine {
   shopName: string;
   quantity: number;
   stock: number;
+  /** Plat de restaurant : propositions choisies (une par choix) ; price comprend les suppléments. */
+  options?: string[];
 }
+
+/** Identifiant d'une ligne : le produit, et ses choix pour un plat (deux tailles = deux lignes). */
+export const lineKey = (l: Pick<CartLine, 'productId' | 'options'>): string =>
+  l.options?.length ? `${l.productId}|${l.options.join('|')}` : l.productId;
 
 interface CartValue {
   lines: CartLine[];
   count: number;
   itemsTotal: number;
-  add(product: ProductCard, quantity?: number): void;
-  setQuantity(productId: string, quantity: number): void;
-  remove(productId: string): void;
+  add(product: ProductCard, quantity?: number, choice?: { options: string[]; extra: number }): void;
+  /** key : lineKey(ligne). */
+  setQuantity(key: string, quantity: number): void;
+  remove(key: string): void;
   removeMany(productIds: string[]): void;
 }
 
@@ -50,44 +57,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (loaded) void saveJson(CART_KEY, lines);
   }, [lines, loaded]);
 
-  const add = useCallback((product: ProductCard, quantity = 1) => {
-    setLines((current) => {
-      const existing = current.find((l) => l.productId === product.id);
-      if (existing) {
-        return current.map((l) =>
-          l.productId === product.id
-            ? { ...l, quantity: Math.min(l.quantity + quantity, product.stock) }
-            : l,
-        );
-      }
-      return [
-        ...current,
-        {
-          productId: product.id,
-          title: product.title,
-          price: product.price,
-          coverImage: product.coverImage,
-          sellerId: product.seller.id,
-          shopName: product.seller.shopName,
-          quantity: Math.min(quantity, product.stock),
-          stock: product.stock,
-        },
-      ];
-    });
-  }, []);
+  const add = useCallback(
+    (product: ProductCard, quantity = 1, choice?: { options: string[]; extra: number }) => {
+      const options = choice?.options.length ? choice.options : undefined;
+      const key = lineKey({ productId: product.id, options });
+      setLines((current) => {
+        const existing = current.find((l) => lineKey(l) === key);
+        if (existing) {
+          return current.map((l) =>
+            lineKey(l) === key
+              ? { ...l, quantity: Math.min(l.quantity + quantity, product.stock) }
+              : l,
+          );
+        }
+        return [
+          ...current,
+          {
+            productId: product.id,
+            title: options ? `${product.title} (${options.join(', ')})` : product.title,
+            price: product.price + (choice?.extra ?? 0),
+            ...(options ? { options } : {}),
+            coverImage: product.coverImage,
+            sellerId: product.seller.id,
+            shopName: product.seller.shopName,
+            quantity: Math.min(quantity, product.stock),
+            stock: product.stock,
+          },
+        ];
+      });
+    },
+    [],
+  );
 
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((key: string, quantity: number) => {
     setLines((current) =>
       current
-        .map((l) =>
-          l.productId === productId ? { ...l, quantity: Math.min(quantity, l.stock) } : l,
-        )
+        .map((l) => (lineKey(l) === key ? { ...l, quantity: Math.min(quantity, l.stock) } : l))
         .filter((l) => l.quantity > 0),
     );
   }, []);
 
-  const remove = useCallback((productId: string) => {
-    setLines((current) => current.filter((l) => l.productId !== productId));
+  const remove = useCallback((key: string) => {
+    setLines((current) => current.filter((l) => lineKey(l) !== key));
   }, []);
 
   const removeMany = useCallback((productIds: string[]) => {

@@ -6,6 +6,7 @@ import { FlatList, Share, StyleSheet, useWindowDimensions, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, errorMessage, unwrap } from '../../src/api';
 import { useCart } from '../../src/cart';
+import { chosenOptions, DishOptionsPicker } from '../../src/ui/DishOptions';
 import { SITE_URL } from '../../src/config';
 import { formatDate, formatXaf, groupThousands } from '../../src/format';
 import { t } from '../../src/i18n/fr';
@@ -31,6 +32,7 @@ export default function ProductScreen() {
   const { width } = useWindowDimensions();
   const [added, setAdded] = useState(false);
   const [page, setPage] = useState(0);
+  const [choices, setChoices] = useState<Array<string | null>>([]);
 
   // Statistiques du vendeur : une vue par ouverture de la fiche.
   useEffect(() => {
@@ -57,9 +59,14 @@ export default function ProductScreen() {
   const photos = p.media.length ? p.media.map((m) => m.url) : [null];
   const imageWidth = Math.min(width, 640);
   const favorite = favorites.has(p.id);
+  // Plat de restaurant : un choix par groupe avant d'ajouter au panier ; prix suppléments compris.
+  const groups = p.options ?? [];
+  const choice = chosenOptions(groups, choices);
+  const missing = groups.filter((_, i) => !choices[i]).map((g) => g.name);
+  const price = p.price + (choice?.extra ?? 0);
 
   const buyNow = () => {
-    cart.add(p, 1);
+    cart.add(p, 1, choice ?? undefined);
     router.push({ pathname: '/commande/livraison', params: { products: p.id } });
   };
   const share = () =>
@@ -85,14 +92,16 @@ export default function ProductScreen() {
               label={added ? t.product.added : t.product.addToCart}
               active={added}
               onPress={() => {
-                cart.add(p, 1);
+                if (!choice) return;
+                cart.add(p, 1, choice);
                 setAdded(true);
               }}
               testID="add-to-cart"
             />
             <Button
-              label={t.product.buyNow}
+              label={choice ? t.product.buyNow : t.food.chooseFirst(missing.join(', '))}
               onPress={buyNow}
+              disabled={!choice}
               style={styles.action}
               testID="buy-now"
             />
@@ -168,13 +177,16 @@ export default function ProductScreen() {
           </View>
         ) : null}
         <View style={styles.priceRow}>
-          <Amount value={p.price} size="xl" />
+          <Amount value={price} size="xl" />
           {p.compareAtPrice && p.compareAtPrice > p.price ? (
             <Text style={styles.compareAt}>{groupThousands(String(p.compareAtPrice))} FCFA</Text>
           ) : null}
         </View>
         {p.stock > 0 && p.stock <= 3 ? (
           <Text style={styles.low}>{t.product.stockLow(p.stock)}</Text>
+        ) : null}
+        {groups.length ? (
+          <DishOptionsPicker groups={groups} value={choices} onChange={setChoices} />
         ) : null}
       </View>
 

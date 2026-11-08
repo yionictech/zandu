@@ -1,5 +1,10 @@
 import {
+  DomainError,
   isInCongo,
+  resolveDishOptions,
+  titleWithOptions,
+  type ChosenOption,
+  type DishOptionGroup,
   lineCommission,
   parseCongoMobile,
   prorate,
@@ -16,7 +21,8 @@ import { claimIdempotency, completeIdempotency } from '../../lib/idempotency.js'
 import { orderViews } from '../orders/orders.service.js';
 
 export interface CheckoutInput {
-  items: Array<{ productId: string; quantity: number }>;
+  /** options : une proposition par choix du plat (restaurants), dans l'ordre des choix. */
+  items: Array<{ productId: string; quantity: number; options?: string[] | undefined }>;
   couponCode?: string | undefined;
   delivery: {
     mode: 'home' | 'pickup_point';
@@ -43,6 +49,16 @@ interface ProductRow {
   seller_status: string;
   seller_open: boolean;
   pickup_zone_id: string;
+  options: DishOptionGroup[] | null;
+}
+
+/** Une ligne du panier : un produit avec ses choix (deux tailles = deux lignes). */
+interface CartLineDraft {
+  product: ProductRow;
+  quantity: number;
+  unitPrice: number;
+  title: string;
+  options: ChosenOption[];
 }
 
 /**
@@ -87,7 +103,7 @@ export async function createCheckout(
     const { rows: products } = await tx.query<ProductRow>(
       `SELECT p.id, p.title, p.price, p.stock, p.status, p.category_id, p.seller_id,
               s.user_id AS seller_user_id, s.verification_status AS seller_status, s.pickup_zone_id,
-              s.is_open AS seller_open
+              s.is_open AS seller_open, p.options
        FROM products p JOIN seller_profiles s ON s.id = p.seller_id
        WHERE p.id = ANY($1::uuid[]) ORDER BY p.id FOR UPDATE OF p`,
       [[...quantities.keys()]],
@@ -119,6 +135,36 @@ export async function createCheckout(
       }
     }
 
+    // Lignes du panier : même produit et mêmes choix regroupés, prix avec les suppléments.
+    const cartLines = new Map<string, CartLineDraft>();
+    for (const item of input.items) {
+      const product = byId.get(item.productId)!;
+      let chosen;
+      try {
+        chosen = resolveDishOptions(product.options, item.options);
+      } catch (error) {
+        if (error instanceof DomainError)
+          throw new HttpError(422, error.code, error.message, { productId: product.id });
+        throw error;
+      }
+      const key = `${product.id}|${chosen.options.map((o) => o.choice).join('|')}`;
+      const existing = cartLines.get(key);
+      if (existing) existing.quantity += item.quantity;
+      else
+        cartLines.set(key, {
+          product,
+          quantity: item.quantity,
+          unitPrice: product.price + chosen.extra,
+          title: titleWithOptions(product.title, chosen.options),
+          options: chosen.options,
+        });
+    }
+    for (const line of cartLines.values())
+      if (line.quantity > 100)
+        throw new HttpError(422, 'validation_error', 'Quantité trop grande', {
+          productId: line.product.id,
+        });
+
     const zone = await tx.query('SELECT 1 FROM delivery_zones WHERE id = $1 AND active', [
       input.delivery.zoneId,
     ]);
@@ -149,15 +195,16 @@ export async function createCheckout(
     const categoryPaths = await loadCategoryPaths(tx);
 
     // Une commande par vendeur.
-    const bySeller = new Map<string, ProductRow[]>();
-    for (const p of products) bySeller.set(p.seller_id, [...(bySeller.get(p.seller_id) ?? []), p]);
+    const bySeller = new Map<string, CartLineDraft[]>();
+    for (const line of cartLines.values())
+      bySeller.set(line.product.seller_id, [...(bySeller.get(line.product.seller_id) ?? []), line]);
 
     const drafts = [];
-    for (const [sellerId, sellerProducts] of bySeller) {
+    for (const [sellerId, sellerLines] of bySeller) {
       const rate = await tx.query<{ price: number; courier_share: number }>(
         `SELECT price, courier_share FROM delivery_rates
          WHERE from_zone_id = $1 AND to_zone_id = $2 AND mode = $3 AND active`,
-        [sellerProducts[0]!.pickup_zone_id, input.delivery.zoneId, input.delivery.mode],
+        [sellerLines[0]!.product.pickup_zone_id, input.delivery.zoneId, input.delivery.mode],
       );
       if (!rate.rows[0]) {
         throw new HttpError(
@@ -167,7 +214,7 @@ export async function createCheckout(
           { sellerId },
         );
       }
-      const gross = sellerProducts.map((p) => p.price * quantities.get(p.id)!);
+      const gross = sellerLines.map((l) => l.unitPrice * l.quantity);
       const grossSubtotal = sum(gross);
       // Code promo de cette boutique : remise répartie sur les lignes au prorata (le reste sur la
       // dernière), payée par le vendeur. La commission porte sur le montant après remise.
@@ -181,11 +228,12 @@ export async function createCheckout(
         );
       const discountTotal = applies ? Math.floor((grossSubtotal * coupon!.percent) / 100) : 0;
       let left = discountTotal;
-      const lines = sellerProducts.map((p, index) => {
-        const quantity = quantities.get(p.id)!;
+      const lines = sellerLines.map((cartLine, index) => {
+        const p = cartLine.product;
+        const quantity = cartLine.quantity;
         const lineGross = gross[index]!;
         const discount =
-          index === sellerProducts.length - 1
+          index === sellerLines.length - 1
             ? left
             : prorate(discountTotal, lineGross, grossSubtotal);
         left -= discount;
@@ -197,6 +245,7 @@ export async function createCheckout(
         );
         return {
           product: p,
+          cartLine,
           quantity,
           discount,
           lineTotal,
@@ -267,18 +316,19 @@ export async function createCheckout(
       for (const l of d.lines) {
         await tx.query(
           `INSERT INTO order_items (order_id, product_id, title_snapshot, unit_price, quantity, line_total,
-                                    commission_rate_bps, commission_amount, discount)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                                    commission_rate_bps, commission_amount, discount, options)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             orderId,
             l.product.id,
-            l.product.title,
-            l.product.price,
+            l.cartLine.title,
+            l.cartLine.unitPrice,
             l.quantity,
             l.lineTotal,
             l.rateBps,
             l.commission,
             l.discount,
+            l.cartLine.options.length ? JSON.stringify(l.cartLine.options) : null,
           ],
         );
         await tx.query('UPDATE products SET stock = stock - $2 WHERE id = $1', [

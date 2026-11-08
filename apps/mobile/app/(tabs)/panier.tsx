@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Info, Minus, Plus, ShieldCheck } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useCart, type CartLine } from '../../src/cart';
+import { lineKey, useCart, type CartLine } from '../../src/cart';
 import { formatXaf } from '../../src/format';
 import { t } from '../../src/i18n/fr';
 import { colors, font, radius, space } from '../../src/theme';
@@ -18,7 +18,7 @@ function Stepper({ line }: { line: CartLine }) {
     <View style={styles.stepper}>
       <Pressable
         style={styles.step}
-        onPress={() => setQuantity(line.productId, line.quantity - 1)}
+        onPress={() => setQuantity(lineKey(line), line.quantity - 1)}
         accessibilityLabel={line.quantity === 1 ? t.cart.remove : 'Moins'}
       >
         <Minus color={colors.text} size={18} />
@@ -26,7 +26,7 @@ function Stepper({ line }: { line: CartLine }) {
       <Text style={styles.qty}>{line.quantity}</Text>
       <Pressable
         style={styles.step}
-        onPress={() => setQuantity(line.productId, line.quantity + 1)}
+        onPress={() => setQuantity(lineKey(line), line.quantity + 1)}
         disabled={line.quantity >= line.stock}
         accessibilityLabel="Plus"
       >
@@ -79,7 +79,7 @@ export default function CartScreen() {
               </Text>
             </View>
             {lines.map((line) => (
-              <View key={line.productId} style={styles.line}>
+              <View key={lineKey(line)} style={styles.line}>
                 <ProductImage uri={line.coverImage} title={line.title} style={styles.thumb} />
                 <View style={styles.lineBody}>
                   <Text style={styles.title} numberOfLines={1}>

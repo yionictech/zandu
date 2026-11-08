@@ -49,12 +49,25 @@ export async function acceptanceSetting(ctx: AppContext, db: Db): Promise<Accept
  * Ce qu'il faut pour fixer l'échéance d'acceptation d'une commande payée : les règles en
  * vigueur et, si l'option est active et la boutique a renseigné ses horaires, sa semaine.
  */
+/** Délai d'acceptation d'une commande par un restaurant. */
+export const RESTAURANT_ACCEPT_MINUTES = 15;
+
 export async function acceptanceRules(
   ctx: AppContext,
   db: Db,
   sellerId: string,
 ): Promise<{ policy: OrderPolicy; sellerHours: WeeklyHours | null }> {
   const setting = await acceptanceSetting(ctx, db);
+  // Restaurant : un repas se prépare tout de suite ; 15 minutes pour accepter, sinon remboursé.
+  const { rows: type } = await db.query<{ shop_type: string }>(
+    'SELECT shop_type FROM seller_profiles WHERE id = $1',
+    [sellerId],
+  );
+  if (type[0]?.shop_type === 'restaurant')
+    return {
+      policy: { ...ctx.config.orderPolicy, sellerAcceptanceHours: RESTAURANT_ACCEPT_MINUTES / 60 },
+      sellerHours: null,
+    };
   const policy =
     setting.source === 'custom'
       ? { ...ctx.config.orderPolicy, sellerAcceptanceHours: setting.minutes / 60 }

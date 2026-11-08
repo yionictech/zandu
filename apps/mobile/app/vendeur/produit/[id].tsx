@@ -11,7 +11,7 @@ import {
   ProductForm,
   type ProductFormValues,
 } from '../../../src/seller/ProductForm';
-import { sellerKeys } from '../../../src/seller/queries';
+import { sellerKeys, useShop } from '../../../src/seller/queries';
 import { productStatusColor } from '../../../src/status';
 import { font } from '../../../src/theme';
 import { CameraPermissionError, pickImage, uploadImage } from '../../../src/upload';
@@ -22,6 +22,7 @@ import { Failure, Loading, Screen, Section } from '../../../src/ui/Layout';
 import { PhotoStrip, type PhotoItem } from '../../../src/ui/PhotoStrip';
 import { RequireRole } from '../../../src/ui/RequireRole';
 import { SaleCard } from '../../../src/seller/SaleCard';
+import { DishOptionsCard } from '../../../src/seller/DishOptionsCard';
 
 const MAX_PHOTOS = 6;
 
@@ -67,6 +68,7 @@ function EditProduct({ id }: { id: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  const shop = useShop();
   const product = useQuery({
     queryKey: sellerKeys.product(id),
     queryFn: async () =>
@@ -214,6 +216,16 @@ function EditProduct({ id }: { id: string }) {
       <Section>
         <ProductForm values={form} onChange={(patch) => setForm((f) => ({ ...f!, ...patch }))} />
       </Section>
+      {shop.data?.shopType === 'restaurant' ? (
+        <DishOptionsCard
+          productId={id}
+          options={p.options}
+          onSaved={() => {
+            void queryClient.invalidateQueries({ queryKey: ['seller'] });
+            setNotice(t.food.saved);
+          }}
+        />
+      ) : null}
       {p.status === 'published' ? (
         <SaleCard
           productId={id}

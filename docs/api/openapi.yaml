@@ -460,8 +460,13 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/ProductCard'
                   - type: object
-                    required: [description, media, shareImage, reviews]
+                    required: [description, media, shareImage, reviews, options, isDish]
                     properties:
+                      isDish: { type: boolean, description: Plat d'un restaurant }
+                      options:
+                        oneOf:
+                          - type: 'null'
+                          - $ref: '#/components/schemas/DishOptions'
                       description: { type: string }
                       media:
                         description: >-
@@ -647,6 +652,7 @@ paths:
                 payoutOperator: { $ref: '#/components/schemas/Operator' }
                 payoutAccountName: { type: string, minLength: 2, maxLength: 80 }
                 acceptTerms: { type: boolean, enum: [true] }
+                shopType: { $ref: '#/components/schemas/ShopType' }
       responses:
         '200':
           description: Boutique à jour
@@ -711,6 +717,60 @@ paths:
                   minSubtotal: { type: integer }
                   endsAt: { type: [string, 'null'], format: date-time }
         '422': { $ref: '#/components/responses/Error' }
+
+  /v1/restaurants:
+    get:
+      tags: [Catalogue]
+      summary: Restaurants de la ville (rayon Repas)
+      description: Ouverts maintenant d'abord ; boutiques en congé et sans plat exclues.
+      operationId: listRestaurants
+      security: []
+      parameters:
+        - { name: city, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          id,
+                          shopName,
+                          slug,
+                          city,
+                          zone,
+                          verified,
+                          ratingAvg,
+                          ratingCount,
+                          prepMinutes,
+                          openingHours,
+                          dishCount,
+                          coverImage,
+                          openNow,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        shopName: { type: string }
+                        slug: { type: string }
+                        city: { type: string }
+                        zone: { type: string }
+                        verified: { type: boolean }
+                        ratingAvg: { type: [number, 'null'] }
+                        ratingCount: { type: integer }
+                        prepMinutes: { $ref: '#/components/schemas/PrepMinutes' }
+                        openingHours: { type: [string, 'null'] }
+                        dishCount: { type: integer }
+                        coverImage: { type: [string, 'null'], format: uri }
+                        openNow: { type: boolean }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/parcels/quote:
     get:
@@ -1235,6 +1295,10 @@ paths:
               type: object
               required: [categoryId, title, price, stock]
               properties:
+                options:
+                  oneOf:
+                    - type: 'null'
+                    - $ref: '#/components/schemas/DishOptions'
                 categoryId: { type: string, format: uuid }
                 title: { type: string, minLength: 3, maxLength: 140 }
                 description: { type: string, maxLength: 5000 }
@@ -1577,6 +1641,13 @@ paths:
                     properties:
                       productId: { type: string, format: uuid }
                       quantity: { type: integer, minimum: 1, maximum: 100 }
+                      options:
+                        description: >-
+                          Plat de restaurant : une proposition par choix, dans l'ordre des
+                          choix du plat (« Grand », « Alloco »)
+                        type: array
+                        maxItems: 3
+                        items: { type: string, minLength: 1, maxLength: 40 }
                 delivery:
                   type: object
                   required: [mode, zoneId, recipientName, phone, landmark]
@@ -2842,6 +2913,11 @@ paths:
                 condition: { $ref: '#/components/schemas/ProductCondition' }
                 lowStockThreshold: { type: integer, minimum: 0, maximum: 1000 }
                 status: { type: string, enum: [archived, published] }
+                options:
+                  description: Options du plat ; null ou [] les retire.
+                  oneOf:
+                    - type: 'null'
+                    - $ref: '#/components/schemas/DishOptions'
       responses:
         '200':
           description: Modifié
@@ -4761,8 +4837,10 @@ components:
           weeklyHours,
           soldCategoryIds,
           termsAccepted,
+          shopType,
         ]
       properties:
+        shopType: { $ref: '#/components/schemas/ShopType' }
         id: { type: string, format: uuid }
         shopName: { type: string }
         slug: { type: string }
@@ -5302,8 +5380,13 @@ components:
           photos,
           compareAtPrice,
           saleEndsAt,
+          options,
         ]
       properties:
+        options:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/DishOptions'
         id: { type: string, format: uuid }
         title: { type: string }
         description: { type: string }
@@ -5594,6 +5677,18 @@ components:
               quantity: { type: integer }
               lineTotal: { $ref: '#/components/schemas/Amount' }
               reviewed: { type: boolean }
+              options:
+                description: Choix du plat (prix unitaire suppléments compris)
+                oneOf:
+                  - type: 'null'
+                  - type: array
+                    items:
+                      type: object
+                      required: [group, choice, extra]
+                      properties:
+                        group: { type: string }
+                        choice: { type: string }
+                        extra: { $ref: '#/components/schemas/Amount' }
         itemsSubtotal: { $ref: '#/components/schemas/Amount' }
         deliveryFee: { $ref: '#/components/schemas/Amount' }
         total: { $ref: '#/components/schemas/Amount' }
@@ -5626,6 +5721,29 @@ components:
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/ParcelContent'
+    ShopType:
+      type: string
+      enum: [shop, restaurant]
+      description: restaurant = plats préparés (rayon Repas, acceptation en 15 minutes)
+    DishOptions:
+      description: Choix obligatoires d'un plat (3 au plus), chacun avec ses propositions
+      type: array
+      maxItems: 3
+      items:
+        type: object
+        required: [name, choices]
+        properties:
+          name: { type: string, minLength: 2, maxLength: 40, examples: [Accompagnement] }
+          choices:
+            type: array
+            minItems: 2
+            maxItems: 8
+            items:
+              type: object
+              required: [label, extra]
+              properties:
+                label: { type: string, minLength: 1, maxLength: 40, examples: [Alloco] }
+                extra: { type: integer, minimum: 0, maximum: 100000, description: Supplément }
     ParcelPickup:
       type: object
       required: [name, phone, landmark, zone]

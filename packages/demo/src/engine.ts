@@ -2,9 +2,14 @@ import type { components, paths } from '@zandu/api-client';
 import {
   arrivalMinutes,
   distanceMeters,
+  DomainError,
   isInCongo,
+  isOpenAt,
   lineCommission,
+  normalizeDishOptions,
   parseCongoMobile,
+  resolveDishOptions,
+  titleWithOptions,
 } from '@zandu/domain';
 import {
   CATEGORIES,
@@ -99,6 +104,27 @@ interface Ctx {
   body: Record<string, unknown>;
   token: string | null;
   user(): DUser;
+}
+
+/** Choix d'un plat (même règles que le serveur), erreurs en 422 comme l'API. */
+function dishChoices(product: DProduct, chosen: string[] | undefined) {
+  try {
+    return resolveDishOptions(product.options ?? null, chosen);
+  } catch (error) {
+    if (error instanceof DomainError) throw new DemoError(422, error.code, error.message);
+    throw error;
+  }
+}
+
+/** Options saisies par le restaurant, vérifiées comme sur le serveur (400). */
+function dishOptionsOf(value: unknown): S['DishOptions'] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  try {
+    return normalizeDishOptions(value as S['DishOptions']);
+  } catch (error) {
+    if (error instanceof DomainError) throw new DemoError(400, error.code, error.message);
+    throw error;
+  }
 }
 
 export class DemoApi {
@@ -366,6 +392,7 @@ export class DemoApi {
         quantity: i.quantity,
         lineTotal: i.unitPrice * i.quantity,
         reviewed: i.reviewed,
+        options: i.options ?? null,
       })),
       itemsSubtotal,
       deliveryFee: o.deliveryFee,
@@ -532,6 +559,7 @@ export class DemoApi {
       weeklyHours: s.weeklyHours,
       soldCategoryIds: s.soldCategoryIds,
       termsAccepted: s.termsAccepted,
+      shopType: s.shopType ?? 'shop',
     };
   }
 
@@ -559,6 +587,7 @@ export class DemoApi {
 
   private sellerProductView(p: DProduct): S['SellerProduct'] {
     return {
+      options: p.options ?? null,
       compareAtPrice: p.compareAtPrice ?? null,
       saleEndsAt: null,
       id: p.id,
@@ -593,7 +622,10 @@ export class DemoApi {
     for (const id of checkout.orderIds) {
       const o = this.state.orders.find((x) => x.id === id)!;
       o.paidAt = this.iso();
-      o.sellerAcceptDeadline = this.iso(ACCEPT_HOURS * 3_600_000);
+      // Restaurant : 15 minutes pour accepter (comme sur le serveur).
+      o.sellerAcceptDeadline = this.iso(
+        this.shop(o.sellerId).shopType === 'restaurant' ? 15 * 60_000 : ACCEPT_HOURS * 3_600_000,
+      );
       for (const item of o.items) {
         const p = this.state.products.find((x) => x.id === item.productId);
         if (p) p.stock = Math.max(0, p.stock - item.quantity);
@@ -851,6 +883,36 @@ export class DemoApi {
       const limit = Number(query.get('limit') ?? 20);
       return { items: items.slice(offset, offset + limit).map((p) => this.card(p)) };
     });
+    this.on('GET', '/v1/restaurants', ({ query }): Ok<'/v1/restaurants', 'get'> => {
+      const city = query.get('city');
+      const now = this.now();
+      const items = this.state.shops
+        .filter((s) => s.shopType === 'restaurant' && s.isOpen && (!city || s.city === city))
+        .map((s) => {
+          const dishes = this.state.products.filter(
+            (p) => p.sellerId === s.id && p.status === 'published' && p.stock > 0,
+          );
+          const rating = this.shopRating(s.id);
+          return {
+            id: s.id,
+            shopName: s.shopName,
+            slug: s.slug,
+            city: s.city,
+            zone: this.zone(s.pickupZoneId).name,
+            verified: s.verificationStatus === 'verified',
+            ratingAvg: rating.avg,
+            ratingCount: rating.count,
+            prepMinutes: s.defaultPrepMinutes,
+            openingHours: s.openingHours,
+            dishCount: dishes.length,
+            coverImage: dishes[0]?.photos[0] ? photoUrl(dishes[0].photos[0].url) : null,
+            openNow: isOpenAt(s.weeklyHours, now),
+          };
+        })
+        .filter((r) => r.dishCount > 0)
+        .sort((a, b) => Number(b.openNow) - Number(a.openNow));
+      return { items };
+    });
     this.on('GET', '/v1/products/{id}', ({ params }): Ok<'/v1/products/{id}', 'get'> => {
       const p = this.product(params.id!);
       if (p.status !== 'published') throw notFound('Produit');
@@ -858,6 +920,8 @@ export class DemoApi {
       return {
         ...this.card(p),
         description: p.description,
+        options: p.options ?? null,
+        isDish: this.shop(p.sellerId).shopType === 'restaurant',
         media: p.photos.map((ph) => ({ url: photoUrl(ph.url), width: 600, height: 600 })),
         shareImage: null,
         reviews: {
@@ -1210,7 +1274,8 @@ export class DemoApi {
       '/v1/checkouts',
       ({ user, body }): Ok<'/v1/checkouts', 'post', 201> => {
         const buyer = user();
-        const lines = (body.items as Array<{ productId: string; quantity: number }>) ?? [];
+        const lines =
+          (body.items as Array<{ productId: string; quantity: number; options?: string[] }>) ?? [];
         const d = (body.delivery ?? {}) as {
           mode: 'home' | 'pickup_point';
           zoneId: string;
@@ -1237,7 +1302,10 @@ export class DemoApi {
             'pickup_point_invalid',
             'Point relais introuvable dans ce quartier',
           );
-        const bySeller = new Map<string, Array<{ product: DProduct; quantity: number }>>();
+        const bySeller = new Map<
+          string,
+          Array<{ product: DProduct; quantity: number; options: string[] | undefined }>
+        >();
         for (const line of lines) {
           const product = this.product(line.productId);
           const shop = this.shop(product.sellerId);
@@ -1249,7 +1317,7 @@ export class DemoApi {
           if (product.stock < line.quantity) throw conflict('out_of_stock', 'Stock insuffisant');
           bySeller.set(product.sellerId, [
             ...(bySeller.get(product.sellerId) ?? []),
-            { product, quantity: line.quantity },
+            { product, quantity: line.quantity, options: line.options },
           ]);
         }
         const checkout: DCheckout = {
@@ -1289,19 +1357,24 @@ export class DemoApi {
             buyerId: buyer.id,
             sellerId,
             status: 'pending_payment',
-            items: sellerLines.map(({ product, quantity }) => ({
-              itemId: this.deps.newId(),
-              productId: product.id,
-              title: product.title,
-              categoryId: product.categoryId,
-              unitPrice: product.price,
-              quantity,
-              commission: lineCommission(
-                product.price * quantity,
-                commissionRateBps(product.categoryId),
-              ),
-              reviewed: false,
-            })),
+            items: sellerLines.map(({ product, quantity, options }) => {
+              const chosen = dishChoices(product, options);
+              const unitPrice = product.price + chosen.extra;
+              return {
+                itemId: this.deps.newId(),
+                productId: product.id,
+                title: titleWithOptions(product.title, chosen.options),
+                categoryId: product.categoryId,
+                unitPrice,
+                quantity,
+                commission: lineCommission(
+                  unitPrice * quantity,
+                  commissionRateBps(product.categoryId),
+                ),
+                reviewed: false,
+                options: chosen.options.length ? chosen.options : null,
+              };
+            }),
             deliveryFee: rate.price,
             courierShare: rate.courierShare,
             refundedAmount: 0,
@@ -1803,6 +1876,7 @@ export class DemoApi {
       if (b.payoutOperator !== undefined) shop.payoutOperator = b.payoutOperator;
       if (b.payoutAccountName !== undefined) shop.payoutAccountName = b.payoutAccountName;
       if (b.acceptTerms) shop.termsAccepted = true;
+      if (b.shopType !== undefined) shop.shopType = b.shopType;
       return this.shopView(shop);
     });
     this.on('GET', '/v1/seller/kyc', ({ user }): Ok<'/v1/seller/kyc', 'get'> =>
@@ -2257,6 +2331,7 @@ export class DemoApi {
           photos: [],
           createdAt: this.iso(),
           updatedAt: this.iso(),
+          options: dishOptionsOf(body.options),
         });
         return { id, status };
       },
@@ -2272,6 +2347,7 @@ export class DemoApi {
       if (b.stock !== undefined) p.stock = Number(b.stock);
       if (b.condition !== undefined) p.condition = b.condition as S['ProductCondition'];
       if (b.lowStockThreshold !== undefined) p.lowStockThreshold = Number(b.lowStockThreshold);
+      if (b.options !== undefined) p.options = dishOptionsOf(b.options);
       if (b.status === 'archived') p.status = 'archived';
       if (b.status === 'published')
         p.status =

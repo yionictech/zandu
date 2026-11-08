@@ -221,6 +221,34 @@ export const fr = {
     food: 'Repas',
     loyalty: 'Mes points',
   },
+  food: {
+    title: 'Repas',
+    intro: 'Plats préparés par les restaurants de votre ville, livrés chauds par un livreur Zandu.',
+    open: 'Ouvert',
+    closed: 'Fermé',
+    prep: (minutes: number) => `Prêt en ${minutes} min environ`,
+    dishes: (n: number) => `${n} plat${n > 1 ? 's' : ''}`,
+    none: 'Aucun restaurant dans votre ville pour le moment.',
+    menu: 'Menu',
+    required: 'à choisir',
+    chooseFirst: (names: string) => `Choisissez d'abord : ${names}`,
+    closedNow:
+      'Fermé pour le moment : vous pouvez commander, le restaurant préparera à l’ouverture.',
+    restaurant: 'Restaurant',
+    restaurantHint:
+      'Plats préparés : votre boutique apparaît dans « Repas » ; chaque commande doit être acceptée en 15 minutes.',
+    optionsTitle: 'Choix du client',
+    optionsHint:
+      'Ex. Taille (Normal, Grand +1 000), Accompagnement (Alloco, Manioc). 3 choix au plus.',
+    groupName: 'Nom du choix',
+    choiceLabel: 'Proposition',
+    extra: 'Supplément',
+    addChoice: '+ Proposition',
+    addGroup: '+ Ajouter un choix',
+    removeGroup: 'Retirer ce choix',
+    saveOptions: 'Enregistrer les choix',
+    saved: 'Choix enregistrés.',
+  },
   parcel: {
     title: 'Envoyer un colis',
     intro:

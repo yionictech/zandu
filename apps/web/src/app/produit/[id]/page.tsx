@@ -169,17 +169,35 @@ export default async function ProductPage({ params }: { params: Params }) {
               shopName: p.seller.shopName,
             }}
           />
-          <AddToCart
-            line={{
-              productId: p.id,
-              title: p.title,
-              price: p.price,
-              coverImage: p.coverImage,
-              sellerId: p.seller.id,
-              shopName: p.seller.shopName,
-              stock: p.stock,
-            }}
-          />
+          {p.options?.length ? (
+            // Plat à choisir (taille, accompagnement) : la commande se fait dans l'application.
+            <div className="card" data-testid="dish-in-app">
+              <strong>Plat à composer</strong>
+              {p.options.map((g) => (
+                <div key={g.name} className="small muted">
+                  {g.name} :{' '}
+                  {g.choices
+                    .map((c) => (c.extra ? `${c.label} (+${formatXaf(c.extra)})` : c.label))
+                    .join(', ')}
+                </div>
+              ))}
+              <div className="small">
+                Commandez ce plat dans l&apos;application Zandu, rayon Repas.
+              </div>
+            </div>
+          ) : (
+            <AddToCart
+              line={{
+                productId: p.id,
+                title: p.title,
+                price: p.price,
+                coverImage: p.coverImage,
+                sellerId: p.seller.id,
+                shopName: p.seller.shopName,
+                stock: p.stock,
+              }}
+            />
+          )}
           <Link
             href={`/boutique/${p.seller.slug}`}
             className="card info-row"

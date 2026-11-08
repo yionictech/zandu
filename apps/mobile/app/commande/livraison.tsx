@@ -92,7 +92,11 @@ export default function DeliveryScreen() {
     setBusy(true);
     setError(null);
     const body = {
-      items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      items: lines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        ...(l.options?.length ? { options: l.options } : {}),
+      })),
       delivery: {
         mode: address.mode,
         zoneId: address.zoneId!,

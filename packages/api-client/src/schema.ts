@@ -404,6 +404,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/restaurants': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Restaurants de la ville (rayon Repas)
+     * @description Ouverts maintenant d'abord ; boutiques en congé et sans plat exclues.
+     */
+    get: operations['listRestaurants'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/parcels/quote': {
     parameters: {
       query?: never;
@@ -2667,6 +2687,7 @@ export interface components {
       sellerEvidenceCount: number;
     };
     SellerShop: {
+      shopType: components['schemas']['ShopType'];
       /** Format: uuid */
       id: string;
       shopName: string;
@@ -3079,6 +3100,7 @@ export interface components {
       };
     };
     SellerProduct: {
+      options: null | components['schemas']['DishOptions'];
       /** Format: uuid */
       id: string;
       title: string;
@@ -3266,6 +3288,14 @@ export interface components {
         quantity: number;
         lineTotal: components['schemas']['Amount'];
         reviewed: boolean;
+        /** @description Choix du plat (prix unitaire suppléments compris) */
+        options?:
+          | null
+          | {
+              group: string;
+              choice: string;
+              extra: components['schemas']['Amount'];
+            }[];
       }[];
       itemsSubtotal: components['schemas']['Amount'];
       deliveryFee: components['schemas']['Amount'];
@@ -3303,6 +3333,22 @@ export interface components {
       /** @description Envoi de colis — taille et contenu (null pour un achat) */
       parcel: null | components['schemas']['ParcelContent'];
     };
+    /**
+     * @description restaurant = plats préparés (rayon Repas, acceptation en 15 minutes)
+     * @enum {string}
+     */
+    ShopType: 'shop' | 'restaurant';
+    /** @description Choix obligatoires d'un plat (3 au plus), chacun avec ses propositions */
+    DishOptions: {
+      /** @example Accompagnement */
+      name: string;
+      choices: {
+        /** @example Alloco */
+        label: string;
+        /** @description Supplément */
+        extra: number;
+      }[];
+    }[];
     ParcelPickup: {
       name: string;
       phone: string;
@@ -3944,6 +3990,9 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProductCard'] & {
+            /** @description Plat d'un restaurant */
+            isDish: boolean;
+            options: null | components['schemas']['DishOptions'];
             description: string;
             /** @description Photos dans l'ordre d'affichage, en grande image (800 px au plus, WebP) ; l'original tant que le worker ne les a pas déclinées. */
             media: {
@@ -4120,6 +4169,7 @@ export interface operations {
           payoutAccountName?: string;
           /** @enum {boolean} */
           acceptTerms?: true;
+          shopType?: components['schemas']['ShopType'];
         };
       };
     };
@@ -4211,6 +4261,47 @@ export interface operations {
         };
       };
       422: components['responses']['Error'];
+    };
+  };
+  listRestaurants: {
+    parameters: {
+      query?: {
+        city?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              id: string;
+              shopName: string;
+              slug: string;
+              city: string;
+              zone: string;
+              verified: boolean;
+              ratingAvg: number | null;
+              ratingCount: number;
+              prepMinutes: components['schemas']['PrepMinutes'];
+              openingHours: string | null;
+              dishCount: number;
+              /** Format: uri */
+              coverImage: string | null;
+              openNow: boolean;
+            }[];
+          };
+        };
+      };
+      400: components['responses']['Error'];
     };
   };
   parcelQuote: {
@@ -4796,6 +4887,7 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
+          options?: null | components['schemas']['DishOptions'];
           /** Format: uuid */
           categoryId: string;
           title: string;
@@ -5167,6 +5259,8 @@ export interface operations {
             /** Format: uuid */
             productId: string;
             quantity: number;
+            /** @description Plat de restaurant : une proposition par choix, dans l'ordre des choix du plat (« Grand », « Alloco ») */
+            options?: string[];
           }[];
           delivery: {
             /** @enum {string} */
@@ -6658,6 +6752,8 @@ export interface operations {
           lowStockThreshold?: number;
           /** @enum {string} */
           status?: 'archived' | 'published';
+          /** @description Options du plat ; null ou [] les retire. */
+          options?: null | components['schemas']['DishOptions'];
         };
       };
     };

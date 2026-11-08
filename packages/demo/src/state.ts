@@ -38,6 +38,7 @@ export interface DShop {
   soldCategoryIds: string[];
   termsAccepted: boolean;
   kycDocuments: Array<{ id: string; type: S['KycDocumentType']; createdAt: string }>;
+  shopType?: S['ShopType'];
 }
 
 export interface DProduct {
@@ -57,6 +58,8 @@ export interface DProduct {
   photos: Array<{ id: string; url: string }>;
   createdAt: string;
   updatedAt: string;
+  /** Options d'un plat (restaurants). */
+  options?: S['DishOptions'] | null;
 }
 
 export interface DReview {
@@ -82,6 +85,8 @@ export interface DItem {
   quantity: number;
   commission: number;
   reviewed: boolean;
+  /** Choix du plat (restaurants) ; unitPrice comprend les suppléments. */
+  options?: Array<{ group: string; choice: string; extra: number }> | null;
 }
 
 export interface DDelivery {
