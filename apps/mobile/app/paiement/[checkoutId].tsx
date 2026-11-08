@@ -305,6 +305,24 @@ export default function PaymentScreen() {
             </View>
           </View>
         ) : null}
+        {firstOrder?.kind === 'ride' ? (
+          <View style={styles.product} testID="payment-ride">
+            <View style={styles.productIcon}>
+              <PackageIcon color={colors.brand} size={22} strokeWidth={1.8} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.productTitle} numberOfLines={1}>
+                {t.ride.kind}
+              </Text>
+              <Text style={styles.muted} numberOfLines={1}>
+                {t.parcel.route(
+                  String(firstOrder.pickupAddress?.zone ?? ''),
+                  String(firstOrder.shippingAddress.landmark),
+                )}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         {firstOrder?.kind === 'parcel' && firstOrder.parcel ? (
           <View style={styles.product} testID="payment-parcel">
             <View style={styles.productIcon}>

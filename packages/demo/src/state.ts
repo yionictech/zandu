@@ -151,7 +151,7 @@ export interface DOrder {
   delivery: DDelivery | null;
   dispute: DDispute | null;
   /** Envoi de colis entre particuliers (absent : achat en boutique). */
-  kind?: 'shop' | 'parcel';
+  kind?: 'shop' | 'parcel' | 'ride';
   pickup?: {
     name: string;
     phone: string;
@@ -161,6 +161,8 @@ export interface DOrder {
   } | null;
   parcel?: { size: S['ParcelSize']; description: string } | null;
   pointsUsed?: number;
+  /** Moto-taxi : distance et temps estimés. */
+  trip?: { distanceMeters: number; etaMinutes: number } | null;
 }
 
 export interface DCheckout {

@@ -276,8 +276,8 @@ export async function applyCollectionSignal(
     );
     for (const order of orders) {
       await applyOrderEvent(ctx, tx, order.id, { type: 'payment_succeeded' }, SYSTEM);
-      // Envoi de colis : pas de vendeur à attendre, le colis est prêt à être enlevé.
-      if (order.kind === 'parcel')
+      // Envoi de colis, course : pas de vendeur à attendre, prêt pour le livreur.
+      if (order.kind !== 'shop')
         await applyOrderEvent(ctx, tx, order.id, { type: 'parcel_confirmed' }, SYSTEM);
     }
     return;

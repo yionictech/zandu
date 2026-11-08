@@ -89,28 +89,48 @@ function Pickup({
       <PersonCard
         name={m.pickup.shopName}
         line={
-          m.kind === 'parcel'
-            ? `${t.rider.parcelBadge} · ${m.pickup.zone} · ${m.pickup.landmark ?? ''}`
+          m.kind !== 'shop'
+            ? `${m.kind === 'ride' ? t.rider.rideBadge : t.rider.parcelBadge} · ${m.pickup.zone} · ${m.pickup.landmark ?? ''}`
             : `${m.pickup.zone}, ${m.pickup.city} · ${m.publicRef}`
         }
         phone={m.pickup.phone}
-        appCall={() => startCall.mutate(m.kind === 'parcel' ? 'buyer' : 'seller')}
+        appCall={() => startCall.mutate(m.kind !== 'shop' ? 'buyer' : 'seller')}
       />
       {m.pickupCode ? (
         <ShowCode
-          title={m.kind === 'parcel' ? t.rider.parcelPickupCodeTitle : t.rider.pickupCodeTitle}
+          title={
+            m.kind === 'ride'
+              ? t.rider.ridePickupCodeTitle
+              : m.kind === 'parcel'
+                ? t.rider.parcelPickupCodeTitle
+                : t.rider.pickupCodeTitle
+          }
           code={m.pickupCode}
-          hint={m.kind === 'parcel' ? t.rider.parcelPickupCodeHint : t.rider.pickupCodeHint}
+          hint={
+            m.kind === 'ride'
+              ? t.rider.ridePickupCodeHint
+              : m.kind === 'parcel'
+                ? t.rider.parcelPickupCodeHint
+                : t.rider.pickupCodeHint
+          }
           testID="rider-pickup-code"
         />
       ) : null}
       {m.pickupConfirmedAt ? (
         <Note icon={CircleCheck}>
-          {m.kind === 'parcel' ? t.rider.parcelPickupConfirmed : t.rider.pickupConfirmed}
+          {m.kind === 'ride'
+            ? t.rider.ridePickupConfirmed
+            : m.kind === 'parcel'
+              ? t.rider.parcelPickupConfirmed
+              : t.rider.pickupConfirmed}
         </Note>
       ) : (
         <Note icon={Hourglass} tone="waiting">
-          {m.kind === 'parcel' ? t.rider.parcelPickupWaiting : t.rider.pickupWaiting}
+          {m.kind === 'ride'
+            ? t.rider.ridePickupWaiting
+            : m.kind === 'parcel'
+              ? t.rider.parcelPickupWaiting
+              : t.rider.pickupWaiting}
         </Note>
       )}
       <Card>
@@ -371,7 +391,7 @@ function Return({
         name={m.pickup.shopName}
         line={`${m.pickup.zone}, ${m.pickup.city}`}
         phone={m.pickup.phone}
-        appCall={() => startCall.mutate(m.kind === 'parcel' ? 'buyer' : 'seller')}
+        appCall={() => startCall.mutate(m.kind !== 'shop' ? 'buyer' : 'seller')}
       />
       {m.returnCode ? (
         <ShowCode

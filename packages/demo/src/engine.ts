@@ -5,6 +5,7 @@ import {
   allocatePoints,
   DomainError,
   earnedPoints,
+  rideQuote,
   isInCongo,
   LOYALTY,
   maxRedeemable,
@@ -385,6 +386,7 @@ export class DemoApi {
           }
         : null,
       parcel: o.parcel ?? null,
+      trip: o.trip ?? null,
       id: o.id,
       publicRef: o.publicRef,
       checkoutId: o.checkoutId,
@@ -459,6 +461,7 @@ export class DemoApi {
       recipient: o.shippingAddress,
       kind: o.kind ?? 'shop',
       parcel: o.parcel ?? null,
+      trip: o.trip ?? null,
       pickup: o.pickup
         ? {
             shopName: o.pickup.name,
@@ -639,7 +642,7 @@ export class DemoApi {
         if (p) p.stock = Math.max(0, p.stock - item.quantity);
       }
       this.moveTo(o, 'paid', 'payment_succeeded');
-      if (o.kind === 'parcel') {
+      if (o.kind === 'parcel' || o.kind === 'ride') {
         this.parcelPaid(o);
         continue;
       }
@@ -731,6 +734,18 @@ export class DemoApi {
   private parcelPaid(o: DOrder): void {
     o.sellerAcceptDeadline = null;
     this.moveTo(o, 'ready_for_pickup', 'parcel_confirmed');
+    if (o.kind === 'ride') {
+      // Course : elle attend dans les courses disponibles ; le code de fin arrive par SMS.
+      this.sendHandoverCode(o);
+      this.notify(
+        o.buyerId,
+        'ride_paid',
+        'Course payée',
+        `Course ${o.publicRef} payée : un conducteur Zandu va l’accepter.`,
+        `/commande/${o.id}`,
+      );
+      return;
+    }
     this.notify(
       o.buyerId,
       'parcel_paid',
@@ -803,7 +818,7 @@ export class DemoApi {
     o.completedAt = this.iso();
     this.moveTo(o, 'completed', event);
     this.rewardOrder(o);
-    if (o.kind === 'parcel') return; // aucun vendeur à payer : le livreur et Zandu seulement
+    if (o.kind === 'parcel' || o.kind === 'ride') return; // pas de vendeur : livreur et Zandu
     const amount = this.sellerNet(o);
     this.state.payouts.unshift({
       id: this.deps.newId(),
@@ -824,6 +839,17 @@ export class DemoApi {
 
   private sendHandoverCode(o: DOrder): void {
     o.handoverCode = this.digits(6);
+    if (o.kind === 'ride') {
+      this.sms(o.shippingAddress.phone, 'ride_code', { code: o.handoverCode, ref: o.publicRef });
+      this.notify(
+        o.buyerId,
+        'ride_code',
+        'Code de fin de course',
+        `Code de fin de course ${o.publicRef} : ${o.handoverCode}. Donnez-le au conducteur à l’arrivée.`,
+        `/commande/${o.id}`,
+      );
+      return;
+    }
     if (o.kind === 'parcel') {
       // Le destinataire n'a pas forcément l'application : son code arrive par SMS.
       this.sms(o.shippingAddress.phone, 'parcel_recipient_code', {
@@ -1088,7 +1114,7 @@ export class DemoApi {
       const name = (id: string) => this.state.users.find((u) => u.id === id)?.fullName ?? null;
       const people = [
         { role: 'buyer' as const, userId: o.buyerId, name: shortName(name(o.buyerId)) ?? 'Client' },
-        ...(o.kind === 'parcel'
+        ...(o.kind === 'parcel' || o.kind === 'ride'
           ? []
           : [{ role: 'seller' as const, userId: shop.userId, name: shop.shopName }]),
         ...(o.delivery
@@ -1607,12 +1633,12 @@ export class DemoApi {
         );
       return { price: rate.price + extra[0], courierShare: rate.courierShare + extra[1] };
     };
-    const myParcel = (ctx: Ctx): DOrder => {
+    const myErrand = (ctx: Ctx, kind: 'parcel' | 'ride'): DOrder => {
       const me = ctx.user();
       const o = this.state.orders.find(
-        (x) => x.id === ctx.params.id && x.buyerId === me.id && x.kind === 'parcel',
+        (x) => x.id === ctx.params.id && x.buyerId === me.id && x.kind === kind,
       );
-      if (!o) throw notFound('Envoi');
+      if (!o) throw notFound(kind === 'ride' ? 'Course' : 'Envoi');
       return o;
     };
     this.on('GET', '/v1/parcels/quote', ({ user, query }): Ok<'/v1/parcels/quote', 'get'> => {
@@ -1718,25 +1744,23 @@ export class DemoApi {
       },
       201,
     );
-    this.on(
-      'POST',
-      '/v1/parcels/{id}/rider-pickup',
-      (ctx): Ok<'/v1/parcels/{id}/rider-pickup', 'post'> => {
-        const o = myParcel(ctx);
+    // Actions du client sur un envoi ou une course (comme errandActions sur le serveur).
+    for (const [prefix, kind] of [
+      ['/v1/parcels', 'parcel'],
+      ['/v1/rides', 'ride'],
+    ] as const) {
+      this.on('POST', `${prefix}/{id}/rider-pickup`, (ctx) => {
+        const o = myErrand(ctx, kind);
         const d = o.delivery;
         if (!d || d.status !== 'assigned')
-          throw conflict('no_rider_expected', 'Aucun livreur attendu pour ce colis');
+          throw conflict('no_rider_expected', 'Aucun livreur attendu');
         if (ctx.body.code !== d.pickupCode)
           throw new DemoError(422, 'invalid_pickup_code', 'Code de retrait incorrect');
         d.pickupConfirmedAt ??= this.iso();
         return { orderId: o.id, pickupConfirmedAt: d.pickupConfirmedAt };
-      },
-    );
-    this.on(
-      'POST',
-      '/v1/parcels/{id}/rider-return',
-      (ctx): Ok<'/v1/parcels/{id}/rider-return', 'post'> => {
-        const o = myParcel(ctx);
+      });
+      this.on('POST', `${prefix}/{id}/rider-return`, (ctx) => {
+        const o = myErrand(ctx, kind);
         const d = o.delivery;
         if (!d || d.status !== 'returning')
           throw conflict('no_return_expected', 'Aucun retour en cours');
@@ -1744,16 +1768,123 @@ export class DemoApi {
           throw new DemoError(422, 'invalid_return_code', 'Code de retour incorrect');
         d.returnConfirmedAt ??= this.iso();
         return { orderId: o.id, returnConfirmedAt: d.returnConfirmedAt };
-      },
-    );
-    this.on('POST', '/v1/parcels/{id}/cancel', (ctx): Ok<'/v1/parcels/{id}/cancel', 'post'> => {
-      const o = myParcel(ctx);
-      if (o.status !== 'ready_for_pickup' || o.delivery?.pickupConfirmedAt)
-        throw conflict('invalid_transition', 'Le livreur a déjà votre colis');
-      if (o.delivery) o.delivery.status = 'cancelled';
-      this.cancel(o, 'sender_cancelled', 'sender_cancelled', true);
-      return { id: o.id, status: o.status };
+      });
+      this.on('POST', `${prefix}/{id}/cancel`, (ctx) => {
+        const o = myErrand(ctx, kind);
+        if (o.status !== 'ready_for_pickup' || o.delivery?.pickupConfirmedAt)
+          throw conflict('invalid_transition', 'Le livreur a déjà le colis ou le passager');
+        if (o.delivery) o.delivery.status = 'cancelled';
+        this.cancel(o, 'sender_cancelled', 'sender_cancelled', true);
+        return { id: o.id, status: o.status };
+      });
+    }
+
+    // Moto-taxi ------------------------------------------------------------
+    const rideQuoteOf = (from: S['GeoPoint'], to: S['GeoPoint']) => {
+      if (!isInCongo(from) || !isInCongo(to))
+        throw new DemoError(
+          422,
+          'location_out_of_area',
+          'Le départ ou l’arrivée est hors du Congo',
+        );
+      try {
+        return rideQuote(from, to);
+      } catch (error) {
+        if (error instanceof DomainError) throw new DemoError(422, error.code, error.message);
+        throw error;
+      }
+    };
+    this.on('GET', '/v1/rides/quote', ({ user, query }): Ok<'/v1/rides/quote', 'get'> => {
+      user();
+      const r = rideQuoteOf(
+        { lat: Number(query.get('fromLat')), lng: Number(query.get('fromLng')) },
+        { lat: Number(query.get('toLat')), lng: Number(query.get('toLng')) },
+      );
+      return {
+        price: r.price,
+        currency: 'XAF',
+        distanceMeters: r.distanceMeters,
+        etaMinutes: r.etaMinutes,
+      };
     });
+    this.on('GET', '/v1/rides', ({ user }): Ok<'/v1/rides', 'get'> => {
+      const me = user();
+      return {
+        items: this.state.orders
+          .filter((o) => o.buyerId === me.id && o.kind === 'ride')
+          .map((o) => this.orderView(o)),
+      };
+    });
+    this.on(
+      'POST',
+      '/v1/rides',
+      ({ user, body }): Ok<'/v1/rides', 'post', 201> => {
+        const me = user();
+        type Stop = { zoneId: string; landmark: string; location: S['GeoPoint'] };
+        const pickup = body.pickup as Stop;
+        const destination = body.destination as Stop;
+        const r = rideQuoteOf(pickup.location, destination.location);
+        const name = String(body.passengerName ?? me.fullName ?? 'Passager Zandu');
+        const phone = parseCongoMobile(String(body.phone ?? me.phone)).e164;
+        const checkout: DCheckout = {
+          id: this.deps.newId(),
+          buyerId: me.id,
+          orderIds: [],
+          expiresAt: this.iso(PAYMENT_TTL_MS),
+          paidAt: null,
+          createdAt: this.iso(),
+        };
+        const order: DOrder = {
+          id: this.deps.newId(),
+          publicRef: this.publicRef(),
+          checkoutId: checkout.id,
+          buyerId: me.id,
+          sellerId: this.platformShopId(pickup.zoneId),
+          status: 'pending_payment',
+          items: [],
+          deliveryFee: r.price,
+          courierShare: r.courierShare,
+          refundedAmount: 0,
+          deliveryMode: 'home',
+          zoneId: destination.zoneId,
+          pickupPointId: null,
+          shippingAddress: {
+            recipientName: name,
+            phone,
+            landmark: destination.landmark,
+            location: destination.location,
+          },
+          handoverCode: '',
+          sellerAcceptDeadline: null,
+          readyPromisedAt: null,
+          disputeWindowEndsAt: null,
+          createdAt: this.iso(),
+          paidAt: null,
+          deliveredAt: null,
+          completedAt: null,
+          cancelledAt: null,
+          cancelReason: null,
+          history: [{ status: 'pending_payment', event: 'ride_created', at: this.iso() }],
+          delivery: null,
+          dispute: null,
+          kind: 'ride',
+          pickup: {
+            name,
+            phone,
+            landmark: pickup.landmark,
+            zoneId: pickup.zoneId,
+            location: pickup.location,
+          },
+          parcel: null,
+          trip: { distanceMeters: r.distanceMeters, etaMinutes: r.etaMinutes },
+        };
+        checkout.orderIds = [order.id];
+        this.state.orders.unshift(order);
+        this.state.checkouts.unshift(checkout);
+        return { checkoutId: checkout.id, orderId: order.id, total: r.price };
+      },
+      201,
+    );
 
     this.on(
       'GET',
@@ -2695,6 +2826,51 @@ export class DemoApi {
         }))((this.state.riderReviews ?? []).filter((r) => r.riderUserId === me.id)),
       };
     });
+    this.on('GET', '/v1/rider/offers', (ctx): Ok<'/v1/rider/offers', 'get'> => {
+      riderUser(ctx);
+      return {
+        items: this.state.orders
+          .filter(
+            (o) =>
+              (o.kind === 'parcel' || o.kind === 'ride') &&
+              o.status === 'ready_for_pickup' &&
+              !o.delivery,
+          )
+          .map((o) => ({
+            orderId: o.id,
+            publicRef: o.publicRef,
+            kind: o.kind as 'parcel' | 'ride',
+            earning: o.courierShare,
+            from: this.zone(o.pickup!.zoneId).name,
+            to: this.zone(o.zoneId).name,
+            city: this.zone(o.zoneId).city,
+            pickupLandmark: o.pickup?.landmark ?? null,
+            pickupLocation: o.pickup?.location ?? null,
+            parcel: o.parcel ?? null,
+            trip: o.trip ?? null,
+            paidAt: o.paidAt,
+          })),
+      };
+    });
+    this.on(
+      'POST',
+      '/v1/rider/offers/{id}/accept',
+      (ctx): Ok<'/v1/rider/offers/{id}/accept', 'post'> => {
+        riderUser(ctx);
+        const o = this.state.orders.find((x) => x.id === ctx.params.id);
+        if (!o || o.delivery || o.status !== 'ready_for_pickup' || o.kind === 'shop' || !o.kind)
+          throw conflict('offer_taken', 'Cette course a déjà été prise par un autre livreur');
+        this.assignRider(o);
+        this.notify(
+          o.buyerId,
+          o.kind === 'ride' ? 'ride_driver_coming' : 'parcel_rider_assigned',
+          o.kind === 'ride' ? 'Votre conducteur arrive' : 'Le livreur arrive',
+          `Votre ${o.kind === 'ride' ? 'conducteur' : 'livreur'} arrive (${o.publicRef}) : saisissez son code dans l’application.`,
+          `/commande/${o.id}`,
+        );
+        return this.mission(o);
+      },
+    );
     this.on('GET', '/v1/rider/deliveries', (ctx): Ok<'/v1/rider/deliveries', 'get'> => ({
       items: mine(riderUser(ctx))
         .filter((o) => ['assigned', 'picked_up', 'returning'].includes(o.delivery!.status))
@@ -2767,7 +2943,8 @@ export class DemoApi {
           `Votre commande ${o.publicRef} est en route.`,
           `/commande/${o.id}`,
         );
-        this.sendHandoverCode(o);
+        // Course : le code de fin a déjà été envoyé au paiement (comme sur le serveur).
+        if (o.kind !== 'ride') this.sendHandoverCode(o);
         return { id: o.id, status: o.status };
       },
     );

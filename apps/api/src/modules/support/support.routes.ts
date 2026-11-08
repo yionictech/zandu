@@ -91,7 +91,8 @@ export function supportRoutes(ctx: AppContext): FastifyPluginAsync {
     app.get('/v1/support/deliveries', async () => {
       const { rows } = await ctx.pool.query(
         `SELECT o.id AS "orderId", o.public_ref AS "publicRef", o.status AS "orderStatus",
-                o.delivery_mode AS "deliveryMode", CASE WHEN o.kind = 'parcel' THEN 'Envoi · ' || (o.pickup_address->>'name') ELSE s.shop_name END AS "shopName",
+                o.delivery_mode AS "deliveryMode", CASE o.kind WHEN 'parcel' THEN 'Envoi · ' || (o.pickup_address->>'name')
+                                WHEN 'ride' THEN 'Moto-taxi · ' || (o.pickup_address->>'name') ELSE s.shop_name END AS "shopName",
                 o.kind AS "kind", pz.name AS "pickupZone",
                 dz.name AS "destinationZone", dz.city, pp.name AS "pickupPoint", o.paid_at AS "paidAt",
                 (SELECT max(h.created_at) FROM order_status_history h

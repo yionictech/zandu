@@ -19,9 +19,19 @@ export type PinnedLocation = LatLng & { accuracy?: number };
 export function LocationPicker({
   value,
   onChange,
+  title,
+  hint,
+  start,
+  testPrefix = 'checkout-pin',
 }: {
   value: PinnedLocation | null;
   onChange: (value: PinnedLocation | null) => void;
+  /** Titre et texte d'aide (par défaut : « Votre porte sur la carte »). */
+  title?: string;
+  hint?: string;
+  /** Point de départ proposé quand on choisit sur la carte (ex. l'arrivée près du départ). */
+  start?: LatLng | null;
+  testPrefix?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -54,7 +64,7 @@ export function LocationPicker({
     <View style={styles.box}>
       <View style={styles.head}>
         <MapPin color={colors.danger} size={18} strokeWidth={1.8} />
-        <Text style={styles.title}>{t.checkout.pinTitle}</Text>
+        <Text style={styles.title}>{title ?? t.checkout.pinTitle}</Text>
         {value ? (
           <Pressable onPress={() => onChange(null)} hitSlop={12} accessibilityRole="button">
             <Text style={styles.remove}>{t.checkout.pinRemove}</Text>
@@ -71,21 +81,29 @@ export function LocationPicker({
             height={200}
             // Ajusté à la main : la précision du GPS ne vaut plus.
             onPick={(point) => onChange(point)}
-            label={t.checkout.pinTitle}
-            testID="checkout-pin-map"
+            label={title ?? t.checkout.pinTitle}
+            testID={`${testPrefix}-map`}
           />
           <Text style={styles.hint}>{t.checkout.pinAdjust}</Text>
         </>
       ) : (
         <>
-          <Text style={styles.hint}>{t.checkout.pinHint}</Text>
+          <Text style={styles.hint}>{hint ?? t.checkout.pinHint}</Text>
           <Button
             label={t.checkout.pinUse}
             variant="secondary"
             onPress={() => void locate()}
             loading={busy}
-            testID="checkout-pin"
+            testID={testPrefix}
           />
+          {start ? (
+            <Button
+              label={t.ride.pickOnMap}
+              variant="ghost"
+              onPress={() => onChange({ lat: start.lat + 0.004, lng: start.lng + 0.004 })}
+              testID={`${testPrefix}-on-map`}
+            />
+          ) : null}
         </>
       )}
       {problem ? <Text style={styles.hint}>{problem}</Text> : null}

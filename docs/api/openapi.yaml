@@ -869,6 +869,206 @@ paths:
                         openNow: { type: boolean }
         '400': { $ref: '#/components/responses/Error' }
 
+  /v1/rides/quote:
+    get:
+      tags: [Envois]
+      summary: Prix d'une course de moto-taxi
+      operationId: rideQuote
+      parameters:
+        - { name: fromLat, in: query, required: true, schema: { type: number } }
+        - { name: fromLng, in: query, required: true, schema: { type: number } }
+        - { name: toLat, in: query, required: true, schema: { type: number } }
+        - { name: toLng, in: query, required: true, schema: { type: number } }
+      responses:
+        '200':
+          description: Prix
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [price, currency, distanceMeters, etaMinutes]
+                properties:
+                  price: { $ref: '#/components/schemas/Amount' }
+                  currency: { type: string, const: XAF }
+                  distanceMeters: { type: integer }
+                  etaMinutes: { type: integer }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/rides:
+    get:
+      tags: [Envois]
+      summary: Mes courses de moto-taxi
+      operationId: myRides
+      responses:
+        '200': { $ref: '#/components/responses/OrderList' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Envois]
+      summary: Commander une course de moto-taxi
+      description: >-
+        Crée la course et le panier à payer (POST /v1/checkouts/{id}/payments). Une fois payée, elle
+        apparaît dans les courses disponibles des conducteurs ; le code de fin de course arrive par
+        SMS.
+      operationId: createRide
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickup, destination]
+              properties:
+                pickup: { $ref: '#/components/schemas/RideStop' }
+                destination: { $ref: '#/components/schemas/RideStop' }
+                phone: { type: string, description: Numéro du passager s'il diffère du compte }
+                passengerName: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '201':
+          description: Course créée, à payer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkoutId, orderId, total]
+                properties:
+                  checkoutId: { type: string, format: uuid }
+                  orderId: { type: string, format: uuid }
+                  total: { $ref: '#/components/schemas/Amount' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/rides/{id}/rider-pickup:
+    post:
+      tags: [Envois]
+      summary: Confirmer le code du conducteur en montant
+      operationId: rideConfirmRiderPickup
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Code confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, pickupConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  pickupConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/rides/{id}/rider-return:
+    post:
+      tags: [Envois]
+      summary: Code de retour (course interrompue)
+      operationId: rideConfirmRiderReturn
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Code4' }
+      responses:
+        '200':
+          description: Code confirmé
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, returnConfirmedAt]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  returnConfirmedAt: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/rides/{id}/cancel:
+    post:
+      tags: [Envois]
+      summary: Annuler une course avant le départ (remboursée en entier)
+      operationId: cancelRide
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/OrderStatusChange' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/offers:
+    get:
+      tags: [Livreur]
+      summary: Courses disponibles (envois et moto-taxis à accepter)
+      operationId: riderOffers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        [
+                          orderId,
+                          publicRef,
+                          kind,
+                          earning,
+                          from,
+                          to,
+                          city,
+                          pickupLandmark,
+                          pickupLocation,
+                          parcel,
+                          trip,
+                          paidAt,
+                        ]
+                      properties:
+                        orderId: { type: string, format: uuid }
+                        publicRef: { type: string }
+                        kind: { type: string, enum: [parcel, ride] }
+                        earning: { $ref: '#/components/schemas/Amount' }
+                        from: { type: string }
+                        to: { type: string }
+                        city: { type: string }
+                        pickupLandmark: { type: [string, 'null'] }
+                        pickupLocation:
+                          oneOf:
+                            - type: 'null'
+                            - $ref: '#/components/schemas/GeoPoint'
+                        parcel:
+                          oneOf:
+                            - type: 'null'
+                            - $ref: '#/components/schemas/ParcelContent'
+                        trip:
+                          oneOf:
+                            - type: 'null'
+                            - $ref: '#/components/schemas/Trip'
+                        paidAt: { type: [string, 'null'], format: date-time }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/rider/offers/{id}/accept:
+    post:
+      tags: [Livreur]
+      summary: Accepter une course disponible (le premier qui accepte la prend)
+      operationId: acceptRiderOffer
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Mission acceptée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RiderMission' }
+        '409': { $ref: '#/components/responses/Error' }
+
   /v1/parcels/quote:
     get:
       tags: [Envois]
@@ -5545,6 +5745,7 @@ components:
           contacts,
           kind,
           parcel,
+          trip,
         ]
       properties:
         orderId: { type: string, format: uuid }
@@ -5553,7 +5754,11 @@ components:
         publicRef: { type: string }
         deliveryMode: { type: string, enum: [home, pickup_point] }
         recipient: { $ref: '#/components/schemas/ShippingAddress' }
-        kind: { type: string, enum: [shop, parcel] }
+        kind: { type: string, enum: [shop, parcel, ride] }
+        trip:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/Trip'
         parcel:
           oneOf:
             - type: 'null'
@@ -5757,6 +5962,7 @@ components:
           pickupAddress,
           parcel,
           pointsUsed,
+          trip,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -5817,8 +6023,15 @@ components:
           description: Points fidélité utilisés pour cette commande (payés par Zandu)
         kind:
           type: string
-          enum: [shop, parcel]
-          description: shop = achat en boutique ; parcel = envoi de colis entre particuliers
+          enum: [shop, parcel, ride]
+          description: >-
+            shop = achat en boutique ; parcel = envoi de colis entre particuliers ; ride =
+            course de moto-taxi
+        trip:
+          description: Moto-taxi — distance (avec détour) et temps estimés
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/Trip'
         pickupAddress:
           description: Envoi de colis — où le livreur enlève le colis (null pour un achat)
           oneOf:
@@ -5829,6 +6042,19 @@ components:
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/ParcelContent'
+    Trip:
+      type: object
+      required: [distanceMeters, etaMinutes]
+      properties:
+        distanceMeters: { type: integer }
+        etaMinutes: { type: integer }
+    RideStop:
+      type: object
+      required: [zoneId, landmark, location]
+      properties:
+        zoneId: { type: string, format: uuid }
+        landmark: { type: string, minLength: 3, maxLength: 300 }
+        location: { $ref: '#/components/schemas/GeoPoint' }
     ShopType:
       type: string
       enum: [shop, restaurant]

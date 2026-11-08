@@ -47,11 +47,12 @@ export interface OrderRow {
   cancel_reason: string | null;
   version: number;
   created_at: Date;
-  kind: 'shop' | 'parcel';
+  kind: 'shop' | 'parcel' | 'ride';
   pickup_zone_id: string | null;
   pickup_address: Record<string, unknown> | null;
   parcel: { size: string; description: string } | null;
   points_used: number;
+  trip: { distanceMeters: number; etaMinutes: number } | null;
 }
 
 export async function lockOrder(tx: Tx, orderId: string): Promise<OrderRow> {
@@ -301,12 +302,14 @@ export interface OrderView {
   discountTotal: number;
   couponCode: string | null;
   /** « shop » : achat dans une boutique ; « parcel » : envoi de colis entre particuliers. */
-  kind: 'shop' | 'parcel';
+  kind: 'shop' | 'parcel' | 'ride';
   /** Envoi de colis : où le livreur enlève le colis, et ce qu'il contient. */
   pickupAddress: Record<string, unknown> | null;
   parcel: { size: string; description: string } | null;
   /** Points fidélité utilisés pour cette commande (déjà déduits du montant payé). */
   pointsUsed: number;
+  /** Moto-taxi : distance et temps estimés. */
+  trip: { distanceMeters: number; etaMinutes: number } | null;
 }
 
 type OrderViewRow = OrderRow & {
@@ -373,6 +376,7 @@ function toOrderView(r: OrderViewRow): OrderView {
     pickupAddress: r.pickup_address ? { ...r.pickup_address, zone: r.pickup_zone_name } : null,
     parcel: r.parcel,
     pointsUsed: Number(r.points_used),
+    trip: r.trip ?? null,
   };
 }
 

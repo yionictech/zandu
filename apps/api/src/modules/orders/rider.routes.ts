@@ -15,6 +15,8 @@ const Code4 = z.object({ code: z.string().regex(/^\d{4}$/) });
 
 /** Courses en cours : à récupérer, en route, au point relais, ou à rapporter au vendeur. */
 const ACTIVE = `('assigned', 'picked_up', 'at_pickup_point', 'returning')`;
+/** Courses acceptées en même temps au plus (offres disponibles). */
+const MAX_ACTIVE = 3;
 const TODAY = `date_trunc('day', $2::timestamptz AT TIME ZONE 'Africa/Brazzaville') AT TIME ZONE 'Africa/Brazzaville'`;
 
 const INCIDENTS = {
@@ -54,7 +56,8 @@ async function riderMissions(
     `SELECT d.order_id AS "orderId", d.status, o.status AS "orderStatus", o.public_ref AS "publicRef",
             o.delivery_mode AS "deliveryMode", o.shipping_address AS "recipient",
             o.kind::text AS "kind", o.parcel AS "parcel",
-            CASE WHEN o.kind = 'parcel'
+            o.trip AS "trip",
+            CASE WHEN o.kind <> 'shop'
                  THEN json_build_object('shopName', o.pickup_address->>'name', 'phone', o.pickup_address->>'phone',
                                         'city', pz.city, 'zone', pz.name, 'landmark', o.pickup_address->>'landmark',
                                         'location', o.pickup_address->'location')
@@ -206,6 +209,70 @@ export function riderRoutes(ctx: AppContext): FastifyPluginAsync {
         return {
           items: await riderMissions(ctx, `d.rider_id = $1 AND d.status IN ${ACTIVE}`, [r.id]),
         };
+      });
+
+      /**
+       * Courses disponibles : envois de colis et moto-taxis payés qui attendent un livreur, à
+       * accepter soi-même (les achats en boutique restent assignés par le support). Trois
+       * courses en cours au plus par livreur.
+       */
+      rider.get('/v1/rider/offers', async (request) => {
+        await riderOf(ctx.pool, currentUser(request).id);
+        const { rows } = await ctx.pool.query(
+          `SELECT o.id AS "orderId", o.public_ref AS "publicRef", o.kind::text AS kind,
+                  o.courier_share::int AS "earning", pz.name AS "from", dz.name AS "to", dz.city,
+                  o.pickup_address->>'landmark' AS "pickupLandmark",
+                  o.pickup_address->'location' AS "pickupLocation",
+                  o.parcel AS parcel, o.trip AS trip, o.paid_at AS "paidAt"
+           FROM deliveries d JOIN orders o ON o.id = d.order_id
+           JOIN delivery_zones pz ON pz.id = o.pickup_zone_id
+           JOIN delivery_zones dz ON dz.id = o.delivery_zone_id
+           WHERE d.status = 'awaiting_assignment' AND o.status = 'ready_for_pickup' AND o.kind <> 'shop'
+           ORDER BY o.paid_at LIMIT 50`,
+        );
+        return { items: rows };
+      });
+
+      rider.post('/v1/rider/offers/:id/accept', async (request) => {
+        const { id } = IdParam.parse(request.params);
+        const a = actor(request, 'rider');
+        await withTx(ctx.pool, async (tx) => {
+          const r = await riderOf(tx, a.userId);
+          const { rows: busy } = await tx.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM deliveries WHERE rider_id = $1 AND status IN ${ACTIVE}`,
+            [r.id],
+          );
+          if (busy[0]!.n >= MAX_ACTIVE)
+            throw new HttpError(409, 'too_many_missions', 'Terminez d’abord vos courses en cours');
+          // Premier arrivé, premier servi : la ligne n'est prise que si elle attend encore.
+          const { rowCount } = await tx.query(
+            `UPDATE deliveries d SET rider_id = $2, courier_partner_id = $3, status = 'assigned',
+                    assigned_at = $4, pickup_code = $5, pickup_confirmed_at = NULL
+             FROM orders o
+             WHERE d.order_id = $1 AND o.id = d.order_id AND d.status = 'awaiting_assignment'
+               AND o.status = 'ready_for_pickup' AND o.kind <> 'shop'`,
+            [id, r.id, r.courier_partner_id, now(), randomDigits(4)],
+          );
+          if (!rowCount)
+            throw new HttpError(
+              409,
+              'offer_taken',
+              'Cette course a déjà été prise par un autre livreur',
+            );
+          const { rows: names } = await tx.query<{ full_name: string | null }>(
+            'SELECT full_name FROM users WHERE id = $1',
+            [a.userId],
+          );
+          await publish(
+            tx,
+            'order.rider_assigned',
+            { type: 'order', id },
+            { rider: names[0]?.full_name?.split(' ')[0] ?? 'Votre livreur' },
+            now(),
+          );
+        });
+        const [mission] = await riderMissions(ctx, 'd.order_id = $1', [id]);
+        return mission;
       });
 
       /** Courses terminées : livrées, rapportées au vendeur ou échouées. */

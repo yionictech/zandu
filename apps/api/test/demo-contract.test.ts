@@ -550,6 +550,47 @@ describe('Démonstration locale ⇄ contrat OpenAPI', () => {
       canEnterCode: false,
     });
 
+    // Moto-taxi : prix, course payée, visible dans les courses disponibles, acceptée.
+    const from = { lat: -4.7761, lng: 11.8635 };
+    const to = { lat: -4.7612, lng: 11.8735 };
+    const rq = call(buyer, 'GET', '/v1/rides/quote', {
+      query: {
+        fromLat: String(from.lat),
+        fromLng: String(from.lng),
+        toLat: String(to.lat),
+        toLng: String(to.lng),
+      },
+    });
+    const zonesForRide = call<any[]>(null, 'GET', '/v1/delivery/zones');
+    const ride = call(buyer, 'POST', '/v1/rides', {
+      body: {
+        pickup: { zoneId: zonesForRide[0].id, landmark: 'Rond-point', location: from },
+        destination: { zoneId: TIE_TIE, landmark: 'École', location: to },
+      },
+      expect: 201,
+    });
+    expect(ride.total).toBe(rq.price);
+    const ridePay = call(buyer, 'POST', '/v1/checkouts/{id}/payments', {
+      params: { id: ride.checkoutId },
+      body: { operator: 'mtn', phone: '06 612 34 98' },
+      expect: 201,
+    });
+    call(null, 'POST', '/dev/simulator/collections/{id}/{outcome}', {
+      params: { id: ridePay.id, outcome: 'approve' },
+    });
+    const driver = login(DEMO_ACCOUNTS.rider.phone);
+    const offers = call(driver, 'GET', '/v1/rider/offers');
+    expect(offers.items.map((o: any) => o.orderId)).toContain(ride.orderId);
+    const taken = call(driver, 'POST', '/v1/rider/offers/{id}/accept', {
+      params: { id: ride.orderId },
+    });
+    expect(taken).toMatchObject({ kind: 'ride', status: 'assigned' });
+    call(buyer, 'POST', '/v1/rides/{id}/rider-pickup', {
+      params: { id: ride.orderId },
+      body: { code: taken.pickupCode },
+    });
+    expect(call(buyer, 'GET', '/v1/rides').items[0].trip.distanceMeters).toBeGreaterThan(0);
+
     // Envoi de colis : prix, création, paiement ; la course part au livreur de démonstration.
     const zones = call<any[]>(null, 'GET', '/v1/delivery/zones');
     const lumumba = zones.find((z) => z.name.startsWith('Lumumba')).id;

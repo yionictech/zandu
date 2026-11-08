@@ -292,6 +292,7 @@ function RiderOnTheWay({ orderId }: { orderId: string }) {
  * (remboursée) tant que le livreur n'a pas le colis.
  */
 function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }) {
+  const ride = order.kind === 'ride';
   const [code, setCode] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const tracking = useQuery({
@@ -303,8 +304,14 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
   const act = useMutation({
     mutationFn: async (kind: 'pickup' | 'return' | 'cancel') => {
       const path = { params: { path: { id: order.id } } };
-      if (kind === 'cancel') return unwrap(await api.POST('/v1/parcels/{id}/cancel', path));
       const params = { ...path, body: { code } };
+      if (ride) {
+        if (kind === 'cancel') return unwrap(await api.POST('/v1/rides/{id}/cancel', path));
+        return kind === 'pickup'
+          ? unwrap(await api.POST('/v1/rides/{id}/rider-pickup', params))
+          : unwrap(await api.POST('/v1/rides/{id}/rider-return', params));
+      }
+      if (kind === 'cancel') return unwrap(await api.POST('/v1/parcels/{id}/cancel', path));
       return kind === 'pickup'
         ? unwrap(await api.POST('/v1/parcels/{id}/rider-pickup', params))
         : unwrap(await api.POST('/v1/parcels/{id}/rider-return', params));
@@ -332,17 +339,22 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
           </View>
           <View style={styles.flex}>
             <Text style={styles.cardTitle}>
-              {t.parcel.kind}
+              {ride ? t.ride.kind : t.parcel.kind}
               {parcel ? ` · ${t.parcel.sizes[parcel.size].label}` : ''}
             </Text>
             <Text style={styles.muted} numberOfLines={2}>
-              {parcel?.description}
+              {ride && order.trip
+                ? t.ride.trip(
+                    (order.trip.distanceMeters / 1000).toFixed(1).replace('.', ','),
+                    order.trip.etaMinutes,
+                  )
+                : parcel?.description}
             </Text>
           </View>
         </View>
         {pickup ? (
           <>
-            <Eyebrow>{t.parcel.from}</Eyebrow>
+            <Eyebrow>{ride ? t.ride.from : t.parcel.from}</Eyebrow>
             <Text style={styles.body}>
               {String(pickup.name)} · {String(pickup.zone ?? '')}
             </Text>
@@ -350,25 +362,34 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
           </>
         ) : null}
         <Text style={styles.muted}>
-          {t.parcel.recipientSms(displayPhone(String(order.shippingAddress.phone)))}
+          {ride
+            ? t.ride.smsCode
+            : t.parcel.recipientSms(displayPhone(String(order.shippingAddress.phone)))}
         </Text>
         {SERVER_PICKER || DEMO ? (
-          <RecipientTestCode phone={String(order.shippingAddress.phone)} />
+          <RecipientTestCode
+            phone={String(order.shippingAddress.phone)}
+            template={ride ? 'ride_code' : 'parcel_recipient_code'}
+          />
         ) : null}
       </Card>
 
       {order.status === 'ready_for_pickup' && d?.deliveryStatus === 'awaiting_assignment' ? (
         <Note icon={Lock} tone="waiting">
-          {t.parcel.waitingRider}
+          {ride ? t.ride.waiting : t.parcel.waitingRider}
         </Note>
       ) : null}
       {riderExpected || returning ? (
         <Card highlight testID="parcel-code">
           <Eyebrow color={colors.brand}>
-            {returning ? t.parcel.returnTitle : t.parcel.riderCode}
+            {returning ? t.parcel.returnTitle : ride ? t.ride.driverCode : t.parcel.riderCode}
           </Eyebrow>
           <Text style={styles.muted}>
-            {returning ? t.parcel.returnHint : t.parcel.riderCodeHint}
+            {returning
+              ? t.parcel.returnHint
+              : ride
+                ? t.ride.driverCodeHint
+                : t.parcel.riderCodeHint}
           </Text>
           <CodeInput
             value={code}
@@ -379,7 +400,9 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
           />
           <ErrorText message={act.error ? errorMessage(act.error) : null} />
           <Button
-            label={returning ? t.parcel.confirmReturn : t.parcel.confirmCode}
+            label={
+              returning ? t.parcel.confirmReturn : ride ? t.ride.confirmCode : t.parcel.confirmCode
+            }
             onPress={() => act.mutate(returning ? 'return' : 'pickup')}
             disabled={code.length !== 4}
             loading={act.isPending}
@@ -388,7 +411,7 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
         </Card>
       ) : null}
       {d?.deliveryStatus === 'assigned' && d.pickupConfirmed ? (
-        <Note icon={Lock}>{t.parcel.handedOver}</Note>
+        <Note icon={Lock}>{ride ? t.ride.onBoard : t.parcel.handedOver}</Note>
       ) : null}
       {canCancel ? (
         confirmCancel ? (
@@ -408,7 +431,7 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
           </Card>
         ) : (
           <Button
-            label={t.parcel.cancel}
+            label={ride ? t.ride.cancel : t.parcel.cancel}
             variant="ghost"
             onPress={() => setConfirmCancel(true)}
             testID="parcel-cancel"
@@ -423,7 +446,7 @@ function ParcelPanel({ order, onChange }: { order: Order; onChange: () => void }
  * Démonstration et APK de test : le SMS du destinataire ne part pas, on le lit dans la boîte de
  * test (comme le code de connexion). Jamais dans la version des stores.
  */
-function RecipientTestCode({ phone }: { phone: string }) {
+function RecipientTestCode({ phone, template }: { phone: string; template: string }) {
   const [code, setCode] = useState<string | null>(null);
   const read = async () => {
     try {
@@ -434,7 +457,7 @@ function RecipientTestCode({ phone }: { phone: string }) {
       const { items } = (await res.json()) as {
         items: Array<{ template: string; variables: { code?: string } }>;
       };
-      setCode(items.find((m) => m.template === 'parcel_recipient_code')?.variables.code ?? '—');
+      setCode(items.find((m) => m.template === template)?.variables.code ?? '—');
     } catch {
       setCode('—');
     }
@@ -498,10 +521,13 @@ export default function OrderScreen() {
   const o = order.data;
   const address = o.shippingAddress;
 
-  const isParcel = o.kind === 'parcel';
+  // Envoi de colis ou moto-taxi : pas de boutique, panneau dédié.
+  const isParcel = o.kind === 'parcel' || o.kind === 'ride';
   const count = o.items.reduce((n, i) => n + i.quantity, 0);
   const summary = isParcel
-    ? t.parcel.kind
+    ? o.kind === 'ride'
+      ? t.ride.kind
+      : t.parcel.kind
     : o.items.length === 1
       ? `${o.items[0]!.quantity} × ${o.items[0]!.title}`
       : t.common.items(count);
@@ -531,12 +557,15 @@ export default function OrderScreen() {
           {isParcel
             ? t.parcel.route(
                 String(o.pickupAddress?.zone ?? ''),
-                String(o.shippingAddress.recipientName),
+                String(
+                  o.kind === 'ride' ? o.shippingAddress.landmark : o.shippingAddress.recipientName,
+                ),
               )
             : t.orders.headline(o.status, o.seller.shopName)}
         </Text>
         <Text style={styles.muted}>
-          {isParcel ? t.parcel.kind : o.seller.shopName} · {formatDateTime(o.createdAt)}
+          {isParcel ? (o.kind === 'ride' ? t.ride.kind : t.parcel.kind) : o.seller.shopName} ·{' '}
+          {formatDateTime(o.createdAt)}
         </Text>
       </Card>
 

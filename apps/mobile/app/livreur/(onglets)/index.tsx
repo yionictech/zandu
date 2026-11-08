@@ -5,6 +5,7 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { api, errorMessage, unwrap } from '../../../src/api';
 import { t } from '../../../src/i18n/fr';
 import { MissionCard } from '../../../src/rider/MissionCard';
+import { OffersList } from '../../../src/rider/OffersList';
 import { firstName, riderKeys, useRiderMe } from '../../../src/rider/ui';
 import { CheckRow, TabHeader } from '../../../src/seller/ui';
 import { colors, font, radius, space } from '../../../src/theme';
@@ -95,6 +96,8 @@ export default function RiderHome() {
         ) : (
           missions.data.map((m) => <MissionCard key={m.orderId} mission={m} />)
         )}
+
+        <OffersList />
 
         <Card>
           <Text style={styles.cardTitle}>{t.rider.beforeLeaving}</Text>

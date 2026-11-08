@@ -51,6 +51,15 @@ export const TEMPLATES: Record<string, (v: Vars) => string> = {
     `Zandu : +${v.points} points fidélité pour votre commande. 1 point = 1 FCFA de réduction.`,
   loyalty_referral_bonus: (v) =>
     `Zandu : +${v.points} points de parrainage ! Merci de faire connaître Zandu.`,
+  ride_paid: (v) =>
+    `Zandu : course ${v.ref} payée (${v.amount}). Un conducteur Zandu va accepter votre course.`,
+  ride_code: (v) =>
+    `Zandu : code de fin de course ${v.ref} : ${v.code}. Donnez-le au conducteur seulement à l'arrivée.`,
+  ride_driver_coming: (v) =>
+    `Zandu : ${v.rider} arrive pour votre course ${v.ref}. Saisissez son code dans l'application en montant.`,
+  ride_done: (v) => `Zandu : course ${v.ref} terminée. Merci d'avoir voyagé avec Zandu !`,
+  parcel_rider_assigned: (v) =>
+    `Zandu : ${v.rider} vient chercher votre colis ${v.ref}. Demandez-lui son code de retrait.`,
   parcel_paid: (v) =>
     `Zandu : envoi ${v.ref} payé (${v.amount}). Un livreur va venir chercher le colis ; votre argent reste bloqué jusqu'à la remise.`,
   parcel_recipient_code: (v) =>
@@ -94,6 +103,10 @@ export const PUSH: Record<string, { title: string; fallback: boolean }> = {
   buyer_refunded: { title: 'Remboursement envoyé', fallback: true },
   buyer_late_payment: { title: 'Paiement remboursé', fallback: true },
   parcel_paid: { title: 'Envoi payé', fallback: false },
+  ride_paid: { title: 'Course payée', fallback: false },
+  ride_driver_coming: { title: 'Votre conducteur arrive', fallback: true },
+  ride_done: { title: 'Course terminée', fallback: false },
+  parcel_rider_assigned: { title: 'Le livreur arrive', fallback: true },
   loyalty_earned: { title: 'Points gagnés', fallback: false },
   loyalty_referral_bonus: { title: 'Bonus de parrainage', fallback: false },
   parcel_picked_up: { title: 'Colis enlevé', fallback: false },

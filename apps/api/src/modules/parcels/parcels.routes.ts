@@ -84,7 +84,7 @@ export async function parcelQuote(db: Db, fromZoneId: string, toZoneId: string, 
  * avec un compte système sans connexion possible. Elle ne vend rien et ne reçoit jamais
  * d'argent (un envoi n'a pas d'articles).
  */
-async function platformShop(tx: Tx, zoneId: string): Promise<string> {
+export async function platformShop(tx: Tx, zoneId: string): Promise<string> {
   const existing = await tx.query<{ id: string }>(
     'SELECT id FROM seller_profiles WHERE is_platform',
   );
@@ -109,12 +109,13 @@ async function platformShop(tx: Tx, zoneId: string): Promise<string> {
 }
 
 /** Envoi de l'expéditeur connecté, verrouillé, avec sa livraison. */
-async function ownParcel(tx: Tx, orderId: string, userId: string) {
+async function ownErrand(tx: Tx, orderId: string, userId: string, kind: 'parcel' | 'ride') {
   const order = await lockOrder(tx, orderId);
   const { rows } = await tx.query<{ kind: string }>('SELECT kind FROM orders WHERE id = $1', [
     orderId,
   ]);
-  if (order.buyer_id !== userId || rows[0]?.kind !== 'parcel') throw notFound('Envoi');
+  if (order.buyer_id !== userId || rows[0]?.kind !== kind)
+    throw notFound(kind === 'ride' ? 'Course' : 'Envoi');
   const { rows: deliveries } = await tx.query<{
     id: string;
     status: string;
@@ -236,13 +237,28 @@ export function parcelRoutes(ctx: AppContext): FastifyPluginAsync {
       return { items };
     });
 
+    app.register(errandActions(ctx, '/v1/parcels', 'parcel'));
+  };
+}
+
+/**
+ * Actions du client sur un envoi ou une course : confirmer le code de retrait du livreur (il
+ * prend le colis, ou le passager monte), le code de retour, annuler avant l'enlèvement.
+ */
+export function errandActions(
+  ctx: AppContext,
+  prefix: string,
+  kind: 'parcel' | 'ride',
+): FastifyPluginAsync {
+  return async (app) => {
+    const now = () => ctx.clock.now();
     /** Le livreur montre son code de retrait : l'expéditeur le saisit et lui donne le colis. */
-    app.post('/v1/parcels/:id/rider-pickup', async (request) => {
+    app.post(`${prefix}/:id/rider-pickup`, async (request) => {
       const { id } = IdParam.parse(request.params);
       const { code } = Code4.parse(request.body);
       const userId = currentUser(request).id;
       const confirmedAt = await withTx(ctx.pool, async (tx) => {
-        const { delivery } = await ownParcel(tx, id, userId);
+        const { delivery } = await ownErrand(tx, id, userId, kind);
         if (delivery?.status !== 'assigned')
           throw new HttpError(409, 'no_rider_expected', 'Aucun livreur attendu pour ce colis');
         if (!sameCode(delivery.pickup_code, code))
@@ -258,12 +274,12 @@ export function parcelRoutes(ctx: AppContext): FastifyPluginAsync {
     });
 
     /** Colis rapporté (destinataire absent) : l'expéditeur saisit le code de retour du livreur. */
-    app.post('/v1/parcels/:id/rider-return', async (request) => {
+    app.post(`${prefix}/:id/rider-return`, async (request) => {
       const { id } = IdParam.parse(request.params);
       const { code } = Code4.parse(request.body);
       const userId = currentUser(request).id;
       const confirmedAt = await withTx(ctx.pool, async (tx) => {
-        const { delivery } = await ownParcel(tx, id, userId);
+        const { delivery } = await ownErrand(tx, id, userId, kind);
         if (delivery?.status !== 'returning')
           throw new HttpError(409, 'no_return_expected', 'Aucun retour en cours');
         if (!sameCode(delivery.return_code, code))
@@ -279,13 +295,17 @@ export function parcelRoutes(ctx: AppContext): FastifyPluginAsync {
     });
 
     /** Annuler tant que le livreur n'a pas le colis : remboursement complet. */
-    app.post('/v1/parcels/:id/cancel', async (request) => {
+    app.post(`${prefix}/:id/cancel`, async (request) => {
       const { id } = IdParam.parse(request.params);
       const a = actor(request, 'buyer');
       const o = await withTx(ctx.pool, async (tx) => {
-        const { delivery } = await ownParcel(tx, id, a.userId!);
+        const { delivery } = await ownErrand(tx, id, a.userId!, kind);
         if (delivery?.pickup_confirmed_at)
-          throw new HttpError(409, 'already_handed_over', 'Le livreur a déjà votre colis');
+          throw new HttpError(
+            409,
+            'already_handed_over',
+            kind === 'ride' ? 'Vous êtes déjà en route' : 'Le livreur a déjà votre colis',
+          );
         const order = await applyOrderEvent(ctx, tx, id, { type: 'sender_cancelled' }, a);
         if (delivery)
           await tx.query(`UPDATE deliveries SET status = 'cancelled' WHERE id = $1`, [delivery.id]);

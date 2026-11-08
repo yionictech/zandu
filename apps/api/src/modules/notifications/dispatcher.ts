@@ -46,7 +46,7 @@ interface OrderInfo {
   buyer_phone: string;
   seller_user_id: string;
   seller_phone: string;
-  kind: 'shop' | 'parcel';
+  kind: 'shop' | 'parcel' | 'ride';
   recipient_phone: string;
   sender_name: string | null;
 }
@@ -124,9 +124,32 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
       template,
       variables,
     });
+    if (o.kind === 'ride') {
+      // Moto-taxi : le passager est l'acheteur ; son code de fin de course arrive par SMS.
+      switch (event.topic) {
+        case 'order.paid':
+          return [toBuyer(o, 'ride_paid', { ref, amount: formatXaf(o.total) })];
+        case 'order.handover_code':
+          return [toBuyer(o, 'ride_code', { ref, code: String(event.payload.code) }, 'sms')];
+        case 'order.rider_assigned':
+          return [toBuyer(o, 'ride_driver_coming', { ref, rider: String(event.payload.rider) })];
+        case 'order.delivered':
+          return [toBuyer(o, 'ride_done', { ref })];
+        case 'order.cancelled': {
+          const refund = o.refunded_amount > 0 ? formatXaf(o.refunded_amount) : '';
+          return [toBuyer(o, 'order_cancelled', { ref, refund })];
+        }
+        case 'order.disputed':
+          return support(`Litige ouvert sur la course ${ref}`);
+        default:
+          return [];
+      }
+    }
     switch (event.topic) {
       case 'order.paid':
         return [toBuyer(o, 'parcel_paid', { ref, amount: formatXaf(o.total) })];
+      case 'order.rider_assigned':
+        return [toBuyer(o, 'parcel_rider_assigned', { ref, rider: String(event.payload.rider) })];
       case 'order.handover_code':
         return [
           toRecipient('parcel_recipient_code', { ref, code: String(event.payload.code), sender }),
@@ -164,7 +187,7 @@ async function messagesFor(ctx: AppContext, db: Db, event: OutboxRow): Promise<M
   if (event.topic.startsWith('order.')) {
     const o = await orderInfo(db, event.aggregate_id);
     // Messages et appels : mêmes règles que les commandes (la boutique plateforme n'y est pas).
-    if (o.kind === 'parcel' && event.topic !== 'order.message' && event.topic !== 'order.call')
+    if (o.kind !== 'shop' && event.topic !== 'order.message' && event.topic !== 'order.call')
       return parcelMessages(o);
     const ref = o.public_ref;
     switch (event.topic) {

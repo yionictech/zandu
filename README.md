@@ -58,8 +58,11 @@ Lancement prévu à Pointe-Noire, puis Brazzaville et la zone CEMAC.
 - **Points fidélité et parrainage** : 1 point par 100 FCFA payés, utilisables à la commande
   (réduction payée par Zandu, le vendeur reçoit tout), 1 000 points au parrain et au filleul.
   Guide : [fidélité et parrainage](docs/exploitation/fidelite-et-parrainage.md).
-- **310 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
-  contrat OpenAPI), douze parcours de bout en bout pilotés dans un navigateur, et un essai complet de
+- **Moto-taxi** : départ et arrivée sur la carte, prix à la distance avant de partir, payé en
+  séquestre ; les livreurs acceptent eux-mêmes les courses (et les envois) disponibles. Guide :
+  [moto-taxi](docs/exploitation/moto-taxi.md).
+- **314 tests automatiques** (dont tous les cas d'erreur de paiement du cahier des charges et un test de
+  contrat OpenAPI), treize parcours de bout en bout pilotés dans un navigateur, et un essai complet de
   la recette en conteneurs à chaque pull request.
 
 ![Nouvelle direction visuelle](docs/ux/captures/fondations-sombres.jpg)
@@ -102,7 +105,7 @@ pnpm install
 docker compose up -d
 cp .env.example .env && export $(grep -v '^#' .env | xargs)
 pnpm db:migrate && pnpm db:seed
-pnpm test            # 310 tests
+pnpm test            # 314 tests
 pnpm dev:api         # http://localhost:3000/health
 ```
 

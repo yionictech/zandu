@@ -475,6 +475,129 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/rides/quote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Prix d'une course de moto-taxi */
+    get: operations['rideQuote'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rides': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Mes courses de moto-taxi */
+    get: operations['myRides'];
+    put?: never;
+    /**
+     * Commander une course de moto-taxi
+     * @description Crée la course et le panier à payer (POST /v1/checkouts/{id}/payments). Une fois payée, elle apparaît dans les courses disponibles des conducteurs ; le code de fin de course arrive par SMS.
+     */
+    post: operations['createRide'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rides/{id}/rider-pickup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirmer le code du conducteur en montant */
+    post: operations['rideConfirmRiderPickup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rides/{id}/rider-return': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Code de retour (course interrompue) */
+    post: operations['rideConfirmRiderReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rides/{id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Annuler une course avant le départ (remboursée en entier) */
+    post: operations['cancelRide'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/offers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Courses disponibles (envois et moto-taxis à accepter) */
+    get: operations['riderOffers'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rider/offers/{id}/accept': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Accepter une course disponible (le premier qui accepte la prend) */
+    post: operations['acceptRiderOffer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/parcels/quote': {
     parameters: {
       query?: never;
@@ -3189,7 +3312,8 @@ export interface components {
       deliveryMode: 'home' | 'pickup_point';
       recipient: components['schemas']['ShippingAddress'];
       /** @enum {string} */
-      kind: 'shop' | 'parcel';
+      kind: 'shop' | 'parcel' | 'ride';
+      trip: null | components['schemas']['Trip'];
       parcel: null | components['schemas']['ParcelContent'];
       /** @description Boutique, ou expéditeur pour un envoi de colis (avec repère et carte) */
       pickup: {
@@ -3377,14 +3501,26 @@ export interface components {
       /** @description Points fidélité utilisés pour cette commande (payés par Zandu) */
       pointsUsed: number;
       /**
-       * @description shop = achat en boutique ; parcel = envoi de colis entre particuliers
+       * @description shop = achat en boutique ; parcel = envoi de colis entre particuliers ; ride = course de moto-taxi
        * @enum {string}
        */
-      kind: 'shop' | 'parcel';
+      kind: 'shop' | 'parcel' | 'ride';
+      /** @description Moto-taxi — distance (avec détour) et temps estimés */
+      trip: null | components['schemas']['Trip'];
       /** @description Envoi de colis — où le livreur enlève le colis (null pour un achat) */
       pickupAddress: null | components['schemas']['ParcelPickup'];
       /** @description Envoi de colis — taille et contenu (null pour un achat) */
       parcel: null | components['schemas']['ParcelContent'];
+    };
+    Trip: {
+      distanceMeters: number;
+      etaMinutes: number;
+    };
+    RideStop: {
+      /** Format: uuid */
+      zoneId: string;
+      landmark: string;
+      location: components['schemas']['GeoPoint'];
     };
     /**
      * @description restaurant = plats préparés (rayon Repas, acceptation en 15 minutes)
@@ -4464,6 +4600,234 @@ export interface operations {
         };
       };
       400: components['responses']['Error'];
+    };
+  };
+  rideQuote: {
+    parameters: {
+      query: {
+        fromLat: number;
+        fromLng: number;
+        toLat: number;
+        toLng: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Prix */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            price: components['schemas']['Amount'];
+            /** @constant */
+            currency: 'XAF';
+            distanceMeters: number;
+            etaMinutes: number;
+          };
+        };
+      };
+      422: components['responses']['Error'];
+    };
+  };
+  myRides: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderList'];
+      401: components['responses']['Error'];
+    };
+  };
+  createRide: {
+    parameters: {
+      query?: never;
+      header: {
+        'Idempotency-Key': components['parameters']['IdempotencyKey'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          pickup: components['schemas']['RideStop'];
+          destination: components['schemas']['RideStop'];
+          /** @description Numéro du passager s'il diffère du compte */
+          phone?: string;
+          passengerName?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Course créée, à payer */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            checkoutId: string;
+            /** Format: uuid */
+            orderId: string;
+            total: components['schemas']['Amount'];
+          };
+        };
+      };
+      422: components['responses']['Error'];
+    };
+  };
+  rideConfirmRiderPickup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Code confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            pickupConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  rideConfirmRiderReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Code4'];
+      };
+    };
+    responses: {
+      /** @description Code confirmé */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: date-time */
+            returnConfirmedAt: string;
+          };
+        };
+      };
+      409: components['responses']['Error'];
+      422: components['responses']['Error'];
+    };
+  };
+  cancelRide: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['OrderStatusChange'];
+      404: components['responses']['Error'];
+      409: components['responses']['Error'];
+    };
+  };
+  riderOffers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              /** Format: uuid */
+              orderId: string;
+              publicRef: string;
+              /** @enum {string} */
+              kind: 'parcel' | 'ride';
+              earning: components['schemas']['Amount'];
+              from: string;
+              to: string;
+              city: string;
+              pickupLandmark: string | null;
+              pickupLocation: null | components['schemas']['GeoPoint'];
+              parcel: null | components['schemas']['ParcelContent'];
+              trip: null | components['schemas']['Trip'];
+              /** Format: date-time */
+              paidAt: string | null;
+            }[];
+          };
+        };
+      };
+      403: components['responses']['Error'];
+    };
+  };
+  acceptRiderOffer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components['parameters']['Id'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Mission acceptée */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RiderMission'];
+        };
+      };
+      409: components['responses']['Error'];
     };
   };
   parcelQuote: {

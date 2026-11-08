@@ -83,6 +83,7 @@ export default function RootLayout() {
                 <Stack.Screen name="envoi/nouveau" options={{ title: t.parcel.title }} />
                 <Stack.Screen name="repas/index" options={{ title: t.food.title }} />
                 <Stack.Screen name="fidelite" options={{ title: t.loyalty.title }} />
+                <Stack.Screen name="moto" options={{ title: t.ride.title }} />
                 <Stack.Screen name="repas/[sellerId]" options={{ title: t.food.menu }} />
                 <Stack.Screen name="litige/[orderId]" options={{ title: t.dispute.title }} />
                 <Stack.Screen name="vendeur/ouvrir" options={{ title: t.seller.openTitle }} />
